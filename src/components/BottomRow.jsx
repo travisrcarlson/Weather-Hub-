@@ -252,7 +252,7 @@ export function getMoonTimes(sunriseTimeStr, sunsetTimeStr, agePct) {
 }
 
 // Helper to check transit progress
-function checkTransitPosition(nowDate, riseDate, setDate) {
+export function checkTransitPosition(nowDate, riseDate, setDate) {
   const nowMs = nowDate.getTime();
   const riseMs = riseDate.getTime();
   const setMs = setDate.getTime();

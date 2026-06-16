@@ -1,7 +1,7 @@
 import React from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
 import { ShieldAlert, Compass, Sun, Droplets, Map } from 'lucide-react';
-import { getMoonDetails } from './BottomRow';
+import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow';
 
 // Stations definition matching geographical landmarks
 export const stationsList = [
@@ -152,6 +152,50 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   const cloudOpacity = (cloudCover / 100) * 0.18;
   const rotationAngle = (windDir - 270 + 360) % 360;
 
+  // Sun & Moon Transit Calculations
+  const dailyData = apiData?.daily;
+  const currentTime = apiData?.current?.time;
+  const hasTransitData = dailyData?.sunrise?.[0] && dailyData?.sunset?.[0] && currentTime;
+
+  let sunTransit = { visible: false, progress: 0 };
+  let sunX = 0;
+  let sunY = 0;
+
+  let moonTransit = { visible: false, progress: 0 };
+  let moonX = 0;
+  let moonY = 0;
+  let moonDetails = null;
+
+  if (hasTransitData) {
+    try {
+      const sunriseStr = dailyData.sunrise[0];
+      const sunsetStr = dailyData.sunset[0];
+      const nowDate = new Date(currentTime);
+
+      // 1. Sun Transit
+      sunTransit = checkTransitPosition(nowDate, new Date(sunriseStr), new Date(sunsetStr));
+      if (sunTransit.visible) {
+        const theta = Math.PI - sunTransit.progress * Math.PI;
+        sunX = 250 + 180 * Math.cos(theta);
+        sunY = 200 - 110 * Math.sin(theta);
+      }
+
+      // 2. Moon Transit
+      moonDetails = getMoonDetails(dailyData.time[0]);
+      const moonriseDate = new Date(new Date(sunriseStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+      const moonsetDate = new Date(new Date(sunsetStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+
+      moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
+      if (moonTransit.visible) {
+        const theta = Math.PI - moonTransit.progress * Math.PI;
+        moonX = 250 + 160 * Math.cos(theta);
+        moonY = 200 - 95 * Math.sin(theta);
+      }
+    } catch (e) {
+      console.error('Error calculating celestial transits:', e);
+    }
+  }
+
   const mapContent = (
     <svg viewBox="30 57.5 440 185" className="w-full h-full select-none relative" preserveAspectRatio="xMidYMid meet">
       <defs>
@@ -224,6 +268,66 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           </text>
         </g>
       )}
+
+      {/* Sun & Moon Celestial Arcs and Transit Icons */}
+      <g className="pointer-events-none select-none">
+        {/* Sun Transit Arc */}
+        <path 
+          d="M 70 200 A 180 110 0 0 1 430 200" 
+          fill="none" 
+          stroke="#ff7a00" 
+          strokeWidth="1" 
+          strokeDasharray="3, 5" 
+          opacity="0.28" 
+        />
+
+        {/* Moon Transit Arc */}
+        <path 
+          d="M 90 200 A 160 95 0 0 1 410 200" 
+          fill="none" 
+          stroke="#38bdf8" 
+          strokeWidth="1" 
+          strokeDasharray="2, 4" 
+          opacity="0.24" 
+        />
+
+        {/* Glowing Sun Transit Icon */}
+        {sunTransit.visible && (
+          <g transform={`translate(${sunX}, ${sunY})`}>
+            {/* Pulsing solar halo */}
+            <circle cx="0" cy="0" r="10" fill="#ff7a00" opacity="0.35">
+              <animate attributeName="r" values="7;13;7" dur="3s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.45;0.1;0.45" dur="3s" repeatCount="indefinite" />
+            </circle>
+            {/* Outer solar ring */}
+            <circle cx="0" cy="0" r="5.5" fill="#f59e0b" opacity="0.8" />
+            {/* Sun core */}
+            <circle cx="0" cy="0" r="3" fill="#fff" />
+          </g>
+        )}
+
+        {/* Glowing Moon Transit Icon */}
+        {moonTransit.visible && (
+          <g transform={`translate(${moonX}, ${moonY})`}>
+            {/* Pulsing lunar halo */}
+            <circle cx="0" cy="0" r="9" fill="#38bdf8" opacity="0.3">
+              <animate attributeName="r" values="6;11;6" dur="4s" repeatCount="indefinite" />
+              <animate attributeName="opacity" values="0.35;0.1;0.35" dur="4s" repeatCount="indefinite" />
+            </circle>
+            {/* Moon emoji */}
+            <text 
+              x="0" 
+              y="2" 
+              fontSize="7.5" 
+              textAnchor="middle" 
+              dominantBaseline="central"
+              className="select-none pointer-events-none"
+            >
+              {moonDetails?.emoji || '🌙'}
+            </text>
+          </g>
+        )}
+      </g>
 
       {/* Interactive Station Pins */}
       {stationsList
