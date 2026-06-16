@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bgDeepSpace: #090B0E;
+  --color-cardDarkSlate: #121418;
+  --color-textIceWhite: #F8FAFC;
+  --color-safetyGreen: #10B981;
+  --color-amberAlert: #F59E0B;
+  --color-stopRed: #EF4444;
+  --color-edgeOrange: #FF4E02;
+  --color-uvPurple: #8B5CF6;
+  --color-windDanger: #DC2626;
+  --color-navyGradient: #0E1013;
+  
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Montserrat', sans-serif;
+  --animate-bounce-slow: bounce 3s infinite;
+}
+
+@layer base {
+  html, body, #root {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #090B0E;
+    color: #F8FAFC;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif !important;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  button {
+    font-family: 'Montserrat', sans-serif !important;
+    border-radius: 0px !important;
+  }
+
+  /* Force sharp corners on panels & buttons matching EDGE/REMAYA website styling */
+  .rounded-xl, .rounded-lg, .rounded-2xl, .rounded-md {
+    border-radius: 0px !important;
+  }
+}
+
+/* Custom CSS Scrollbar Hide */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Safety Alarm Animations */
+@keyframes red-alarm-flash {
+  0%, 100% {
+    background-color: #E74C3C;
+    border-color: #C0392B;
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.4);
+  }
+  50% {
+    background-color: #7B241C;
+    border-color: #922B21;
+    box-shadow: 0 0 5px rgba(231, 76, 60, 0.1);
+  }
+}
+
+.animate-red-flash {
+  animation: red-alarm-flash 1.2s infinite ease-in-out;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 78, 2, 0.5);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(255, 78, 2, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 78, 2, 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes grid-glow {
+  0%, 100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.animate-grid-glow {
+  animation: grid-glow 4s infinite ease-in-out;
+}
+
+@keyframes bounce-slow {
+  0%, 100% {
+    transform: translateY(-5%);
+    animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+  }
+  50% {
+    transform: none;
+    animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+  }
+}
+
+.animate-bounce-slow {
+  animation: bounce-slow 3s infinite;
+}
+
+/* Glassmorphism Global Overrides - Sharp Corporate Corners */
+.bg-cardDarkSlate {
+  background-color: rgba(18, 20, 24, 0.85) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border-radius: 0px !important;
+  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
+  transition: all 0.3s ease;
+}
+
+.bg-cardDarkSlate:hover {
+  border-color: rgba(255, 78, 2, 0.4) !important;
+  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 78, 2, 0.1);
+}
+
+/* Radar Sweep Animation */
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-radar-sweep {
+  transform-origin: 250px 150px;
+  animation: radar-sweep 12s linear infinite;
+}
+
