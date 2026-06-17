@@ -271,6 +271,11 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
       {/* Sun & Moon Celestial Arcs and Transit Icons */}
       <g className="pointer-events-none select-none">
+        {/* Telemetry Debug overlay */}
+        <text x="40" y="72" fill="#94a3b8" fontSize="4.5" fontWeight="black" className="font-mono">
+          {`DEBUG • TIME: ${apiData?.current?.time || 'N/A'} | SUN_X: ${sunX?.toFixed(1)} | PROG: ${sunTransit?.progress?.toFixed(3)} | VIS: ${sunTransit?.visible}`}
+        </text>
+
         {/* Sun Transit Arc */}
         <path 
           d="M 430 200 A 180 110 0 0 0 70 200" 
