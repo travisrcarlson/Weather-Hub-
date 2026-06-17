@@ -76,6 +76,18 @@ export default function App() {
   const [viewMode, setViewMode] = useState('ops');
   const [systemTime, setSystemTime] = useState(new Date());
 
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setSystemTime(new Date());
@@ -307,6 +319,143 @@ export default function App() {
   };
 
   const tvExtremes = getTvProjectedExtremes();
+
+  if (isMobile) {
+    return (
+      <div className="w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-14">
+        {/* Top Header bar (Z1) */}
+        <Header 
+          lastUpdated={lastUpdated} 
+          isOffline={isOffline} 
+          isSimulated={isSimulated}
+          onToggleSim={handleToggleSim}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          time={activeTime}
+          isMobile={true}
+        />
+
+        {/* Main Scrollable Content */}
+        <main className="w-full flex-grow overflow-y-auto px-4 py-3 select-none no-scrollbar">
+          {isOffline && (
+            <div className="bg-stopRed/95 text-white text-[9px] font-black uppercase text-center py-1.5 mb-3 tracking-widest animate-pulse border-b border-red-700">
+              ⚠️ DATA UNAVAILABLE • DISPLAYING CACHED OBSERVATIONS
+            </div>
+          )}
+
+          {mobileTab === 'live' && (
+            <div className="space-y-4">
+              <div className="h-auto">
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} />
+              </div>
+              <div className="h-auto">
+                <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 h-auto">
+                <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
+                <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
+              </div>
+              <div className="h-auto">
+                <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
+              </div>
+              <div className="grid grid-cols-2 gap-3 h-auto">
+                <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
+                <HydrationWidget data={activeDisplayData} />
+              </div>
+            </div>
+          )}
+
+          {mobileTab === 'map' && (
+            <div className="space-y-4 flex flex-col justify-between">
+              <div className="w-full aspect-[440/185] border border-slate-700/30 rounded bg-bgDeepSpace/40 overflow-hidden flex items-center justify-center">
+                <XRangeMap 
+                  apiData={data} 
+                  isSimulated={isSimulated} 
+                  activeStation={activeStation}
+                  setActiveStation={setActiveStation}
+                  isBackground={false}
+                  hideDetails={true}
+                  showSimulatedStations={true}
+                />
+              </div>
+              <div className="w-full">
+                <StationDetailsWidget 
+                  apiData={data} 
+                  isSimulated={isSimulated} 
+                  activeStation={activeStation} 
+                  setActiveStation={setActiveStation}
+                />
+              </div>
+            </div>
+          )}
+
+          {mobileTab === 'forecast' && (
+            <div className="space-y-4">
+              <div className="h-[200px]">
+                <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
+              </div>
+              <div className="h-[120px]">
+                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+              </div>
+              <div className="h-[220px]">
+                <HourlyForecast 
+                  hourlyData={data.hourly} 
+                  currentTime={activeTime} 
+                  dailyData={data.daily}
+                />
+              </div>
+              <div className="h-[150px]">
+                <DailyForecastWidget dailyData={data.daily} />
+              </div>
+            </div>
+          )}
+
+          {mobileTab === 'alerts' && (
+            <div className="space-y-4">
+              <div className="h-auto">
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} />
+              </div>
+              <div className="border border-slate-800 bg-cardDarkSlate p-4 rounded-xl">
+                <SafetyAdvisory data={activeDisplayData} />
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Mobile Navigation Bar */}
+        <nav className="absolute bottom-0 left-0 right-0 h-14 bg-cardDarkSlate border-t border-slate-800/80 flex flex-row items-stretch justify-around z-50 select-none">
+          <button 
+            onClick={() => setMobileTab('live')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'live' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">📊</span>
+            <span className="text-[9px] uppercase tracking-wider">Live</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('map')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'map' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">🗺️</span>
+            <span className="text-[9px] uppercase tracking-wider">Map</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('forecast')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'forecast' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">📅</span>
+            <span className="text-[9px] uppercase tracking-wider">Forecast</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('alerts')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'alerts' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className={`text-base ${globalSafety.status === 'RED' ? 'text-stopRed animate-pulse' : globalSafety.status === 'AMBER' ? 'text-amberAlert' : ''}`}>⚠️</span>
+            <span className="text-[9px] uppercase tracking-wider">Alerts</span>
+          </button>
+        </nav>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative">

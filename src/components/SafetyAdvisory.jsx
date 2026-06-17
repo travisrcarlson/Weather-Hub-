@@ -4,22 +4,22 @@ import { calculateSunscreenIntervals } from '../utils/safetyEngine';
 
 export default function SafetyAdvisory({ data }) {
   return (
-    <div className="w-full h-full text-slate-200 select-none p-5 flex flex-col justify-between overflow-hidden">
+    <div className="w-full h-full text-slate-200 select-none p-3 md:p-5 flex flex-col justify-between overflow-y-auto md:overflow-hidden no-scrollbar">
       {/* Title Header */}
       <div className="flex-none mb-3 border-b border-slate-800 pb-2">
         <p className="text-[10px] text-edgeOrange font-black uppercase tracking-widest leading-none mb-1">
           XRANGE • SAFETY STANDARDS
         </p>
-        <h1 className="text-lg font-black text-textIceWhite leading-none uppercase">
+        <h1 className="text-sm md:text-lg font-black text-textIceWhite leading-none uppercase">
           ADOSH Adverse Weather Advisory & Operational Guidelines
         </h1>
       </div>
 
       {/* Grid Content */}
-      <div className="h-[90%] grid grid-cols-3 gap-5 items-stretch flex-grow">
+      <div className="h-auto md:h-[90%] grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 items-stretch flex-grow mb-16 md:mb-0">
         
         {/* Left Column: Heat Stress & Hydration */}
-        <div className="h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <div className="h-auto md:h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(#80808005_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
           
           <div>
@@ -152,7 +152,7 @@ export default function SafetyAdvisory({ data }) {
         </div>
 
         {/* Center Column: Range Operations & Wind Safety */}
-        <div className="h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <div className="h-auto md:h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(#80808005_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
           
           <div>
@@ -233,7 +233,7 @@ export default function SafetyAdvisory({ data }) {
         </div>
 
         {/* Right Column: First Aid, PPE & Contacts */}
-        <div className="h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
+        <div className="h-auto md:h-full bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
           <div className="absolute inset-0 bg-[radial-gradient(#80808005_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
           
           <div>

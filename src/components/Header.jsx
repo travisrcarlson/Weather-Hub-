@@ -8,7 +8,8 @@ export default function Header({
   onToggleSim, 
   viewMode, 
   onViewModeChange,
-  time
+  time,
+  isMobile
 }) {
 
   const formatTime = (date) => {
@@ -30,6 +31,58 @@ export default function Header({
       timeZone: 'Asia/Dubai'
     });
   };
+
+  if (isMobile) {
+    return (
+      <header className="w-full h-14 bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-4 select-none relative z-50 flex-none">
+        <div className="flex items-center space-x-2">
+          <img 
+            src="/remaya_logo.png" 
+            alt="REMAYA" 
+            className="h-7 w-auto object-contain bg-white px-1.5 py-0.5 rounded border border-white/80" 
+          />
+          <div className="flex flex-col">
+            <h1 className="text-xs font-black tracking-wider text-textIceWhite uppercase leading-none">
+              XRANGE
+            </h1>
+            <span className="text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans">
+              SAFETY PORTAL
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center space-x-2">
+          {/* Clock */}
+          <div className="flex items-center space-x-1.5 text-textIceWhite bg-bgDeepSpace/40 px-2.5 py-1.5 rounded border border-slate-700/35">
+            <Clock className="w-3.5 h-3.5 text-edgeOrange" />
+            <span className="text-xs font-mono font-black tracking-wider leading-none">{formatTime(time)}</span>
+          </div>
+
+          {/* Simulation Toggle */}
+          <button
+            onClick={onToggleSim}
+            className={`flex items-center justify-center p-1.5 rounded border cursor-pointer ${
+              isSimulated
+                ? 'bg-edgeOrange/20 border-edgeOrange text-edgeOrange shadow-md shadow-edgeOrange/10'
+                : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-400 hover:text-textIceWhite hover:border-slate-650'
+            }`}
+            title="Toggle Weather Station Simulation Override"
+          >
+            <Cpu className={`w-3.5 h-3.5 ${isSimulated ? 'animate-pulse' : ''}`} />
+          </button>
+
+          {/* Connection Status */}
+          <div className="flex items-center justify-center p-1.5 rounded border border-slate-700/30 bg-bgDeepSpace/40">
+            {isOffline ? (
+              <WifiOff className="w-3.5 h-3.5 text-stopRed" />
+            ) : (
+              <Wifi className="w-3.5 h-3.5 text-safetyGreen animate-pulse" />
+            )}
+          </div>
+        </div>
+      </header>
+    );
+  }
 
   return (
     <header className="w-full h-[8%] bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-6 select-none relative z-50">

@@ -2,7 +2,7 @@ import React from 'react';
 import { CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { getProjectedAdvisories } from '../utils/safetyEngine';
 
-export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime }) {
+export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime, isMobile }) {
   if (!safetyEvaluation) return null;
 
   const { status, reasons, colors } = safetyEvaluation;
@@ -31,6 +31,60 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
         return 'CRITICAL HALT • SUSPEND ALL OUTDOOR RANGE OPERATIONS';
     }
   };
+
+  if (isMobile) {
+    return (
+      <div className={`w-full border rounded-xl p-3.5 flex flex-col space-y-2.5 transition-all duration-500 select-none ${colors.banner}`}>
+        {/* Status Row */}
+        <div className="flex items-center space-x-2.5">
+          <div className="flex-none">{renderIcon()}</div>
+          <div>
+            <h2 className="text-xs font-black tracking-wide uppercase leading-tight">
+              {getStatusText()}
+            </h2>
+            <p className="text-[7.5px] font-bold text-white/70 uppercase tracking-wider mt-0.5">
+              Primary Safety Advisor Directive
+            </p>
+          </div>
+        </div>
+
+        {/* Alerts Stack */}
+        {((reasons && reasons.length > 0) || (projected && projected.length > 0)) && (
+          <div className="border-t border-white/10 pt-2 flex flex-col space-y-2">
+            {reasons && reasons.length > 0 && (
+              <div>
+                <p className="text-[9px] font-black text-white/95 uppercase tracking-wider leading-none mb-1">
+                  Current Alerts
+                </p>
+                <ul className="space-y-0.5 text-left text-white">
+                  {reasons.map((reason, idx) => (
+                    <li key={idx} className="text-[9px] font-extrabold uppercase tracking-wide list-disc list-inside leading-tight">
+                      {reason}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            
+            {projected && projected.length > 0 && (
+              <div>
+                <p className="text-[9px] font-black text-white/95 uppercase tracking-wider leading-none mb-1">
+                  Projected Outlook (12H)
+                </p>
+                <ul className="space-y-0.5 text-left text-white">
+                  {projected.map((proj, idx) => (
+                    <li key={idx} className="text-[9px] font-extrabold uppercase tracking-wide leading-tight list-none">
+                      ⚠️ <span className={proj.type === 'RED' ? 'text-red-200' : 'text-amber-100'}>{proj.metric}</span> <span className="font-mono text-white/60 text-[8px]">({proj.timeframe})</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`w-full h-full border rounded-xl flex items-center justify-between px-6 transition-all duration-500 select-none ${colors.banner}`}>
