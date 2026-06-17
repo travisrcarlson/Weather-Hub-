@@ -166,18 +166,38 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   let moonY = 0;
   let moonDetails = null;
 
+  let dynamicSunRy = 110;
+  let dynamicMoonRy = 95;
+
   if (hasTransitData) {
     try {
       const sunriseStr = dailyData.sunrise[0];
       const sunsetStr = dailyData.sunset[0];
       const nowDate = new Date(currentTime);
 
+      // Calculate Day of Year to determine Solar Declination
+      const start = new Date(nowDate.getFullYear(), 0, 0);
+      const diff = nowDate - start;
+      const oneDay = 1000 * 60 * 60 * 24;
+      const dayOfYear = Math.floor(diff / oneDay);
+
+      // Solar Declination Angle (approximate in degrees)
+      const declination = 23.45 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 80));
+
+      // Max Solar Elevation Angle for Abu Dhabi (Latitude 24.20)
+      const maxElevation = 90 - Math.abs(24.20 - declination);
+
+      // Scale Sun ry between 75 (winter solstice elevation ~42.35°) and 120 (summer solstice elevation ~89.25°)
+      const elevationProgress = Math.max(0, Math.min(1, (maxElevation - 42.35) / (89.25 - 42.35)));
+      dynamicSunRy = 75 + 45 * elevationProgress;
+      dynamicMoonRy = dynamicSunRy - 15;
+
       // 1. Sun Transit
       sunTransit = checkTransitPosition(nowDate, new Date(sunriseStr), new Date(sunsetStr));
       if (sunTransit.visible) {
         const theta = sunTransit.progress * Math.PI;
         sunX = 250 + 180 * Math.cos(theta);
-        sunY = 200 - 110 * Math.sin(theta);
+        sunY = 200 - dynamicSunRy * Math.sin(theta);
       }
 
       // 2. Moon Transit
@@ -189,7 +209,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       if (moonTransit.visible) {
         const theta = moonTransit.progress * Math.PI;
         moonX = 250 + 160 * Math.cos(theta);
-        moonY = 200 - 95 * Math.sin(theta);
+        moonY = 200 - dynamicMoonRy * Math.sin(theta);
       }
     } catch (e) {
       console.error('Error calculating celestial transits:', e);
@@ -271,14 +291,9 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
       {/* Sun & Moon Celestial Arcs and Transit Icons */}
       <g className="pointer-events-none select-none">
-        {/* Telemetry Debug overlay */}
-        <text x="40" y="72" fill="#94a3b8" fontSize="4.5" fontWeight="black" className="font-mono">
-          {`DEBUG • TIME: ${apiData?.current?.time || 'N/A'} | SUN_X: ${sunX?.toFixed(1)} | PROG: ${sunTransit?.progress?.toFixed(3)} | VIS: ${sunTransit?.visible}`}
-        </text>
-
         {/* Sun Transit Arc */}
         <path 
-          d="M 430 200 A 180 110 0 0 0 70 200" 
+          d={`M 430 200 A 180 ${dynamicSunRy} 0 0 0 70 200`} 
           fill="none" 
           stroke="#ff7a00" 
           strokeWidth="1" 
@@ -288,7 +303,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
         {/* Moon Transit Arc */}
         <path 
-          d="M 410 200 A 160 95 0 0 0 90 200" 
+          d={`M 410 200 A 160 ${dynamicMoonRy} 0 0 0 90 200`} 
           fill="none" 
           stroke="#38bdf8" 
           strokeWidth="1" 
