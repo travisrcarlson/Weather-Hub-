@@ -175,7 +175,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       // 1. Sun Transit
       sunTransit = checkTransitPosition(nowDate, new Date(sunriseStr), new Date(sunsetStr));
       if (sunTransit.visible) {
-        const theta = Math.PI - sunTransit.progress * Math.PI;
+        const theta = sunTransit.progress * Math.PI;
         sunX = 250 + 180 * Math.cos(theta);
         sunY = 200 - 110 * Math.sin(theta);
       }
@@ -187,7 +187,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
       moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
       if (moonTransit.visible) {
-        const theta = Math.PI - moonTransit.progress * Math.PI;
+        const theta = moonTransit.progress * Math.PI;
         moonX = 250 + 160 * Math.cos(theta);
         moonY = 200 - 95 * Math.sin(theta);
       }
@@ -273,7 +273,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       <g className="pointer-events-none select-none">
         {/* Sun Transit Arc */}
         <path 
-          d="M 70 200 A 180 110 0 0 1 430 200" 
+          d="M 430 200 A 180 110 0 0 0 70 200" 
           fill="none" 
           stroke="#ff7a00" 
           strokeWidth="1" 
@@ -283,7 +283,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
         {/* Moon Transit Arc */}
         <path 
-          d="M 90 200 A 160 95 0 0 1 410 200" 
+          d="M 410 200 A 160 95 0 0 0 90 200" 
           fill="none" 
           stroke="#38bdf8" 
           strokeWidth="1" 
