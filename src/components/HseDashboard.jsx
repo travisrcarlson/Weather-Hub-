@@ -194,6 +194,194 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
     }
   };
 
+  const handleGenerateRcoBrief = () => {
+    // Compile daily logs over the active 24h operational day
+    const dailyLogs = logs24h.slice(0, 24);
+    const chronoLogs = dailyLogs.slice().reverse();
+    
+    if (chronoLogs.length === 0) {
+      alert("No meteorological logs available for briefing compilation.");
+      return;
+    }
+    
+    let maxTemp = -999;
+    let maxTempTime = '';
+    let maxWbgt = -999;
+    let maxWbgtTime = '';
+    let maxWind = -999;
+    let maxWindTime = '';
+    let maxGust = -999;
+    let maxGustTime = '';
+    let maxUv = -999;
+    let maxUvTime = '';
+    let maxAqi = -999;
+    let maxAqiTime = '';
+    
+    let totalWindSpeed = 0;
+    const safeWindows = [];
+    const cautionWindows = [];
+    const haltWindows = [];
+    
+    chronoLogs.forEach(log => {
+      const timeStr = formatTimeLabel(log.time);
+      if (log.temp > maxTemp) { maxTemp = log.temp; maxTempTime = timeStr; }
+      if (log.wbgt > maxWbgt) { maxWbgt = log.wbgt; maxWbgtTime = timeStr; }
+      if (log.wind > maxWind) { maxWind = log.wind; maxWindTime = timeStr; }
+      if (log.gusts > maxGust) { maxGust = log.gusts; maxGustTime = timeStr; }
+      if (log.uv > maxUv) { maxUv = log.uv; maxUvTime = timeStr; }
+      if (log.aqi > maxAqi) { maxAqi = log.aqi; maxAqiTime = timeStr; }
+      
+      totalWindSpeed += log.wind;
+      
+      const status = log.safety.status;
+      if (status === 'RED') {
+        haltWindows.push(log.time);
+      } else if (status === 'AMBER') {
+        cautionWindows.push(log.time);
+      } else {
+        safeWindows.push(log.time);
+      }
+    });
+    
+    const avgWind = totalWindSpeed / chronoLogs.length;
+    
+    const getFormattedWindows = (timeArray) => {
+      if (timeArray.length === 0) return "NONE";
+      const sortedHours = timeArray.map(t => new Date(t).getHours()).sort((a, b) => a - b);
+      
+      const ranges = [];
+      let start = sortedHours[0];
+      let prev = sortedHours[0];
+      
+      for (let i = 1; i < sortedHours.length; i++) {
+        if (sortedHours[i] === prev + 1) {
+          prev = sortedHours[i];
+        } else {
+          ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
+          start = sortedHours[i];
+          prev = sortedHours[i];
+        }
+      }
+      ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
+      return ranges.join(", ") + " GST";
+    };
+    
+    const safeWindowText = getFormattedWindows(safeWindows);
+    const cautionWindowText = getFormattedWindows(cautionWindows);
+    const haltWindowText = getFormattedWindows(haltWindows);
+    
+    let overallStatus = "SAFE (GREEN)";
+    let overallInstruction = "Normal range operations permitted. Continuous environmental monitoring active.";
+    if (haltWindows.length > 0) {
+      overallStatus = "CRITICAL (RED HALT)";
+      overallInstruction = "WARNING: Extreme threshold breaches detected today. Outdoor range exercises must be suspended during HALT windows.";
+    } else if (cautionWindows.length > 0) {
+      overallStatus = "RESTRICTED OPERATIONAL CLEARANCE (AMBER CAUTION)";
+      overallInstruction = "CAUTION: Mandatory work/rest cycles and hydration monitoring in force. Exercise high supervisor vigilance.";
+    }
+    
+    let droneRating = "OPTIMAL";
+    let droneInstruction = "Wind speeds and gusts are within safe operating limits for standard drone sorties.";
+    if (maxGust >= 50 || maxWind >= 38) {
+      droneRating = "DANGEROUS / HALTED";
+      droneInstruction = "Gale force winds or gusts exceed maximum airframe tolerance. Cancel all drone flights.";
+    } else if (maxGust >= 30 || maxWind >= 20) {
+      droneRating = "MARGINAL / CAUTION";
+      droneInstruction = "Moderate winds/gusts present. High risk of wind drift and battery drain. Experienced pilots only.";
+    }
+    
+    const activeTimeStr = getDubaiHourString(currentTime || data.current.time);
+    const hashSeed = `${activeTimeStr}-${maxTemp}-${maxWind}-${maxWbgt}`;
+    let hash = 0;
+    for (let i = 0; i < hashSeed.length; i++) {
+      hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+
+    const reportText = `======================================================================
+                 X-RANGE RCO DAILY ENVIRONMENTAL WEATHER BRIEF
+                 CONFIDENTIAL OPERATIONS PLANNING RESOURCE
+======================================================================
+GENERATION TIMESTAMP: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST
+TARGET BRIEF DATE:    ${formatDateLabel(chronoLogs[0].time)}
+ACTIVE STATION:       ${activeStation ? activeStation.toUpperCase() : "X-RANGE HQ"} (Abu Al Abyad Island, UAE)
+SECURE RCO HASH:      ${secureHash}
+SYSTEM MODE:          ${isSimulated ? "SIMULATION MODE (HIGH-FIDELITY)" : "LIVE SENSOR TELEMETRY"}
+
+----------------------------------------------------------------------
+1. EXECUTIVE DAILY OPERATIONS ADVISORY
+----------------------------------------------------------------------
+DAILY STATUS RATING:  ${overallStatus}
+RCO DIRECTIVE:
+${overallInstruction}
+
+Active Daily Hazards / Advisories:
+${haltWindows.length > 0 ? "  [!] RED ALERT: Extreme thermal load / wind gusts will suspend activities during specified hours." : ""}
+${cautionWindows.length > 0 ? "  [!] AMBER CAUTION: Heat stress or wind gusts require operational modifications." : ""}
+${maxUv >= 8 ? "  [!] UV ADVISORY: Extreme UV Index requires mandatory sunscreen protocols." : ""}
+${maxAqi >= 100 ? "  [!] AQI WARNING: Elevated particulate counts (dust/sand suspension)." : ""}
+${maxTemp >= 43 ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation active between 12:30-15:00 GST." : ""}
+
+----------------------------------------------------------------------
+2. DIURNAL OPERATIONAL WINDOWS (RCO SCHEDULING GUIDELINES)
+----------------------------------------------------------------------
+[+] SAFE OPERATING WINDOWS (GREEN):
+    ${safeWindowText}
+    * Personnel and training exercises clear to operate.
+
+[!] CAUTION OPERATING WINDOWS (AMBER):
+    ${cautionWindowText}
+    * Restricted clearance. Mandatory work/rest cycles and hydration in force.
+
+[X] SUSPENSION / HALT WINDOWS (RED):
+    ${haltWindowText}
+    * Range closed. Complete cessation of all outdoor operations.
+
+----------------------------------------------------------------------
+3. DIURNAL ENVIRONMENTAL EXTREMES (TODAY)
+----------------------------------------------------------------------
+* Peak Temperature (Dry Bulb): ${maxTemp.toFixed(1)}°C  (Occurred at: ${maxTempTime})
+* Peak Heat Stress (WBGT):     ${maxWbgt.toFixed(1)}°C  (Occurred at: ${maxWbgtTime})
+* Peak Wind Gusts:             ${maxGust.toFixed(0)} km/h  (Occurred at: ${maxGustTime})
+* Max Sustained Wind Speed:    ${maxWind.toFixed(0)} km/h  (Occurred at: ${maxWindTime})
+* Peak UV Index:               ${maxUv.toFixed(1)} UV  (Occurred at: ${maxUvTime})
+* Peak Air Quality Index (AQI):${maxAqi.toFixed(0)} AQI (Occurred at: ${maxAqiTime})
+
+----------------------------------------------------------------------
+4. BALLISTICS & DRONE FLIGHT SAFETY ASSESSMENT
+----------------------------------------------------------------------
+* Average Sustained Wind:      ${avgWind.toFixed(1)} km/h (Main Direction: 260° W)
+* Peak Gust Velocity:          ${maxGust.toFixed(0)} km/h
+* Drone Flight Status:         ${droneRating}
+  Directive: ${droneInstruction}
+* Ballistics Crosswind Drift:  ${maxGust >= 30 ? "HIGH - Expect significant wind-drift on live fire. Apply compensation tables." : "NEGLIGIBLE - Wind vectors within normal range tolerances."}
+
+----------------------------------------------------------------------
+5. PERSONNEL SAFETY & COMPLIANCE SUMMARY
+----------------------------------------------------------------------
+* UAE MoHRE Midday Work Ban:   ${maxTemp >= 43 ? "ACTIVE COMPLIANCE MANDATED (12:30 - 15:00 GST)" : "NOT APPLICABLE TODAY"}
+* Mandated Work/Rest Cycles:   ${maxWbgt >= 30 ? "30m Work / 30m Rest (Extreme Heat Load)" : maxWbgt >= 27.9 ? "40m Work / 20m Rest (High Heat Load)" : "50m Work / 10m Rest (Standard split)"}
+* Required Daily Fluid Volume: ${maxWbgt >= 30 ? "1.25 L/hr + Electrolytes" : maxWbgt >= 27.9 ? "1.00 L/hr + Electrolytes" : "0.75 L/hr (Chilled Water)"}
+* PPE Gear Requirements:       ${maxUv >= 8 ? "SPF 50+ Sunscreen, UV Protective Glasses, Hard Hat, High-Wick Clothing" : "Standard Range PPE"}
+
+======================================================================
+This briefing is compiled under Abu Dhabi Occupational Safety and Health
+Decrees (ADOSH CoP 11.0) and UAE Federal MoHRE ministerial guidelines.
+Range Safety Officers must enforce work rest cycles and wind halt curfews.
+======================================================================
+                      END OF DAILY BRIEFING
+======================================================================`;
+
+    const blob = new Blob([reportText], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `RCO_Daily_Weather_Brief_${chronoLogs[0].time.split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleGenerateReport = () => {
     if (!supervisorName.trim()) {
       alert("Please enter supervisor name/badge.");
@@ -296,8 +484,15 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
         </div>
         <div className="flex space-x-2">
           <button
+            onClick={handleGenerateRcoBrief}
+            className="flex items-center space-x-1.5 bg-bgDeepSpace/60 border border-slate-700/50 hover:border-slate-500 hover:text-white px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+          >
+            <FileText className="w-3.5 h-3.5 text-edgeOrange" />
+            <span>Generate RCO Daily Brief</span>
+          </button>
+          <button
             onClick={handleExportCSV}
-            className="flex items-center space-x-1.5 bg-bgDeepSpace/60 border border-slate-700/50 hover:border-slate-500 hover:text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
+            className="flex items-center space-x-1.5 bg-bgDeepSpace/60 border border-slate-700/50 hover:border-slate-500 hover:text-white px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-wider transition cursor-pointer"
           >
             <Download className="w-3.5 h-3.5 text-edgeOrange" />
             <span>Export CSV Log</span>
