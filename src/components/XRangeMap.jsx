@@ -437,13 +437,17 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         <div className="flex-grow min-w-0 pr-4">
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center space-x-2">
             <span>Z12 • XRANGE TACTICAL MAP</span>
-            {activeWarning && (
+            {activeWarning ? (
               <span className={`animate-pulse px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider border leading-none ${
                 activeWarning.type === 'RED' ? 'bg-red-500/25 border-red-500 text-red-400' :
                 activeWarning.type === 'AMBER' ? 'bg-amber-500/25 border-amber-500 text-amberAlert' :
                 'bg-yellow-500/25 border-yellow-500 text-yellow-400'
               }`}>
                 NCM {activeWarning.type} ALERT: {activeWarning.title}
+              </span>
+            ) : (
+              <span className="bg-green-500/10 border border-green-500/30 text-green-400 px-1.5 py-0.5 rounded text-[7.5px] font-black tracking-wider leading-none">
+                NCM SECURE
               </span>
             )}
           </p>
