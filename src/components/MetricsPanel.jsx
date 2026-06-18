@@ -1,6 +1,6 @@
 import React from 'react';
 import { Droplets, Eye, Sun, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
-import { calculateDewPoint, calculateHumidex, getHumidexComfort, getTrendIndicator, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateHumidex, getHumidexComfort, getTrendIndicator, calculateSunscreenIntervals, calculateWBGT, getWBGTComfort } from '../utils/safetyEngine';
 
 // Z4: Humidity, Dew Point & Humidex
 export function HumidityWidget({ data, hourlyData }) {
@@ -8,10 +8,12 @@ export function HumidityWidget({ data, hourlyData }) {
 
   const temp = data.temperature_2m || 0;
   const rh = data.relative_humidity_2m || 0;
+  const wind = data.wind_speed_10m || 0;
+  const uv = data.uv_index !== undefined ? data.uv_index : 0;
 
   const dewPoint = calculateDewPoint(temp, rh);
-  const humidex = calculateHumidex(temp, dewPoint);
-  const comfort = getHumidexComfort(humidex);
+  const wbgt = calculateWBGT(temp, rh, wind, uv);
+  const comfort = getWBGTComfort(wbgt);
 
   // Calculate trends compared to previous hour
   const getPrevHourIdx = () => {
@@ -25,14 +27,15 @@ export function HumidityWidget({ data, hourlyData }) {
   const prevRh = prevIdx >= 0 ? hourlyData.relative_humidity_2m[prevIdx] : null;
   const rhTrend = getTrendIndicator(rh, prevRh, 1.0);
 
-  let prevHumidex = null;
+  let prevWbgt = null;
   if (prevIdx >= 0 && hourlyData.temperature_2m && hourlyData.relative_humidity_2m) {
     const prevTemp = hourlyData.temperature_2m[prevIdx];
     const prevRhVal = hourlyData.relative_humidity_2m[prevIdx];
-    const prevDp = calculateDewPoint(prevTemp, prevRhVal);
-    prevHumidex = calculateHumidex(prevTemp, prevDp);
+    const prevWindVal = hourlyData.wind_speed_10m ? hourlyData.wind_speed_10m[prevIdx] : 0;
+    const prevUvVal = hourlyData.uv_index ? hourlyData.uv_index[prevIdx] : 0;
+    prevWbgt = calculateWBGT(prevTemp, prevRhVal, prevWindVal, prevUvVal);
   }
-  const humidexTrend = getTrendIndicator(humidex, prevHumidex, 0.1);
+  const wbgtTrend = getTrendIndicator(wbgt, prevWbgt, 0.1);
 
   const getHumidityColor = (humidity) => {
     if (humidity >= 85) return 'text-stopRed';
@@ -40,13 +43,13 @@ export function HumidityWidget({ data, hourlyData }) {
     return 'text-textIceWhite';
   };
 
-  // Helper to calculate 24h Humidity/Humidex Forecast
+  // Helper to calculate 24h Humidity/WBGT Forecast
   const getHumidityForecast = () => {
     if (!hourlyData || !hourlyData.relative_humidity_2m || !hourlyData.temperature_2m) {
       return {
         minRh: rh * 0.8,
         maxRh: Math.min(rh * 1.3, 100),
-        maxHumidex: humidex * 1.05
+        maxWbgt: wbgt * 1.05
       };
     }
     
@@ -56,39 +59,46 @@ export function HumidityWidget({ data, hourlyData }) {
     const minRh = Math.min(...rhList);
     const maxRh = Math.max(...rhList);
     
-    let maxHumidex = 0;
+    let maxWbgt = 0;
     for (let i = 0; i < tempList.length; i++) {
       const hTemp = tempList[i];
       const hRh = rhList[i];
-      const hDp = calculateDewPoint(hTemp, hRh);
-      const hHx = calculateHumidex(hTemp, hDp);
-      if (hHx > maxHumidex) {
-        maxHumidex = hHx;
+      const hWind = hourlyData.wind_speed_10m ? (hourlyData.wind_speed_10m[i] || 0) : 0;
+      const hUv = hourlyData.uv_index ? (hourlyData.uv_index[i] || 0) : 0;
+      const hWbgt = calculateWBGT(hTemp, hRh, hWind, hUv);
+      if (hWbgt > maxWbgt) {
+        maxWbgt = hWbgt;
       }
     }
     
     return {
       minRh,
       maxRh,
-      maxHumidex
+      maxWbgt
     };
   };
 
   const forecast = getHumidityForecast();
 
   const getWorkRestCycle = () => {
-    // Grounded in UAE ADOSH CoP 11.0 guidelines
-    if (humidex >= 46 || temp >= 43) {
+    // Grounded in UAE ADOSH CoP 11.0 guidelines using WBGT standard
+    if (wbgt >= 30.0 || temp >= 43) {
       return { 
         ratio: "30m Work / 30m Rest", 
         color: "text-stopRed animate-pulse",
         law: "ADOSH CoP 11.0 (Critical Limit)"
       };
-    } else if (humidex >= 40 || temp >= 38) {
+    } else if (wbgt >= 27.9 || temp >= 38) {
       return { 
         ratio: "40m Work / 20m Rest", 
         color: "text-amberAlert",
         law: "ADOSH CoP 11.0 (High Alert)"
+      };
+    } else if (wbgt >= 25.9) {
+      return { 
+        ratio: "50m Work / 10m Rest", 
+        color: "text-yellow-400",
+        law: "ADOSH CoP 11.0 (Caution)"
       };
     } else {
       return { 
@@ -130,14 +140,14 @@ export function HumidityWidget({ data, hourlyData }) {
         </div>
 
         <div className="text-right">
-          <p className="text-[9.5px] text-slate-400 font-bold uppercase leading-none">Humidex</p>
+          <p className="text-[9.5px] text-slate-400 font-bold uppercase leading-none">WBGT Index</p>
           <div className="flex items-center justify-end leading-none">
             <span className="text-3xl font-black tracking-tight text-textIceWhite">
-              {humidex.toFixed(1)}
+              {wbgt.toFixed(1)}
             </span>
             <span className="text-xs font-bold text-edgeOrange ml-0.5">°C</span>
-            {humidexTrend.arrow && humidexTrend.arrow !== '→' && (
-              <span className={`text-[11px] ml-1.5 ${humidexTrend.class}`}>{humidexTrend.arrow}</span>
+            {wbgtTrend.arrow && wbgtTrend.arrow !== '→' && (
+              <span className={`text-[11px] ml-1.5 ${wbgtTrend.class}`}>{wbgtTrend.arrow}</span>
             )}
           </div>
           <span className="text-[9.5px] font-bold text-slate-300 block mt-0.5">Dew Pt: {dewPoint.toFixed(1)}°C</span>
@@ -163,9 +173,9 @@ export function HumidityWidget({ data, hourlyData }) {
           <span className="text-textIceWhite font-mono font-black">{forecast.minRh.toFixed(0)}% - {forecast.maxRh.toFixed(0)}%</span>
         </div>
         <div className="text-right">
-          <span>Peak Hx: </span>
-          <span className={`font-mono font-black ${forecast.maxHumidex >= 40 ? 'text-stopRed' : forecast.maxHumidex >= 30 ? 'text-amberAlert' : 'text-textIceWhite'}`}>
-            {forecast.maxHumidex.toFixed(1)}°C
+          <span>Peak WBGT: </span>
+          <span className={`font-mono font-black ${forecast.maxWbgt >= 30.0 ? 'text-stopRed' : forecast.maxWbgt >= 27.9 ? 'text-amberAlert' : 'text-textIceWhite'}`}>
+            {forecast.maxWbgt.toFixed(1)}°C
           </span>
         </div>
       </div>
@@ -605,41 +615,29 @@ export function HydrationWidget({ data }) {
 
   const temp = data.temperature_2m || 0;
   const rh = data.relative_humidity_2m || 0;
+  const wind = data.wind_speed_10m || 0;
+  const uv = data.uv_index !== undefined ? data.uv_index : 0;
 
-  // Calculate dew point and humidex
-  const calculateDewPointLocal = (tempVal, rhVal) => {
-    const a = 17.625;
-    const b = 243.04;
-    const alpha = ((a * tempVal) / (b + tempVal)) + Math.log(rhVal / 100);
-    return Number(((b * alpha) / (a - alpha)).toFixed(1));
-  };
-  
-  const calculateHumidexLocal = (tempVal, dewPointVal) => {
-    const e = 6.11 * Math.exp(5417.7530 * (1/273.16 - 1/(dewPointVal + 273.15)));
-    return Number((tempVal + 0.5555 * (e - 10.0)).toFixed(1));
-  };
+  const wbgt = calculateWBGT(temp, rh, wind, uv);
 
-  const dewPoint = calculateDewPointLocal(temp, rh);
-  const humidex = calculateHumidexLocal(temp, dewPoint);
-
-  const getHydrationInfo = (hx) => {
-    if (hx < 30) {
+  const getHydrationInfo = (wbgtVal) => {
+    if (wbgtVal < 25.9) {
       return { 
         volume: "0.50 L", 
         note: "Routine water intake.", 
         color: "text-safetyGreen", 
-        level: "LOW EXPOSURE" 
+        level: "LOW RISK" 
       };
     }
-    if (hx < 40) {
+    if (wbgtVal < 27.9) {
       return { 
         volume: "0.75 L", 
         note: "Keep chilled water nearby.", 
         color: "text-yellow-400", 
-        level: "MODERATE RISK" 
+        level: "CAUTION" 
       };
     }
-    if (hx < 46) {
+    if (wbgtVal < 30.0) {
       return { 
         volume: "1.00 L", 
         note: "Chilled water + Electrolyte mix.", 
@@ -655,7 +653,7 @@ export function HydrationWidget({ data }) {
     };
   };
 
-  const hydration = getHydrationInfo(humidex);
+  const hydration = getHydrationInfo(wbgt);
 
   return (
     <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl py-2 px-3 flex flex-col justify-between select-none relative overflow-hidden">
@@ -684,9 +682,9 @@ export function HydrationWidget({ data }) {
           <span className="text-[9.5px] font-bold text-slate-400 uppercase leading-none mt-0.5">/ Hour</span>
         </div>
         <div className="text-right">
-          <p className="text-[7.5px] text-slate-400 font-bold uppercase leading-none mb-0.5">Humidex</p>
+          <p className="text-[7.5px] text-slate-400 font-bold uppercase leading-none mb-0.5">WBGT Index</p>
           <p className="text-xs font-black text-textIceWhite leading-none">
-            {humidex.toFixed(1)}°C
+            {wbgt.toFixed(1)}°C
           </p>
         </div>
       </div>

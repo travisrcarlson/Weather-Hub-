@@ -25,6 +25,42 @@ export function getHumidexComfort(humidex) {
   return { label: "Extreme Danger (Stroke Risk)", color: "text-purple-400 font-bold animate-pulse" };
 }
 
+export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex) {
+  if (temp === undefined || rh === undefined) return temp || 0;
+  
+  // 1. Calculate Stull's Wet Bulb Temperature (Tw)
+  const Tw = temp * Math.atan(0.151977 * Math.sqrt(rh + 8.313659)) 
+             + Math.atan(temp + rh) 
+             - Math.atan(rh - 1.676331) 
+             + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) 
+             - 4.686035;
+
+  // 2. Estimate solar radiation from UV index (S in W/m^2)
+  const uv = uvIndex !== undefined ? uvIndex : 0;
+  const S = uv * 90;
+
+  // 3. Convert wind speed from km/h to m/s
+  const u = (windSpeedKmh || 0) / 3.6;
+
+  // 4. Estimate Globe Temperature (Tg)
+  let Tg = temp + 0.017 * S - 0.208 * u;
+  if (S === 0 || Tg < temp) {
+    Tg = temp;
+  }
+
+  // 5. Calculate Outdoor WBGT: 0.7 * Tw + 0.2 * Tg + 0.1 * Ta
+  const wbgt = 0.7 * Tw + 0.2 * Tg + 0.1 * temp;
+
+  return Number(wbgt.toFixed(1));
+}
+
+export function getWBGTComfort(wbgt) {
+  if (wbgt < 25.9) return { label: "Normal (Green Flag)", color: "text-safetyGreen" };
+  if (wbgt < 27.9) return { label: "Caution (Yellow Flag)", color: "text-yellow-400" };
+  if (wbgt < 30.0) return { label: "High Risk (Amber Flag)", color: "text-amberAlert" };
+  return { label: "Extreme Danger (Red/Black Flag)", color: "text-purple-400 font-bold animate-pulse" };
+}
+
 // MoHRE Midday Work Ban helper: June 15 to September 15, 12:30 to 15:00 GST
 export function evaluateMiddayBan(dateTimeStr) {
   const date = dateTimeStr ? new Date(dateTimeStr) : new Date();
@@ -127,13 +163,17 @@ export function evaluateSafety(data) {
     reasons.push(`High temperature (${temp}°C). Heat stress protocols active.`);
   }
   
-  // 5. Feels-Like Temp (ADOSH Threshold: >=46°C RED, 38-46°C AMBER)
-  if (feelsLike >= 46) {
+  // 5. ISO 7243 Wet Bulb Globe Temperature (WBGT) (Threshold: >=30.0°C RED, >=27.9°C AMBER)
+  const wbgt = calculateWBGT(temp, rh, windSpeed, uv);
+  if (wbgt >= 30.0) {
     status = "RED";
-    reasons.push(`Feels-like temperature (${feelsLike}°C) is dangerous (≥46°C). Suspend outdoor work.`);
-  } else if (feelsLike >= 38) {
+    reasons.push(`Extreme Heat Stress (WBGT: ${wbgt.toFixed(1)}°C) exceeds safety limit (≥30.0°C). Suspend all outdoor activities.`);
+  } else if (wbgt >= 27.9) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Feels-like temperature (${feelsLike}°C) requires mandatory rest breaks.`);
+    reasons.push(`High Heat Stress (WBGT: ${wbgt.toFixed(1)}°C). Rest break compliance required.`);
+  } else if (wbgt >= 25.9) {
+    if (status !== "RED" && status !== "AMBER") status = "AMBER";
+    reasons.push(`Elevated Heat Stress (WBGT: ${wbgt.toFixed(1)}°C). Monitor personnel hydration.`);
   }
   
   // 6. UV Index (ADOSH Threshold: >=8 AMBER/RED - Master Prompt requires UV>=8 = CAUTION (AMBER))
@@ -300,7 +340,7 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
   const scanHoursCount = 12;
   
   const tempBreachHours = [];
-  const feelsLikeBreachHours = [];
+  const wbgtBreachHours = [];
   const windBreachHours = [];
   const gustBreachHours = [];
   const uvBreachHours = [];
@@ -317,7 +357,7 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
     const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
 
     const temp = hourlyData.temperature_2m[idx] || 0;
-    const feelsLike = hourlyData.apparent_temperature ? (hourlyData.apparent_temperature[idx] || 0) : temp;
+    const rh = hourlyData.relative_humidity_2m ? (hourlyData.relative_humidity_2m[idx] || 0) : 50;
     const windSpeed = hourlyData.wind_speed_10m[idx] || 0;
     const windGusts = hourlyData.wind_gusts_10m ? (hourlyData.wind_gusts_10m[idx] || 0) : 0;
     const uv = hourlyData.uv_index ? (hourlyData.uv_index[idx] || 0) : 0;
@@ -330,8 +370,9 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
     if (temp >= 43) {
       tempBreachHours.push(hour);
     }
-    if (feelsLike >= 46) {
-      feelsLikeBreachHours.push(hour);
+    const wbgt = calculateWBGT(temp, rh, windSpeed, uv);
+    if (wbgt >= 30.0) {
+      wbgtBreachHours.push(hour);
     }
     if (windSpeed >= 38) {
       windBreachHours.push(hour);
@@ -401,11 +442,11 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
       timeframe: formatHourSegments(tempBreachHours)
     });
   }
-  if (feelsLikeBreachHours.length > 0) {
+  if (wbgtBreachHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'Danger Feels-Like',
-      timeframe: formatHourSegments(feelsLikeBreachHours)
+      metric: 'Danger WBGT Heat',
+      timeframe: formatHourSegments(wbgtBreachHours)
     });
   }
   if (windBreachHours.length > 0) {

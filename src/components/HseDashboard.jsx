@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar } from 'lucide-react';
-import { calculateDewPoint, calculateHumidex, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
@@ -72,7 +72,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       const aqIndex = hourlyData.pm10 ? (hourlyData.pm10[idx] * 0.9) : 50; // Mock PM10 to AQI index conversion
 
       const dp = calculateDewPoint(temp, rh);
-      const hx = calculateHumidex(temp, dp);
+      const wbgt = calculateWBGT(temp, rh, wind, uv);
 
       // Evaluate safety for this specific hour
       const readings = {
@@ -90,7 +90,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       // Check for specific threshold breaches to flag
       const breaches = [];
       if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
-      if (hx >= 46) breaches.push(`CRITICAL HUMIDEX (${hx.toFixed(1)}°C)`);
+      if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
       if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
       if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
       if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
@@ -112,7 +112,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
         time: timeStr,
         temp,
         rh,
-        humidex: hx,
+        wbgt: wbgt,
         dewPoint: dp,
         wind,
         gusts,
@@ -134,20 +134,23 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
     return 'bg-safetyGreen/20 border-safetyGreen text-green-400';
   };
 
-  const getWorkRestDirective = (temp, hx) => {
-    if (hx >= 46 || temp >= 43) {
+  const getWorkRestDirective = (temp, wbgtVal) => {
+    if (wbgtVal >= 30.0 || temp >= 43) {
       return { ratio: "30m Work / 30m Rest", note: "Rest breaks mandatory in air-conditioned hubs.", limit: "Critical Limit" };
     }
-    if (hx >= 40 || temp >= 38) {
+    if (wbgtVal >= 27.9 || temp >= 38) {
       return { ratio: "40m Work / 20m Rest", note: "Increased hydration, monitor buddy status.", limit: "High Alert" };
+    }
+    if (wbgtVal >= 25.9) {
+      return { ratio: "50m Work / 10m Rest", note: "Increased rest frequency. Shade available.", limit: "Caution" };
     }
     return { ratio: "50m Work / 10m Rest", note: "Standard rest splits. Shade available.", limit: "Standard Split" };
   };
 
-  const getHydrationVolume = (hx) => {
-    if (hx >= 46) return "1.25 Liters / hr + Electrolyte mix";
-    if (hx >= 40) return "1.00 Liter / hr + Electrolyte mix";
-    if (hx >= 30) return "0.75 Liters / hr (Chilled water)";
+  const getHydrationVolume = (wbgtVal) => {
+    if (wbgtVal >= 30.0) return "1.25 Liters / hr + Electrolyte mix";
+    if (wbgtVal >= 27.9) return "1.00 Liter / hr + Electrolyte mix";
+    if (wbgtVal >= 25.9) return "0.75 Liters / hr (Chilled water)";
     return "0.50 Liters / hr (Water)";
   };
 
@@ -163,13 +166,13 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   const handleExportCSV = () => {
     try {
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Timestamp,Temperature(C),Humidex(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
+      csvContent += "Timestamp,Temperature(C),WBGT(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
       
       logs24h.forEach(log => {
         const timeLabel = log.time.replace('T', ' ');
         const safetyStatus = log.safety.status;
         const breachesText = log.breaches.join(" | ") || "COMPLIANT";
-        csvContent += `${timeLabel},${log.temp.toFixed(1)},${log.humidex.toFixed(1)},${log.rh},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.visibility},${log.uv.toFixed(1)},${safetyStatus},${breachesText}\r\n`;
+        csvContent += `${timeLabel},${log.temp.toFixed(1)},${log.wbgt.toFixed(1)},${log.rh},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.visibility},${log.uv.toFixed(1)},${safetyStatus},${breachesText}\r\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
@@ -231,7 +234,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 <tr className="border-b border-slate-800 text-[8.5px] text-slate-400 font-black uppercase tracking-widest sticky top-0 bg-slate-950/80 backdrop-blur-md z-20">
                   <th className="py-2 px-2.5">Time</th>
                   <th className="py-2 px-1">Temp</th>
-                  <th className="py-2 px-1">Humidex</th>
+                  <th className="py-2 px-1">WBGT</th>
                   <th className="py-2 px-1">Wind/Gust</th>
                   <th className="py-2 px-1 text-center">UV</th>
                   <th className="py-2 px-1.5 text-center">Status</th>
@@ -258,7 +261,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                         {formatTimeLabel(log.time)}
                       </td>
                       <td className="py-2.5 px-1 font-mono text-textIceWhite">{log.temp.toFixed(1)}°C</td>
-                      <td className="py-2.5 px-1 font-mono text-slate-350">{log.humidex.toFixed(1)}°C</td>
+                      <td className="py-2.5 px-1 font-mono text-slate-350">{log.wbgt.toFixed(1)}°C</td>
                       <td className="py-2.5 px-1 font-mono text-slate-350">
                         {log.wind.toFixed(0)}/{log.gusts.toFixed(0)} <span className="text-[8px] text-slate-500">k/h</span>
                       </td>
@@ -327,9 +330,9 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 {/* Audit Parameters Grid */}
                 <div className="grid grid-cols-2 gap-2 text-[8px]">
                   <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
-                    <span className="text-slate-500 font-bold uppercase block mb-0.5">Shade Temp / Humidex</span>
+                    <span className="text-slate-500 font-bold uppercase block mb-0.5">Shade Temp / WBGT</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
-                      {selectedAudit.temp.toFixed(1)}°C / {selectedAudit.humidex.toFixed(1)}°C
+                      {selectedAudit.temp.toFixed(1)}°C / {selectedAudit.wbgt.toFixed(1)}°C
                     </span>
                   </div>
                   <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
@@ -382,7 +385,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-lg text-[9px] space-y-2">
                   {/* MoHRE Work/Rest Split */}
                   {(() => {
-                    const wr = getWorkRestDirective(selectedAudit.temp, selectedAudit.humidex);
+                    const wr = getWorkRestDirective(selectedAudit.temp, selectedAudit.wbgt);
                     return (
                       <div className="flex justify-between items-center border-b border-slate-800/40 pb-1.5">
                         <div className="flex flex-col">
@@ -403,7 +406,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                       <span className="text-[7.5px] text-slate-500 uppercase">ADOSH Heat Stress Code</span>
                     </div>
                     <span className="font-mono text-textIceWhite font-black text-right text-[10px]">
-                      {getHydrationVolume(selectedAudit.humidex)}
+                      {getHydrationVolume(selectedAudit.wbgt)}
                     </span>
                   </div>
 

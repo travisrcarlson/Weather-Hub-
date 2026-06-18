@@ -131,11 +131,11 @@ export default function SafetyAdvisory({ data, ncmWarnings }) {
                     <span className="font-mono text-textIceWhite">50m Work / 10m Rest</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/40 pb-0.5">
-                    <span className="text-amberAlert">Amber Warning (Humidex &ge;40)</span>
+                    <span className="text-amberAlert">Amber Warning (WBGT &ge;27.9°C)</span>
                     <span className="font-mono text-textIceWhite">40m Work / 20m Rest</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-stopRed">Red Warning (Humidex &ge;46)</span>
+                    <span className="text-stopRed">Red Warning (WBGT &ge;30.0°C)</span>
                     <span className="font-mono text-textIceWhite">30m Work / 30m Rest</span>
                   </div>
                 </div>

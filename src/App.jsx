@@ -8,7 +8,7 @@ import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
 import { fetchDashboardData } from './services/weatherService';
-import { evaluateSafety, calculateDewPoint, calculateHumidex } from './utils/safetyEngine';
+import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
@@ -284,7 +284,7 @@ export default function App() {
   // Calculate projected extremes for the next 12 hours
   const getTvProjectedExtremes = () => {
     if (!data || !data.hourly || !data.hourly.time) {
-      return { maxTemp: 0, maxUv: 0, maxHumidex: 0 };
+      return { maxTemp: 0, maxUv: 0, maxWbgt: 0 };
     }
     
     const now = isSimulated ? new Date('2026-06-15T12:30') : new Date();
@@ -310,25 +310,25 @@ export default function App() {
     
     let maxTemp = 0;
     let maxUv = 0;
-    let maxHumidex = 0;
+    let maxWbgt = 0;
     
     next12Hours.forEach((t, i) => {
       const idx = startIndex + i;
       const temp = data.hourly.temperature_2m[idx];
       const uv = data.hourly.uv_index ? data.hourly.uv_index[idx] : 0;
       const rh = data.hourly.relative_humidity_2m ? data.hourly.relative_humidity_2m[idx] : 50;
-      const dp = calculateDewPoint(temp, rh);
-      const hx = calculateHumidex(temp, dp);
+      const wind = data.hourly.wind_speed_10m ? data.hourly.wind_speed_10m[idx] : 0;
+      const wbgt = calculateWBGT(temp, rh, wind, uv);
       
       if (temp > maxTemp) maxTemp = temp;
       if (uv > maxUv) maxUv = uv;
-      if (hx > maxHumidex) maxHumidex = hx;
+      if (wbgt > maxWbgt) maxWbgt = wbgt;
     });
     
     return {
       maxTemp,
       maxUv,
-      maxHumidex
+      maxWbgt
     };
   };
 

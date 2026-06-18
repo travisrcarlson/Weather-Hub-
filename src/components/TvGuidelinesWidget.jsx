@@ -1,15 +1,16 @@
 import React from 'react';
 import { GlassWater, Sun, Flame, Timer } from 'lucide-react';
-import { calculateDewPoint, calculateHumidex, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateWBGT, calculateSunscreenIntervals } from '../utils/safetyEngine';
 
 export default function TvGuidelinesWidget({ data }) {
   if (!data) return null;
 
   const temp = data.temperature_2m || 0;
   const rh = data.relative_humidity_2m || 0;
+  const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
-  const dewPoint = calculateDewPoint(temp, rh);
-  const humidex = calculateHumidex(temp, dewPoint);
+  
+  const wbgt = calculateWBGT(temp, rh, wind, uv);
 
   // 1. Sunscreen Guidelines
   const getSunscreenInfo = (uvIndex) => {
@@ -57,37 +58,37 @@ export default function TvGuidelinesWidget({ data }) {
     };
   };
 
-  // 2. Hydration Guidelines
-  const getHydrationInfo = (hx) => {
-    if (hx < 30) {
+  // 2. Hydration Guidelines (Based on ISO 7243 WBGT standards)
+  const getHydrationInfo = (wbgtVal) => {
+    if (wbgtVal < 25.9) {
       return { volume: "0.5 Liters / hr", note: "Routine intake. Chilled water recommended.", color: "text-slate-300" };
     }
-    if (hx < 40) {
+    if (wbgtVal < 27.9) {
       return { volume: "0.75 Liters / hr", note: "Keep chilled water nearby. Drink constantly.", color: "text-yellow-300" };
     }
-    if (hx < 46) {
+    if (wbgtVal < 30.0) {
       return { volume: "1.00 Liter / hr", note: "Chilled water + Electrolyte mix recommended.", color: "text-amber-400" };
     }
     return { volume: "1.25 Liters / hr", note: "Electrolyte mix mandatory. Monitor buddy status.", color: "text-stopRed font-bold animate-pulse" };
   };
 
-  // 3. Work/Rest Guidelines (ADOSH Heat Stress Safety Advisor)
-  const getRestInfo = (hx) => {
-    if (hx < 30) {
+  // 3. Work/Rest Guidelines (ADOSH Heat Stress Safety Advisor based on WBGT flags)
+  const getRestInfo = (wbgtVal) => {
+    if (wbgtVal < 25.9) {
       return { work: "Continuous", rest: "Normal breaks", ratio: "Continuous Work", color: "text-safetyGreen" };
     }
-    if (hx < 40) {
-      return { work: "45 Minutes", rest: "15 Minutes", ratio: "45m Work / 15m Rest", color: "text-amberAlert" };
+    if (wbgtVal < 27.9) {
+      return { work: "50 Minutes", rest: "10 Minutes", ratio: "50m Work / 10m Rest", color: "text-yellow-400" };
     }
-    if (hx < 46) {
-      return { work: "30 Minutes", rest: "30 Minutes", ratio: "30m Work / 30m Rest", color: "text-stopRed" };
+    if (wbgtVal < 30.0) {
+      return { work: "40 Minutes", rest: "20 Minutes", ratio: "40m Work / 20m Rest", color: "text-amberAlert" };
     }
-    return { work: "15 Minutes", rest: "45 Minutes", ratio: "15m Work / 45m Rest", color: "text-purple-400 animate-pulse" };
+    return { work: "30 Minutes", rest: "30 Minutes", ratio: "30m Work / 30m Rest", color: "text-purple-400 animate-pulse" };
   };
 
   const sunscreen = getSunscreenInfo(uv);
-  const hydration = getHydrationInfo(humidex);
-  const rest = getRestInfo(humidex);
+  const hydration = getHydrationInfo(wbgt);
+  const rest = getRestInfo(wbgt);
 
   return (
     <div className="w-full h-full bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-2xl flex flex-col justify-between select-none">
@@ -96,7 +97,7 @@ export default function TvGuidelinesWidget({ data }) {
       <div className="border-b border-slate-800/50 pb-2 mb-1.5 flex justify-between items-center">
         <div>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
-            ADOSH FIELD ADVISORY
+            ADOSH FIELD ADVISORY (ISO 7243 WBGT)
           </p>
           <h2 className="text-sm font-bold text-slate-200">Actionable Safety Recommendations</h2>
         </div>

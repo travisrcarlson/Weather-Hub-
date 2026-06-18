@@ -1,6 +1,6 @@
 import React from 'react';
 import { Thermometer, Sun, Flame } from 'lucide-react';
-import { getTrendIndicator } from '../utils/safetyEngine';
+import { getTrendIndicator, calculateWBGT } from '../utils/safetyEngine';
 
 export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData }) {
   if (!currentData || !extremes) return null;
@@ -8,28 +8,12 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
   const curTemp = currentData.temperature_2m;
   const maxTemp = extremes.maxTemp;
   const curRh = currentData.relative_humidity_2m || 0;
-  
-  const calculateDewPointLocal = (temp, rh) => {
-    if (!temp || !rh) return 0;
-    const a = 17.625;
-    const b = 243.04;
-    const alpha = ((a * temp) / (b + temp)) + Math.log(rh / 100);
-    const dewPoint = (b * alpha) / (a - alpha);
-    return Number(dewPoint.toFixed(1));
-  };
-  
-  const calculateHumidexLocal = (temp, dewPoint) => {
-    if (!temp || !dewPoint) return temp || 0;
-    const e = 6.11 * Math.exp(5417.7530 * (1/273.16 - 1/(dewPoint + 273.15)));
-    const humidex = temp + 0.5555 * (e - 10.0);
-    return Number(humidex.toFixed(1));
-  };
-
-  const curDp = calculateDewPointLocal(curTemp, curRh);
-  const curHx = calculateHumidexLocal(curTemp, curDp);
-  const maxHx = extremes.maxHumidex;
-
+  const curWind = currentData.wind_speed_10m || 0;
   const curUv = currentData.uv_index !== undefined ? currentData.uv_index : 0;
+
+  const curWbgt = calculateWBGT(curTemp, curRh, curWind, curUv);
+  const maxWbgt = extremes.maxWbgt || curWbgt;
+
   const maxUv = extremes.maxUv;
 
   // Calculate trends compared to previous hour
@@ -45,14 +29,15 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
   const prevTemp = prevIdx >= 0 ? hourlyData.temperature_2m[prevIdx] : null;
   const tempTrend = getTrendIndicator(curTemp, prevTemp, 0.1);
   
-  let prevHumidex = null;
+  let prevWbgt = null;
   if (prevIdx >= 0 && hourlyData.temperature_2m && hourlyData.relative_humidity_2m) {
     const prevT = hourlyData.temperature_2m[prevIdx];
     const prevRhVal = hourlyData.relative_humidity_2m[prevIdx];
-    const prevDp = calculateDewPointLocal(prevT, prevRhVal);
-    prevHumidex = calculateHumidexLocal(prevT, prevDp);
+    const prevWindVal = hourlyData.wind_speed_10m ? hourlyData.wind_speed_10m[prevIdx] : 0;
+    const prevUvVal = hourlyData.uv_index ? hourlyData.uv_index[prevIdx] : 0;
+    prevWbgt = calculateWBGT(prevT, prevRhVal, prevWindVal, prevUvVal);
   }
-  const humidexTrend = getTrendIndicator(curHx, prevHumidex, 0.1);
+  const wbgtTrend = getTrendIndicator(curWbgt, prevWbgt, 0.1);
 
   const prevUv = (prevIdx >= 0 && hourlyData.uv_index) ? hourlyData.uv_index[prevIdx] : null;
   const uvTrend = getTrendIndicator(curUv, prevUv, 0.2);
@@ -92,25 +77,25 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
           </div>
         </div>
 
-        {/* Humidex */}
+        {/* WBGT Index */}
         <div className="flex items-center space-x-3 border-r border-slate-800/50 pr-2 h-full">
           <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-stopRed">
             <Flame className="w-5 h-5" />
           </div>
           <div>
             <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider leading-none mb-1.5">
-              HUMIDEX (CUR/MAX)
+              WBGT INDEX (CUR/MAX)
             </p>
             <div className="flex items-baseline leading-none">
               <span className="text-3xl font-black text-textIceWhite tracking-tight">
-                {curHx !== undefined ? curHx.toFixed(0) : '--'}
+                {curWbgt !== undefined ? curWbgt.toFixed(0) : '--'}
               </span>
-              {humidexTrend.arrow && humidexTrend.arrow !== '→' && (
-                <span className={`text-xs ml-1 ${humidexTrend.class}`}>{humidexTrend.arrow}</span>
+              {wbgtTrend.arrow && wbgtTrend.arrow !== '→' && (
+                <span className={`text-xs ml-1 ${wbgtTrend.class}`}>{wbgtTrend.arrow}</span>
               )}
               <span className="text-sm text-slate-500 font-medium px-1.5">/</span>
               <span className="text-3xl font-black text-stopRed tracking-tight">
-                {maxHx !== undefined ? maxHx.toFixed(0) : '--'}
+                {maxWbgt !== undefined ? maxWbgt.toFixed(0) : '--'}
               </span>
               <span className="text-xs font-bold text-slate-400 ml-0.5">°C</span>
             </div>
