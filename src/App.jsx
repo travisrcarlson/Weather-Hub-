@@ -243,7 +243,7 @@ export default function App() {
       } else if (w.type === 'AMBER' && globalStatus !== 'RED') {
         globalStatus = 'AMBER';
       }
-      globalReasons.unshift(`[NCM ${w.type} ALERT] ${w.title}: ${w.description}`);
+      globalReasons.unshift(`[NCM ${w.type} ALERT] ${w.title}`);
     });
 
     let bannerColor = "bg-safetyGreen border-green-500 text-white";
