@@ -163,6 +163,16 @@ export default function Header({
             HSE Dashboard
           </button>
           <button
+            onClick={() => onViewModeChange('planning')}
+            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              viewMode === 'planning'
+                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
+                : 'text-slate-400 hover:text-textIceWhite'
+            }`}
+          >
+            Range Planning
+          </button>
+          <button
             onClick={() => onViewModeChange('backend')}
             className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
               viewMode === 'backend'

@@ -15,6 +15,7 @@ import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
 import SafetyAdvisory from './components/SafetyAdvisory';
 import BackendFeeds from './components/BackendFeeds';
 import HseDashboard from './components/HseDashboard';
+import PlanningDashboard from './components/PlanningDashboard';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -447,6 +448,12 @@ export default function App() {
               />
             </div>
           )}
+
+          {mobileTab === 'planning' && (
+            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+              <PlanningDashboard isSimulated={isSimulated} />
+            </div>
+          )}
         </main>
 
         {/* Mobile Navigation Bar */}
@@ -485,6 +492,13 @@ export default function App() {
           >
             <span className="text-base">🛡️</span>
             <span className="text-[9px] uppercase tracking-wider">HSE</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('planning')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'planning' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">🗓️</span>
+            <span className="text-[9px] uppercase tracking-wider">Plan</span>
           </button>
         </nav>
       </div>
@@ -649,6 +663,13 @@ export default function App() {
               activeStation={activeStation} 
               isSimulated={isSimulated} 
             />
+          </div>
+        )}
+
+        {viewMode === 'planning' && (
+          /* Range Planning (Historical & Climatological Modeling) */
+          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
+            <PlanningDashboard isSimulated={isSimulated} />
           </div>
         )}
 
