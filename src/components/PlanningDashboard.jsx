@@ -3,6 +3,22 @@ import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, Shiel
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort } from '../utils/safetyEngine';
 
+// Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
+const climateDb = [
+  { name: 'January', minT: 14, maxT: 24, avgRH: 62, uv: 5, wind: 14, gustM: 1.3 },
+  { name: 'February', minT: 15, maxT: 25, avgRH: 60, uv: 6, wind: 15, gustM: 1.4 },
+  { name: 'March', minT: 17, maxT: 28, avgRH: 55, uv: 8, wind: 16, gustM: 1.4 },
+  { name: 'April', minT: 21, maxT: 33, avgRH: 50, uv: 10, wind: 15, gustM: 1.3 },
+  { name: 'May', minT: 25, maxT: 38, avgRH: 45, uv: 11, wind: 14, gustM: 1.3 },
+  { name: 'June', minT: 28, maxT: 42, avgRH: 45, uv: 12, wind: 15, gustM: 1.4 },
+  { name: 'July', minT: 30, maxT: 44, avgRH: 50, uv: 12, wind: 16, gustM: 1.4 },
+  { name: 'August', minT: 31, maxT: 44, avgRH: 55, uv: 12, wind: 15, gustM: 1.3 },
+  { name: 'September', minT: 28, maxT: 41, avgRH: 60, uv: 10, wind: 13, gustM: 1.3 },
+  { name: 'October', minT: 24, maxT: 36, avgRH: 60, uv: 8, wind: 12, gustM: 1.3 },
+  { name: 'November', minT: 20, maxT: 31, avgRH: 60, uv: 6, wind: 13, gustM: 1.3 },
+  { name: 'December', minT: 16, maxT: 26, avgRH: 65, uv: 5, wind: 14, gustM: 1.3 }
+];
+
 export default function PlanningDashboard({ isSimulated }) {
   // Default to today + 30 days for future planning
   const getFutureDateString = (daysAhead) => {
@@ -18,27 +34,15 @@ export default function PlanningDashboard({ isSimulated }) {
   const [analogDateUsed, setAnalogDateUsed] = useState(null);
   const [fetchError, setFetchError] = useState(null);
 
+  // Parse active month climate data
+  const dateObjForMonth = new Date(selectedDate);
+  const selectedMonth = isNaN(dateObjForMonth.getTime()) ? 0 : dateObjForMonth.getMonth();
+  const currentMonthAvg = climateDb[selectedMonth];
+
   // High-fidelity Abu Dhabi climatological simulation fallback
   const generateSyntheticDay = (dateStr) => {
     const dateObj = new Date(dateStr);
     const month = dateObj.getMonth(); // 0-11
-    
-    // Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
-    const climateDb = [
-      { name: 'January', minT: 14, maxT: 24, avgRH: 62, uv: 5, wind: 14, gustM: 1.3 },
-      { name: 'February', minT: 15, maxT: 25, avgRH: 60, uv: 6, wind: 15, gustM: 1.4 },
-      { name: 'March', minT: 17, maxT: 28, avgRH: 55, uv: 8, wind: 16, gustM: 1.4 },
-      { name: 'April', minT: 21, maxT: 33, avgRH: 50, uv: 10, wind: 15, gustM: 1.3 },
-      { name: 'May', minT: 25, maxT: 38, avgRH: 45, uv: 11, wind: 14, gustM: 1.3 },
-      { name: 'June', minT: 28, maxT: 42, avgRH: 45, uv: 12, wind: 15, gustM: 1.4 },
-      { name: 'July', minT: 30, maxT: 44, avgRH: 50, uv: 12, wind: 16, gustM: 1.4 },
-      { name: 'August', minT: 31, maxT: 44, avgRH: 55, uv: 12, wind: 15, gustM: 1.3 },
-      { name: 'September', minT: 28, maxT: 41, avgRH: 60, uv: 10, wind: 13, gustM: 1.3 },
-      { name: 'October', minT: 24, maxT: 36, avgRH: 60, uv: 8, wind: 12, gustM: 1.3 },
-      { name: 'November', minT: 20, maxT: 31, avgRH: 60, uv: 6, wind: 13, gustM: 1.3 },
-      { name: 'December', minT: 16, maxT: 26, avgRH: 65, uv: 5, wind: 14, gustM: 1.3 }
-    ];
-
     const c = climateDb[month];
     const logs = [];
 
@@ -405,6 +409,11 @@ export default function PlanningDashboard({ isSimulated }) {
           </div>
           <p className="text-[10px] text-slate-400 font-extrabold uppercase">
             TARGET COORDINATES: 24.20°N, 52.78°E (XRANGE HQ) • TIMEZONE: GST (Asia/Dubai)
+            {currentMonthAvg && (
+              <span className="text-edgeOrange ml-2 pl-2 border-l border-slate-700/50">
+                {currentMonthAvg.name} Avg: High {currentMonthAvg.maxT}°C / Low {currentMonthAvg.minT}°C
+              </span>
+            )}
           </p>
         </div>
 
@@ -489,8 +498,11 @@ export default function PlanningDashboard({ isSimulated }) {
                 </span>
                 <span className="text-xs text-slate-400 font-bold">°C</span>
               </div>
-              <span className="text-[8px] text-slate-400 font-bold uppercase">
-                At {stats ? stats.peakWbgtTime : '--'} (Shade: {stats ? stats.peakTemp.toFixed(1) : '--'}°C)
+              <span className="text-[8px] text-slate-400 font-bold uppercase block truncate">
+                At {stats ? stats.peakWbgtTime : '--'} • Peak Shade: {stats ? stats.peakTemp.toFixed(1) : '--'}°C
+              </span>
+              <span className="text-[8px] text-edgeOrange font-black uppercase block truncate mt-0.5">
+                {currentMonthAvg ? `${currentMonthAvg.name} Avg: H ${currentMonthAvg.maxT}°C / L ${currentMonthAvg.minT}°C` : ''}
               </span>
             </div>
 
