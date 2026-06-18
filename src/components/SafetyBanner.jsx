@@ -7,6 +7,7 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
 
   const { status, reasons, colors } = safetyEvaluation;
   const projected = getProjectedAdvisories(hourlyData, currentTime);
+  const compactStatusText = status === 'GREEN' ? 'ALL CLEAR' : status === 'AMBER' ? 'RANGE CAUTION' : 'CRITICAL HALT';
 
   const renderIcon = () => {
     switch (status) {
@@ -94,29 +95,29 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
   }
 
   return (
-    <div className={`w-full h-full border rounded-xl flex items-center justify-between px-6 transition-all duration-500 select-none ${colors.banner}`}>
+    <div className={`w-full h-full border rounded-xl flex items-center justify-between px-5 transition-all duration-500 select-none ${colors.banner}`}>
       {/* Icon & Title */}
-      <div className="flex items-center space-x-3.5 w-[44%]">
-        {renderIcon()}
-        <div>
-          <div className="flex items-center space-x-2.5">
-            <h2 className="text-[17px] font-black tracking-wider uppercase leading-tight">
-              {getStatusText()}
+      <div className="flex items-center space-x-2.5 w-[22%] flex-shrink-0">
+        <div className="flex-shrink-0">{renderIcon()}</div>
+        <div className="min-w-0">
+          <div className="flex items-center space-x-1.5 flex-wrap gap-y-0.5">
+            <h2 className="text-[13px] font-black tracking-wider uppercase leading-tight truncate">
+              {compactStatusText}
             </h2>
             {ncmWarnings && ncmWarnings.length > 0 && (
-              <span className="bg-white/20 border border-white text-white px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase animate-pulse">
-                NCM ACTIVE
+              <span className="bg-white/20 border border-white text-white px-1 py-0.5 rounded text-[6.5px] font-black tracking-wider uppercase animate-pulse leading-none flex-shrink-0">
+                NCM
               </span>
             )}
           </div>
-          <p className="text-[9.5px] font-bold text-white/80 uppercase tracking-widest mt-1">
-            Primary Safety Advisor Directive • ADOSH-SF v4.0 & MoHRE Regulated
+          <p className="text-[7.5px] font-black text-white/80 uppercase tracking-wider mt-0.5 truncate">
+            ADOSH & MoHRE POLICY
           </p>
         </div>
       </div>
 
       {/* Warning/Halt Reasons (Split into Current and Projected) */}
-      <div className="w-[53%] border-l border-white/20 pl-5 h-[90%] flex flex-row space-x-4 items-stretch overflow-hidden">
+      <div className="w-[75%] border-l border-white/20 pl-4 h-[90%] flex flex-row space-x-4 items-stretch overflow-hidden">
         {/* Current Section */}
         <div className="w-1/2 flex flex-col justify-between overflow-hidden">
           <p className="text-[11px] font-black text-white/85 uppercase tracking-wider mb-1 border-b border-white/10 pb-0.5 leading-none">
