@@ -2,7 +2,7 @@ import React from 'react';
 import { ShieldAlert, Droplets, Sun, Wind, CloudLightning, Activity, AlertTriangle, PhoneCall } from 'lucide-react';
 import { calculateSunscreenIntervals } from '../utils/safetyEngine';
 
-export default function SafetyAdvisory({ data }) {
+export default function SafetyAdvisory({ data, ncmWarnings }) {
   return (
     <div className="w-full h-full text-slate-200 select-none p-3 md:p-5 flex flex-col justify-between overflow-y-auto md:overflow-hidden no-scrollbar">
       {/* Title Header */}
@@ -244,7 +244,43 @@ export default function SafetyAdvisory({ data }) {
               </h2>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[360px] md:max-h-[380px] overflow-y-auto pr-1 no-scrollbar">
+              <div>
+                <p className="text-[9px] text-edgeOrange font-black uppercase tracking-wider mb-1">
+                  NCM Official UAE Warnings Feed
+                </p>
+                {ncmWarnings && ncmWarnings.length > 0 ? (
+                  <div className="space-y-1.5 pr-1">
+                    {ncmWarnings.map(w => (
+                      <div key={w.id} className={`p-2 rounded border text-[8px] leading-normal ${
+                        w.type === 'RED' ? 'bg-red-500/10 border-red-500/30 text-red-200' :
+                        w.type === 'AMBER' ? 'bg-amber-500/10 border-amber-500/30 text-amberAlert' :
+                        'bg-yellow-500/10 border-yellow-500/30 text-yellow-300'
+                      }`}>
+                        <div className="flex justify-between items-center font-bold mb-0.5">
+                          <span className="uppercase text-[8.5px] tracking-wide">{w.title}</span>
+                          <span className={`px-1 py-0.5 rounded text-[6.5px] font-black tracking-wider ${
+                            w.type === 'RED' ? 'bg-red-500/35 text-red-100' :
+                            w.type === 'AMBER' ? 'bg-amber-500/35 text-amber-100' :
+                            'bg-yellow-500/35 text-yellow-900'
+                          }`}>NCM {w.type}</span>
+                        </div>
+                        <p className="opacity-90">{w.description}</p>
+                        <p className="text-[6.5px] opacity-60 mt-1 font-mono">Issued: {w.issued.slice(11, 16)} • Expiry: {w.expiry.slice(11, 16)}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-bgDeepSpace/40 rounded border border-slate-800/60 p-2 text-[8px] text-green-400 font-bold uppercase tracking-wider flex items-center space-x-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-ping" />
+                    <span>No active NCM warnings for Abu Dhabi region</span>
+                  </div>
+                )}
+                <p className="text-[7.5px] text-slate-500 leading-normal mt-1">
+                  ⚠️ <span className="font-extrabold text-slate-400">NCM POLICY OVERRIDE:</span> UAE National Center of Meteorology alerts (Amber/Red) override local sensor readings. Live operations are automatically halted or deferred.
+                </p>
+              </div>
+
               <div>
                 <p className="text-[9px] text-edgeOrange font-black uppercase tracking-wider mb-1">
                   Heat Stroke vs Exhaustion Indicators

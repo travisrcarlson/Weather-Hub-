@@ -92,8 +92,11 @@ async function fetchNCMData() {
           d.setDate(d.getDate() + i);
           return `${d.toISOString().slice(0, 10)}T19:05`;
         })
-      }
+      },
+      ncmWarnings: []
     };
+
+    mockNcmData.ncmWarnings = generateMockNcmWarnings(mockNcmData.current);
 
     const mockMeta = {
       weather: {
@@ -124,6 +127,88 @@ async function fetchNCMData() {
     console.error('Error in future NCM API integration handler:', error);
     throw error;
   }
+}
+
+// UAE NCM Warnings Mock Generator
+export function generateMockNcmWarnings(currentData) {
+  const warnings = [];
+  if (!currentData) return warnings;
+
+  const temp = currentData.temperature_2m || 0;
+  const wind = currentData.wind_speed_10m || 0;
+  const visibility = currentData.visibility || 10000;
+  const pm10 = currentData.pm10 || 0;
+
+  // 1. Heat Warnings
+  if (temp >= 43) {
+    warnings.push({
+      id: "ncm-w-heat-red",
+      type: "RED",
+      category: "HEAT",
+      title: "EXTREME HEAT EMERGENCY",
+      description: "Official NCM Warning: Extreme heatwave conditions with temperatures exceeding 43°C. Avoid direct sunlight. Suspend all outdoor range activities.",
+      issued: new Date().toISOString().slice(0, 10) + "T09:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T17:00:00+04:00"
+    });
+  } else if (temp >= 38) {
+    warnings.push({
+      id: "ncm-w-heat-amber",
+      type: "AMBER",
+      category: "HEAT",
+      title: "HEAT ADVISORY",
+      description: "Official NCM Advisory: High temperatures exceeding 38°C. Implement mandatory rest cycles and hydration procedures.",
+      issued: new Date().toISOString().slice(0, 10) + "T10:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T16:00:00+04:00"
+    });
+  }
+
+  // 2. Wind Warnings
+  if (wind >= 38) {
+    warnings.push({
+      id: "ncm-w-wind-red",
+      type: "RED",
+      category: "WIND",
+      title: "GALE WARNING",
+      description: "Official NCM Warning: Severe gale winds exceeding 38 km/h with high gusts. Suspend all ballistics and drone operations.",
+      issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T20:00:00+04:00"
+    });
+  } else if (wind >= 25) {
+    warnings.push({
+      id: "ncm-w-wind-yellow",
+      type: "YELLOW",
+      category: "WIND",
+      title: "STRONG WIND AWARENESS",
+      description: "Official NCM Alert: Strong winds up to 30 km/h expected to cause blowing sand and dust. Reduce speeds and exercise caution.",
+      issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T18:00:00+04:00"
+    });
+  }
+
+  // 3. Sandstorm / Visibility Warnings
+  if (visibility < 1000 || pm10 >= 155) {
+    warnings.push({
+      id: "ncm-w-dust-red",
+      type: "RED",
+      category: "DUST",
+      title: "SEVERE DUST STORM WARNING",
+      description: "Official NCM Warning: Severe dust storm causing horizontal visibility to drop below 1000 meters. Halt range movement and secure equipment.",
+      issued: new Date().toISOString().slice(0, 10) + "T07:30:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T15:30:00+04:00"
+    });
+  } else if (visibility < 4000) {
+    warnings.push({
+      id: "ncm-w-dust-amber",
+      type: "AMBER",
+      category: "DUST",
+      title: "BLOWING DUST ADVISORY",
+      description: "Official NCM Alert: Dust suspension causing visibility between 1km and 4km. Avoid long-exposure outdoor duties.",
+      issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T16:00:00+04:00"
+    });
+  }
+
+  return warnings;
 }
 
 export async function fetchDashboardData() {
@@ -229,7 +314,11 @@ export async function fetchDashboardData() {
         pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
         pm10: aqiData.hourly ? aqiData.hourly.pm10 : null
       },
-      daily: weatherData.daily
+      daily: weatherData.daily,
+      ncmWarnings: generateMockNcmWarnings({
+        ...weatherData.current,
+        ...aqiData.current
+      })
     };
 
     const meta = {

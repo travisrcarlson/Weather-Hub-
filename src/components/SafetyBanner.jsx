@@ -2,7 +2,7 @@ import React from 'react';
 import { CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { getProjectedAdvisories } from '../utils/safetyEngine';
 
-export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime, isMobile }) {
+export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime, isMobile, ncmWarnings }) {
   if (!safetyEvaluation) return null;
 
   const { status, reasons, colors } = safetyEvaluation;
@@ -39,9 +39,16 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
         <div className="flex items-center space-x-2.5">
           <div className="flex-none">{renderIcon()}</div>
           <div>
-            <h2 className="text-xs font-black tracking-wide uppercase leading-tight">
-              {getStatusText()}
-            </h2>
+            <div className="flex items-center space-x-1.5">
+              <h2 className="text-xs font-black tracking-wide uppercase leading-tight">
+                {getStatusText()}
+              </h2>
+              {ncmWarnings && ncmWarnings.length > 0 && (
+                <span className="bg-white/25 border border-white/80 text-white px-1 py-0.5 rounded text-[6.5px] font-black tracking-wider uppercase animate-pulse leading-none">
+                  NCM
+                </span>
+              )}
+            </div>
             <p className="text-[7.5px] font-bold text-white/70 uppercase tracking-wider mt-0.5">
               Primary Safety Advisor Directive
             </p>
@@ -92,9 +99,16 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
       <div className="flex items-center space-x-3.5 w-[44%]">
         {renderIcon()}
         <div>
-          <h2 className="text-[17px] font-black tracking-wider uppercase leading-tight">
-            {getStatusText()}
-          </h2>
+          <div className="flex items-center space-x-2.5">
+            <h2 className="text-[17px] font-black tracking-wider uppercase leading-tight">
+              {getStatusText()}
+            </h2>
+            {ncmWarnings && ncmWarnings.length > 0 && (
+              <span className="bg-white/20 border border-white text-white px-1.5 py-0.5 rounded text-[8px] font-black tracking-widest uppercase animate-pulse">
+                NCM ACTIVE
+              </span>
+            )}
+          </div>
           <p className="text-[9.5px] font-bold text-white/80 uppercase tracking-widest mt-1">
             Primary Safety Advisor Directive • ADOSH-SF v4.0 & MoHRE Regulated
           </p>

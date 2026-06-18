@@ -91,7 +91,14 @@ export const stationsList = [
   }
 ];
 
-export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false }) {
+export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings }) {
+  const warnings = ncmWarnings || apiData?.ncmWarnings || [];
+  const activeWarning = warnings.reduce((highest, w) => {
+    if (!highest) return w;
+    const priority = { 'RED': 3, 'AMBER': 2, 'YELLOW': 1 };
+    return (priority[w.type] || 0) > (priority[highest.type] || 0) ? w : highest;
+  }, null);
+
   const currentActive = showSimulatedStations ? activeStation : 'hq';
   const currentStationInfo = stationsList.find(s => s.id === currentActive) || stationsList[0];
   const stationReadings = apiData 
@@ -426,16 +433,35 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   return (
     <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between select-none relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
-      <div className="flex justify-between items-start z-10">
-        <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-            Z12 • XRANGE TACTICAL MAP
+      <div className="flex justify-between items-start z-10 w-full">
+        <div className="flex-grow min-w-0 pr-4">
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center space-x-2">
+            <span>Z12 • XRANGE TACTICAL MAP</span>
+            {activeWarning && (
+              <span className={`animate-pulse px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider border leading-none ${
+                activeWarning.type === 'RED' ? 'bg-red-500/25 border-red-500 text-red-400' :
+                activeWarning.type === 'AMBER' ? 'bg-amber-500/25 border-amber-500 text-amberAlert' :
+                'bg-yellow-500/25 border-yellow-500 text-yellow-400'
+              }`}>
+                NCM {activeWarning.type} ALERT: {activeWarning.title}
+              </span>
+            )}
           </p>
-          <h2 className="text-sm font-bold text-slate-300">
-            {isSimulated ? 'Simulated Local Sensor Overlay' : 'Open-Meteo GPS Grid'}
+          <h2 className="text-sm font-bold text-slate-300 truncate mt-0.5">
+            {activeWarning ? (
+              <span className={`text-[11.5px] font-extrabold tracking-wide uppercase ${
+                activeWarning.type === 'RED' ? 'text-red-400' :
+                activeWarning.type === 'AMBER' ? 'text-amberAlert' :
+                'text-yellow-400'
+              }`}>
+                ⚠️ NCM DIRECTIVE: {activeWarning.description}
+              </span>
+            ) : (
+              isSimulated ? 'Simulated Local Sensor Overlay' : 'Open-Meteo GPS Grid'
+            )}
           </h2>
         </div>
-        <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-2 py-0.5 rounded text-[9px] font-bold text-slate-400 flex items-center space-x-1">
+        <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-2 py-0.5 rounded text-[9px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
           <Map className="w-3 h-3 text-edgeOrange" />
           <span>ABU AL ABYAD ISLAND</span>
         </span>

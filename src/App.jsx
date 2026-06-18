@@ -145,92 +145,105 @@ export default function App() {
   const getCombinedSafety = () => {
     if (!data) return { status: 'GREEN', reasons: [], colors: { banner: 'bg-safetyGreen', pulse: false } };
 
-    if (!isSimulated) {
-      return evaluateSafety(data.current);
-    }
-
-    const stations = [
-      {
-        id: 'hq',
-        name: 'Main HQ',
-        readings: {
-          ...data.current,
-          temperature_2m: 41.3,
-          apparent_temperature: 43.1,
-          wind_speed_10m: 25,
-          wind_gusts_10m: 35,
-          relative_humidity_2m: 20,
-          weathercode: 3,
-          uv_index: 9.0
-        }
-      },
-      {
-        id: 'north',
-        name: 'Range North',
-        readings: {
-          ...data.current,
-          temperature_2m: 39.5,
-          apparent_temperature: 42.0,
-          wind_speed_10m: 42,
-          wind_gusts_10m: 53,
-          relative_humidity_2m: 25,
-          visibility: 4000,
-          weathercode: 45,
-          uv_index: 9.0
-        }
-      },
-      {
-        id: 'south',
-        name: 'Range South',
-        readings: {
-          ...data.current,
-          temperature_2m: 44.5,
-          apparent_temperature: 49.2,
-          wind_speed_10m: 12,
-          wind_gusts_10m: 18,
-          relative_humidity_2m: 15,
-          visibility: 12000,
-          weathercode: 0,
-          uv_index: 9.0
-        }
-      },
-      {
-        id: 'sea',
-        name: 'Sea Boundary',
-        readings: {
-          ...data.current,
-          temperature_2m: 34.0,
-          apparent_temperature: 48.0,
-          wind_speed_10m: 28,
-          wind_gusts_10m: 42,
-          relative_humidity_2m: 89,
-          visibility: 2000,
-          weathercode: 3,
-          uv_index: 9.0
-        }
-      }
-    ];
-
     let globalStatus = 'GREEN';
     const globalReasons = [];
 
-    stations.forEach(s => {
-      const evalResult = evaluateSafety(s.readings);
-      if (evalResult.status === 'RED') {
+    if (!isSimulated) {
+      const evalResult = evaluateSafety(data.current);
+      globalStatus = evalResult.status;
+      evalResult.reasons.forEach(r => globalReasons.push(r));
+    } else {
+      const stations = [
+        {
+          id: 'hq',
+          name: 'Main HQ',
+          readings: {
+            ...data.current,
+            temperature_2m: 41.3,
+            apparent_temperature: 43.1,
+            wind_speed_10m: 25,
+            wind_gusts_10m: 35,
+            relative_humidity_2m: 20,
+            weathercode: 3,
+            uv_index: 9.0
+          }
+        },
+        {
+          id: 'north',
+          name: 'Range North',
+          readings: {
+            ...data.current,
+            temperature_2m: 39.5,
+            apparent_temperature: 42.0,
+            wind_speed_10m: 42,
+            wind_gusts_10m: 53,
+            relative_humidity_2m: 25,
+            visibility: 4000,
+            weathercode: 45,
+            uv_index: 9.0
+          }
+        },
+        {
+          id: 'south',
+          name: 'Range South',
+          readings: {
+            ...data.current,
+            temperature_2m: 44.5,
+            apparent_temperature: 49.2,
+            wind_speed_10m: 12,
+            wind_gusts_10m: 18,
+            relative_humidity_2m: 15,
+            visibility: 12000,
+            weathercode: 0,
+            uv_index: 9.0
+          }
+        },
+        {
+          id: 'sea',
+          name: 'Sea Boundary',
+          readings: {
+            ...data.current,
+            temperature_2m: 34.0,
+            apparent_temperature: 48.0,
+            wind_speed_10m: 28,
+            wind_gusts_10m: 42,
+            relative_humidity_2m: 89,
+            visibility: 2000,
+            weathercode: 3,
+            uv_index: 9.0
+          }
+        }
+      ];
+
+      stations.forEach(s => {
+        const evalResult = evaluateSafety(s.readings);
+        if (evalResult.status === 'RED') {
+          globalStatus = 'RED';
+        } else if (evalResult.status === 'AMBER' && globalStatus !== 'RED') {
+          globalStatus = 'AMBER';
+        }
+
+        evalResult.reasons.forEach(r => {
+          if (r.includes('MIDDAY BAN')) {
+            if (!globalReasons.some(gr => gr.includes('MIDDAY BAN'))) {
+              globalReasons.unshift(r);
+            }
+          } else {
+            globalReasons.push(`${s.name}: ${r}`);
+          }
+        });
+      });
+    }
+
+    // Incorporate NCM warnings into the safety state
+    const ncmWarnings = data.ncmWarnings || [];
+    ncmWarnings.forEach(w => {
+      if (w.type === 'RED') {
         globalStatus = 'RED';
-      } else if (evalResult.status === 'AMBER' && globalStatus !== 'RED') {
+      } else if (w.type === 'AMBER' && globalStatus !== 'RED') {
         globalStatus = 'AMBER';
       }
-
-      evalResult.reasons.forEach(r => {
-        if (r.includes('MIDDAY BAN')) {
-          if (!globalReasons.some(gr => gr.includes('MIDDAY BAN'))) {
-            globalReasons.unshift(r);
-          }
-        } else {
-          globalReasons.push(`${s.name}: ${r}`);
-        }
-      });
+      globalReasons.unshift(`[NCM ${w.type} ALERT] ${w.title}: ${w.description}`);
     });
 
     let bannerColor = "bg-safetyGreen border-green-500 text-white";
@@ -346,7 +359,7 @@ export default function App() {
           {mobileTab === 'live' && (
             <div className="space-y-4">
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={data?.ncmWarnings} />
               </div>
               <div className="h-auto">
                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
@@ -376,6 +389,7 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={true}
+                  ncmWarnings={data?.ncmWarnings}
                 />
               </div>
               <div className="w-full">
@@ -413,10 +427,10 @@ export default function App() {
           {mobileTab === 'alerts' && (
             <div className="space-y-4">
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={data?.ncmWarnings} />
               </div>
               <div className="border border-slate-800 bg-cardDarkSlate p-4 rounded-xl">
-                <SafetyAdvisory data={activeDisplayData} />
+                <SafetyAdvisory data={activeDisplayData} ncmWarnings={data?.ncmWarnings} />
               </div>
             </div>
           )}
@@ -479,7 +493,7 @@ export default function App() {
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none flex flex-col justify-between space-y-3.5 w-full h-full">
             {/* Z8 Safety Status Banner */}
             <div className="h-[12%] pointer-events-auto">
-              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} />
+              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={data?.ncmWarnings} />
             </div>
 
             {/* 3-Column Split Layout */}
@@ -511,6 +525,7 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
+                  ncmWarnings={data?.ncmWarnings}
                 />
               </div>
 
@@ -546,7 +561,7 @@ export default function App() {
             <div className="col-span-6 h-full flex flex-col justify-between space-y-3 pointer-events-none">
               {/* Z8 Safety Status Banner */}
               <div className="h-[12%] pointer-events-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={data?.ncmWarnings} />
               </div>
 
               {/* Central Area: Opaque Map Card with Station Details */}
@@ -559,6 +574,7 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
+                  ncmWarnings={data?.ncmWarnings}
                 />
               </div>
 
@@ -599,7 +615,7 @@ export default function App() {
         {viewMode === 'advisory' && (
           /* Safety Advisory (Standard Operating Procedures & Survival Guidelines) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <SafetyAdvisory data={activeDisplayData} />
+            <SafetyAdvisory data={activeDisplayData} ncmWarnings={data?.ncmWarnings} />
           </div>
         )}
 
