@@ -433,23 +433,11 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   return (
     <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between select-none relative overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
-      <div className="flex justify-between items-start z-10 w-full">
-        <div className="flex-grow min-w-0 pr-4">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center space-x-2">
-            <span>Z12 • XRANGE TACTICAL MAP</span>
-            {activeWarning ? (
-              <span className={`animate-pulse px-1.5 py-0.5 rounded text-[8px] font-black tracking-wider border leading-none ${
-                activeWarning.type === 'RED' ? 'bg-red-500/25 border-red-500 text-red-400' :
-                activeWarning.type === 'AMBER' ? 'bg-amber-500/25 border-amber-500 text-amberAlert' :
-                'bg-yellow-500/25 border-yellow-500 text-yellow-400'
-              }`}>
-                NCM {activeWarning.type} ALERT: {activeWarning.title}
-              </span>
-            ) : (
-              <span className="bg-green-500/10 border border-green-500/30 text-green-400 px-1.5 py-0.5 rounded text-[7.5px] font-black tracking-wider leading-none">
-                NCM SECURE
-              </span>
-            )}
+      <div className="flex justify-between items-center z-10 w-full mb-1">
+        {/* Left Column: Title & Subtitle */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+            Z12 • XRANGE TACTICAL MAP
           </p>
           <h2 className="text-sm font-bold text-slate-300 truncate mt-0.5">
             {activeWarning ? (
@@ -465,10 +453,31 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
             )}
           </h2>
         </div>
-        <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-2 py-0.5 rounded text-[9px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
-          <Map className="w-3 h-3 text-edgeOrange" />
-          <span>ABU AL ABYAD ISLAND</span>
-        </span>
+
+        {/* Center Column: Centered & Larger NCM Warning/Secure Status Box */}
+        <div className="flex-none flex justify-center px-4">
+          {activeWarning ? (
+            <div className={`animate-pulse px-3 py-1.5 rounded-lg text-[9px] font-black tracking-widest border leading-none text-center shadow-lg uppercase ${
+              activeWarning.type === 'RED' ? 'bg-red-500/20 border-red-500 text-red-400 shadow-red-500/10' :
+              activeWarning.type === 'AMBER' ? 'bg-amber-500/20 border-amber-500 text-amberAlert shadow-amber-500/10' :
+              'bg-yellow-500/20 border-yellow-500 text-yellow-400 shadow-yellow-500/10'
+            }`}>
+              NCM {activeWarning.type} ALERT: {activeWarning.title}
+            </div>
+          ) : (
+            <div className="bg-green-500/15 border border-green-500/40 text-green-400 px-3.5 py-1.5 rounded-lg text-[9px] font-black tracking-widest leading-none text-center shadow-lg shadow-green-500/5 uppercase">
+              NCM STATUS: SECURE
+            </div>
+          )}
+        </div>
+
+        {/* Right Column: Location */}
+        <div className="flex-1 flex justify-end">
+          <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-2.5 py-1 rounded-lg text-[9px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
+            <Map className="w-3.5 h-3.5 text-edgeOrange" />
+            <span>ABU AL ABYAD ISLAND</span>
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center justify-between h-[88%] mt-2 z-10">
