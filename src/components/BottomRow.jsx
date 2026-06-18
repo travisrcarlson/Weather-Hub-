@@ -345,7 +345,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
           Z11 • SUN & MOON TRANSIT
         </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">Light & Curfew Planning</h2>
+        <h2 className="text-sm font-bold text-slate-200 leading-none">Heat Acclimatization Planning</h2>
       </div>
 
       {/* Columns: Sun and Moon Side-by-Side (Upscaled height h-12 and text) */}
