@@ -178,8 +178,13 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   if (hasTransitData) {
     try {
-      const sunriseStr = dailyData.sunrise[0];
-      const sunsetStr = dailyData.sunset[0];
+      // Find the index of the active day in the daily arrays
+      const dateStr = currentTime.slice(0, 10);
+      const idx = dailyData.time.findIndex(t => t.startsWith(dateStr));
+      const targetIdx = idx >= 0 ? idx : 0;
+
+      const sunriseStr = dailyData.sunrise[targetIdx];
+      const sunsetStr = dailyData.sunset[targetIdx];
       const nowDate = new Date(currentTime);
 
       // Calculate Day of Year to determine Solar Declination
@@ -208,7 +213,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       }
 
       // 2. Moon Transit
-      moonDetails = getMoonDetails(dailyData.time[0]);
+      moonDetails = getMoonDetails(dailyData.time[targetIdx]);
       const moonriseDate = new Date(new Date(sunriseStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
       const moonsetDate = new Date(new Date(sunsetStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
 
