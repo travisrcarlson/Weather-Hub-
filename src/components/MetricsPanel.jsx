@@ -76,6 +76,31 @@ export function HumidityWidget({ data, hourlyData }) {
 
   const forecast = getHumidityForecast();
 
+  const getWorkRestCycle = () => {
+    // Grounded in UAE ADOSH CoP 11.0 guidelines
+    if (humidex >= 46 || temp >= 43) {
+      return { 
+        ratio: "30m Work / 30m Rest", 
+        color: "text-stopRed animate-pulse",
+        law: "ADOSH CoP 11.0 (Critical Limit)"
+      };
+    } else if (humidex >= 40 || temp >= 38) {
+      return { 
+        ratio: "40m Work / 20m Rest", 
+        color: "text-amberAlert",
+        law: "ADOSH CoP 11.0 (High Alert)"
+      };
+    } else {
+      return { 
+        ratio: "50m Work / 10m Rest", 
+        color: "text-safetyGreen",
+        law: "ADOSH CoP 11.0 (Standard Split)"
+      };
+    }
+  };
+
+  const cycle = getWorkRestCycle();
+
   return (
     <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl py-3 px-3.5 flex flex-col justify-between relative overflow-hidden select-none">
       {/* Decorative Grid Line */}
@@ -119,8 +144,20 @@ export function HumidityWidget({ data, hourlyData }) {
         </div>
       </div>
 
-      {/* Forecast Details (Fills dead space) */}
-      <div className="border-t border-slate-800/40 pt-1.5 pb-0.5 relative z-10 flex justify-between items-center text-[9.5px] font-bold text-slate-400 uppercase leading-none">
+      {/* UAE MoHRE Work/Rest Split */}
+      <div className="border-t border-slate-800/40 pt-1.5 pb-1 relative z-10 flex flex-col space-y-0.5">
+        <div className="flex justify-between items-center text-[9px] font-bold uppercase leading-none">
+          <span className="text-slate-450">Work/Rest (MoHRE)</span>
+          <span className={`${cycle.color} font-black tracking-wide`}>{cycle.ratio}</span>
+        </div>
+        <div className="flex justify-between items-center text-[7px] text-slate-500 uppercase leading-none">
+          <span>Comfort: <span className={`font-black uppercase ${comfort.color}`}>{comfort.label}</span></span>
+          <span className="font-extrabold tracking-wide">{cycle.law}</span>
+        </div>
+      </div>
+
+      {/* Forecast Details */}
+      <div className="border-t border-slate-700/30 pt-1.5 flex justify-between items-center relative z-10 text-[9px] font-bold text-slate-400 uppercase leading-none">
         <div>
           <span>24H Range: </span>
           <span className="text-textIceWhite font-mono font-black">{forecast.minRh.toFixed(0)}% - {forecast.maxRh.toFixed(0)}%</span>
@@ -131,17 +168,6 @@ export function HumidityWidget({ data, hourlyData }) {
             {forecast.maxHumidex.toFixed(1)}°C
           </span>
         </div>
-      </div>
-
-      {/* Footer */}
-      <div className="border-t border-slate-700/30 pt-1.5 flex justify-between items-center relative z-10">
-        <span className="text-[10px] text-slate-400 font-bold uppercase flex items-center space-x-0.5">
-          <Droplets className="w-3 h-3 text-slate-400" />
-          <span>COMFORT</span>
-        </span>
-        <span className={`text-[10px] font-black uppercase tracking-wider ${comfort.color}`}>
-          {comfort.label}
-        </span>
       </div>
     </div>
   );
