@@ -329,10 +329,10 @@ export default function WindWidget({ data, hourlyData, currentTime }) {
         </div>
         
         {/* X-Axis labels */}
-        <div className="flex justify-between text-[7px] font-bold text-slate-500 font-mono mt-0.5 leading-none pl-[12.5%]">
-          <span>NOW</span>
-          <span>+6H</span>
-          <span>+12H</span>
+        <div className="flex justify-between text-[7.5px] font-black text-slate-550 font-mono mt-0.5 leading-none pl-[12.5%] pr-[1%]">
+          <span>{windForecast12h[0]?.hour || 'NOW'}</span>
+          <span>{windForecast12h[6]?.hour || '+6H'}</span>
+          <span>{windForecast12h[11]?.hour || '+12H'}</span>
         </div>
       </div>
 
