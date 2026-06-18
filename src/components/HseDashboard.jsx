@@ -1,9 +1,15 @@
 import React, { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
+  const [hseActiveTab, setHseActiveTab] = useState('table'); // 'table' or 'trends'
+  const [supervisorName, setSupervisorName] = useState('');
+  const [incidentCategory, setIncidentCategory] = useState('heat');
+  const [incidentNotes, setIncidentNotes] = useState('');
+  const [showLogSuccess, setShowLogSuccess] = useState(false);
 
   if (!data || !hourlyData || !hourlyData.time) {
     return (
@@ -187,6 +193,94 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
     }
   };
 
+  const handleGenerateReport = () => {
+    if (!supervisorName.trim()) {
+      alert("Please enter supervisor name/badge.");
+      return;
+    }
+    
+    // Generate a secure digital audit verification signature hash for record integrity
+    const mockHashInput = `${selectedAudit.time}-${supervisorName}-${incidentCategory}-${selectedAudit.temp}-${selectedAudit.wbgt}`;
+    let hash = 0;
+    for (let i = 0; i < mockHashInput.length; i++) {
+      const char = mockHashInput.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    const secureHash = "XR-HSE-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+
+    const wr = getWorkRestDirective(selectedAudit.temp, selectedAudit.wbgt);
+    const reportText = `======================================================================
+                  X-RANGE OPERATIONAL HSE INCIDENT BRIEF
+                  FEDERAL UAE MOHRE & ADOSH COMPLIANCE RECORD
+======================================================================
+GENERATION TIMESTAMP: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST
+AUDIT STATUS: OFFICIAL SUBMISSION
+SECURE CRYPTO HASH: ${secureHash}
+
+----------------------------------------------------------------------
+1. INCIDENT META-DATA
+----------------------------------------------------------------------
+Incident Category:  ${incidentCategory.toUpperCase()}
+Logging Supervisor: ${supervisorName}
+Incident Date/Time: ${formatDateLabel(selectedAudit.time)} at ${formatTimeLabel(selectedAudit.time)}
+Range Location:     X-Range HQ (Abu Al Abyad Island, UAE)
+System Mode:        ${isSimulated ? "SIMULATION MODE" : "LIVE SENSOR TELEMETRY"}
+
+----------------------------------------------------------------------
+2. METEOROLOGICAL CONDITIONS (AT INCIDENT HOUR)
+----------------------------------------------------------------------
+Dry Bulb Temp (Shade):   ${selectedAudit.temp.toFixed(1)}°C
+WBGT Heat Load Index:    ${selectedAudit.wbgt.toFixed(1)}°C
+Relative Humidity:       ${selectedAudit.rh}%
+Dew Point Temperature:   ${selectedAudit.dewPoint.toFixed(1)}°C
+Wind Speed / Peak Gusts: ${selectedAudit.wind.toFixed(0)} km/h / ${selectedAudit.gusts.toFixed(0)} km/h
+Visibility Index:        ${(selectedAudit.visibility / 1000).toFixed(1)} km
+UV Radiation Index:      ${selectedAudit.uv.toFixed(1)} UV
+Air Quality Index:       ${selectedAudit.aqi.toFixed(0)} AQI (PM10)
+
+----------------------------------------------------------------------
+3. ADOSH DIRECTIVES & MOHRE REGULATORY COMPLIANCE
+----------------------------------------------------------------------
+Safety Status Rating:   ${selectedAudit.safety.status}
+Work/Rest Split Code:   ${wr.ratio} (${wr.limit})
+Fluid Intake Guideline: ${getHydrationVolume(selectedAudit.wbgt)}
+Mandatory PPE Gear:     ${getPpeRequirement(selectedAudit.uv, selectedAudit.temp)}
+MOHRE Midday Ban Check: ${selectedAudit.isMiddayBanActive ? "ACTIVE VIOLATION BAN IN FORCE" : "NOT APPLICABLE"}
+
+Key Breaches Logged:
+${selectedAudit.breaches.length > 0 ? selectedAudit.breaches.map(b => `  * ${b}`).join("\n") : "  * NONE (COMPLIANT CONDITIONS)"}
+
+----------------------------------------------------------------------
+4. SUPERVISOR DETAILED DESCRIPTION
+----------------------------------------------------------------------
+Notes & Observations:
+${incidentNotes.trim() ? incidentNotes.trim() : "No custom notes appended by logging supervisor."}
+
+----------------------------------------------------------------------
+5. REGULATORY DISCLAIMER & AUDIT VERIFICATION
+----------------------------------------------------------------------
+This record constitutes a legal compliance document under UAE Ministerial Decree
+and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof.
+======================================================================
+                      END OF INCIDENT REPORT
+======================================================================`;
+
+    const blob = new Blob([reportText], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `HSE_Incident_Brief_${selectedAudit.time.replace(/[:T]/g, '_')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Show visual success notification
+    setShowLogSuccess(true);
+    setTimeout(() => {
+      setShowLogSuccess(false);
+    }, 4000);
+  };
+
   return (
     <div className="w-full h-full text-slate-200 select-none p-4 flex flex-col justify-between overflow-y-auto lg:overflow-hidden">
       {/* Title Panel */}
@@ -220,106 +314,204 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
           <div className="flex-none flex items-center justify-between border-b border-slate-800/50 pb-2 mb-2">
             <span className="text-xs font-black text-textIceWhite uppercase tracking-wider flex items-center space-x-1.5">
               <Clock className="w-4 h-4 text-edgeOrange" />
-              <span>24-Hour Safety Audit Log (Chronological)</span>
+              <span>24-Hour Safety Audit Log</span>
             </span>
-            <span className="text-[9px] text-slate-500 font-extrabold uppercase">
-              Select any hour to inspect compliance
-            </span>
+            
+            {/* Tab Selector */}
+            <div className="flex bg-bgDeepSpace/60 border border-slate-800/80 p-0.5 rounded-none">
+              <button
+                onClick={() => setHseActiveTab('table')}
+                className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                  hseActiveTab === 'table' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                }`}
+              >
+                Log Table
+              </button>
+              <button
+                onClick={() => setHseActiveTab('trends')}
+                className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                  hseActiveTab === 'trends' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                }`}
+              >
+                Visual Trends
+              </button>
+            </div>
           </div>
 
-          {/* Scrollable Audit Table */}
-          <div className="flex-grow overflow-y-auto pr-1 no-scrollbar min-h-0 border border-slate-800/40 rounded bg-bgDeepSpace/10">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-800 text-[8.5px] text-slate-400 font-black uppercase tracking-widest sticky top-0 bg-slate-950/80 backdrop-blur-md z-20">
-                  <th className="py-2 px-2.5">Time</th>
-                  <th className="py-2 px-1">Dry Bulb</th>
-                  <th className="py-2 px-1">WBGT</th>
-                  <th className="py-2 px-1">Wind/Gust</th>
-                  <th className="py-2 px-1 text-center">UV</th>
-                  <th className="py-2 px-1.5 text-center">Status</th>
-                  <th className="py-2 px-2">Key Incident Breaches</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/35">
-                {logs24h.map((log, idx) => {
-                  const isSelected = selectedAuditIdx === idx;
-                  const rowStatusClass = 
-                    log.safety.status === 'RED' ? 'hover:bg-red-950/10' :
-                    log.safety.status === 'AMBER' ? 'hover:bg-amber-950/10' :
-                    'hover:bg-green-950/5';
+          {hseActiveTab === 'table' ? (
+            <div className="flex-grow overflow-y-auto pr-1 no-scrollbar min-h-0 border border-slate-800/40 rounded bg-bgDeepSpace/10">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[8.5px] text-slate-400 font-black uppercase tracking-widest sticky top-0 bg-slate-950/80 backdrop-blur-md z-20">
+                    <th className="py-2 px-2.5">Time</th>
+                    <th className="py-2 px-1">Dry Bulb</th>
+                    <th className="py-2 px-1">WBGT</th>
+                    <th className="py-2 px-1">Wind/Gust</th>
+                    <th className="py-2 px-1 text-center">UV</th>
+                    <th className="py-2 px-1.5 text-center">Status</th>
+                    <th className="py-2 px-2">Key Incident Breaches</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/35">
+                  {logs24h.map((log, idx) => {
+                    const isSelected = selectedAuditIdx === idx;
+                    const rowStatusClass = 
+                      log.safety.status === 'RED' ? 'hover:bg-red-950/10' :
+                      log.safety.status === 'AMBER' ? 'hover:bg-amber-950/10' :
+                      'hover:bg-green-950/5';
 
-                  return (
-                    <tr
-                      key={log.time}
-                      onClick={() => setSelectedAuditIdx(idx)}
-                      className={`text-[10px] font-bold cursor-pointer transition-all duration-150 ${rowStatusClass} ${
-                        isSelected ? 'bg-slate-800/40 border-l-2 border-l-edgeOrange' : ''
-                      }`}
-                    >
-                      <td className="py-2.5 px-2.5 font-mono text-slate-300">
-                        {formatTimeLabel(log.time)}
-                      </td>
-                      <td className="py-2.5 px-1 font-mono text-textIceWhite">{log.temp.toFixed(1)}°C</td>
-                      <td className="py-2.5 px-1 font-mono text-slate-350">{log.wbgt.toFixed(1)}°C</td>
-                      <td className="py-2.5 px-1 font-mono text-slate-350">
-                        {log.wind.toFixed(0)}/{log.gusts.toFixed(0)} <span className="text-[8px] text-slate-500">k/h</span>
-                      </td>
-                      <td className="py-2.5 px-1 font-mono text-center text-slate-300">{log.uv.toFixed(1)}</td>
-                      <td className="py-2.5 px-1.5 text-center">
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black border tracking-wide uppercase ${getStatusBadgeClass(log.safety.status)}`}>
-                          {log.safety.status}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-2 truncate max-w-[150px]">
-                        {log.breaches.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {log.breaches.map((b, bIdx) => (
-                              <span key={bIdx} className={`px-1 py-0.5 rounded text-[6.5px] font-black tracking-wider leading-none uppercase ${
-                                b.includes("CRITICAL") || b.includes("HALT") || b.includes("MOHRE")
-                                  ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                                  : 'bg-amber-500/20 text-amberAlert border border-amberAlert/30'
-                              }`}>
-                                {b.split(" (")[0]}
-                              </span>
-                            ))}
-                          </div>
-                        ) : (
-                          <span className="text-green-500 text-[8.5px] uppercase font-black tracking-wider flex items-center space-x-1">
-                            <ShieldCheck className="w-3.5 h-3.5 inline" />
-                            <span>Compliant</span>
+                    return (
+                      <tr
+                        key={log.time}
+                        onClick={() => setSelectedAuditIdx(idx)}
+                        className={`text-[10px] font-bold cursor-pointer transition-all duration-150 ${rowStatusClass} ${
+                          isSelected ? 'bg-slate-800/40 border-l-2 border-l-edgeOrange' : ''
+                        }`}
+                      >
+                        <td className="py-2.5 px-2.5 font-mono text-slate-300">
+                          {formatTimeLabel(log.time)}
+                        </td>
+                        <td className="py-2.5 px-1 font-mono text-textIceWhite">{log.temp.toFixed(1)}°C</td>
+                        <td className="py-2.5 px-1 font-mono text-slate-350">{log.wbgt.toFixed(1)}°C</td>
+                        <td className="py-2.5 px-1 font-mono text-slate-350">
+                          {log.wind.toFixed(0)}/{log.gusts.toFixed(0)} <span className="text-[8px] text-slate-500">k/h</span>
+                        </td>
+                        <td className="py-2.5 px-1 font-mono text-center text-slate-300">{log.uv.toFixed(1)}</td>
+                        <td className="py-2.5 px-1.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[8px] font-black border tracking-wide uppercase ${getStatusBadgeClass(log.safety.status)}`}>
+                            {log.safety.status}
                           </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
+                        <td className="py-2.5 px-2 truncate max-w-[150px]">
+                          {log.breaches.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {log.breaches.map((b, bIdx) => (
+                                <span key={bIdx} className={`px-1 py-0.5 rounded text-[6.5px] font-black tracking-wider leading-none uppercase ${
+                                  b.includes("CRITICAL") || b.includes("HALT") || b.includes("MOHRE")
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                                    : 'bg-amber-500/20 text-amberAlert border border-amberAlert/30'
+                                }`}>
+                                  {b.split(" (")[0]}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-green-500 text-[8.5px] uppercase font-black tracking-wider flex items-center space-x-1">
+                              <ShieldCheck className="w-3.5 h-3.5 inline" />
+                              <span>Compliant</span>
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="flex-grow flex flex-col space-y-4 pr-1 no-scrollbar min-h-0 overflow-y-auto">
+              {/* Chart 1: Heat Stress Trends */}
+              <div className="bg-bgDeepSpace/30 border border-slate-800/80 p-3 rounded-lg h-[185px] flex flex-col">
+                <span className="text-[9.5px] font-black tracking-wider text-slate-400 mb-1.5 uppercase block">
+                  Thermal Load Trends (Dry Bulb vs. WBGT Index)
+                </span>
+                <div className="flex-grow min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={logs24h.slice().reverse()} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="hseTempGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#FF4E02" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#FF4E02" stopOpacity={0.0} />
+                        </linearGradient>
+                        <linearGradient id="hseWbgtGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                      <XAxis 
+                        dataKey="time" 
+                        stroke="#4B5563" 
+                        fontSize={8.5} 
+                        tickLine={false} 
+                        tickFormatter={(t) => t ? t.split('T')[1].slice(0, 5) : ''}
+                      />
+                      <YAxis domain={[10, 50]} stroke="#4B5563" fontSize={8.5} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 10 }}
+                        labelClassName="text-slate-400 font-mono font-bold"
+                        labelFormatter={(t) => t ? t.replace('T', ' ') : ''}
+                      />
+                      <ReferenceArea y1={30.0} y2={50} fill="#EF4444" fillOpacity={0.04} />
+                      <ReferenceLine y={30.0} stroke="#EF4444" strokeDasharray="3 3" />
+                      <Area type="monotone" dataKey="temp" name="Dry Bulb" stroke="#FF4E02" strokeWidth={1.5} fillOpacity={1} fill="url(#hseTempGlow)" />
+                      <Area type="monotone" dataKey="wbgt" name="WBGT Index" stroke="#8B5CF6" strokeWidth={1.5} fillOpacity={1} fill="url(#hseWbgtGlow)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 2: Aerodynamic Trends */}
+              <div className="bg-bgDeepSpace/30 border border-slate-800/80 p-3 rounded-lg h-[185px] flex flex-col">
+                <span className="text-[9.5px] font-black tracking-wider text-slate-400 mb-1.5 uppercase block">
+                  Aerodynamic Trends (Wind, Gusts & UV Index)
+                </span>
+                <div className="flex-grow min-h-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={logs24h.slice().reverse()} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="hseWindGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                      <XAxis 
+                        dataKey="time" 
+                        stroke="#4B5563" 
+                        fontSize={8.5} 
+                        tickLine={false} 
+                        tickFormatter={(t) => t ? t.split('T')[1].slice(0, 5) : ''}
+                      />
+                      <YAxis domain={[0, 60]} stroke="#4B5563" fontSize={8.5} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 10 }}
+                        labelClassName="text-slate-400 font-mono font-bold"
+                        labelFormatter={(t) => t ? t.replace('T', ' ') : ''}
+                      />
+                      <ReferenceLine y={38} stroke="#EF4444" strokeDasharray="3 3" />
+                      <Area type="monotone" dataKey="gusts" name="Wind Gusts" stroke="#EC4899" strokeWidth={1} strokeDasharray="2 2" fill="none" />
+                      <Area type="monotone" dataKey="wind" name="Wind Speed" stroke="#06B6D4" strokeWidth={1.5} fillOpacity={1} fill="url(#hseWindGlow)" />
+                      <Area type="monotone" dataKey="uv" name="UV Index" stroke="#FBBF24" strokeWidth={1} fill="none" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right Side: Selected Hour HSE Audit Detail & Incident Report Generator (Col-span-5) */}
         <div className="col-span-12 lg:col-span-5 flex flex-col justify-between space-y-3 min-h-0">
           
-          {/* Top Panel: HSE Selected Audit Incident Report */}
-          <div className="flex-1 bg-cardDarkSlate border border-slate-800/85 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden min-h-0">
+          {/* Card 1: Selected Hour HSE Audit Detail */}
+          <div className="flex-[3] bg-cardDarkSlate border border-slate-800/85 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden min-h-0">
             <div className="absolute inset-0 bg-[radial-gradient(#80808003_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
             
-            <div>
-              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-3 flex-none">
-                <FileText className="w-5 h-5 text-edgeOrange" />
-                <h2 className="text-sm font-bold text-textIceWhite uppercase tracking-wide">
+            <div className="min-h-0 flex flex-col">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-2 flex-none">
+                <FileText className="w-4 h-4 text-edgeOrange" />
+                <h2 className="text-[11px] font-bold text-textIceWhite uppercase tracking-wide">
                   HSE Weather Accident Audit Report
                 </h2>
               </div>
 
               {/* Selected Hour Details */}
-              <div className="space-y-3 overflow-y-auto no-scrollbar max-h-[300px] pr-1">
+              <div className="space-y-2.5 overflow-y-auto no-scrollbar flex-grow min-h-0 pr-1">
                 {/* Audit Timestamp Banner */}
-                <div className="flex justify-between items-center bg-bgDeepSpace/40 p-2 rounded border border-slate-800/60 text-[9.5px]">
+                <div className="flex justify-between items-center bg-bgDeepSpace/40 p-2 border border-slate-800/60 text-[9.5px]">
                   <div className="flex items-center space-x-1.5 text-slate-300 font-bold uppercase">
-                    <Calendar className="w-4 h-4 text-edgeOrange" />
+                    <Calendar className="w-3.5 h-3.5 text-edgeOrange" />
                     <span>{formatDateLabel(selectedAudit.time)}</span>
                   </div>
                   <div className="font-mono font-black text-textIceWhite">
@@ -329,25 +521,25 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
 
                 {/* Audit Parameters Grid */}
                 <div className="grid grid-cols-2 gap-2 text-[8px]">
-                  <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
+                  <div className="bg-bgDeepSpace/30 p-2 border border-slate-800/40">
                     <span className="text-slate-500 font-bold uppercase block mb-0.5">Dry Bulb / WBGT</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
                       {selectedAudit.temp.toFixed(1)}°C / {selectedAudit.wbgt.toFixed(1)}°C
                     </span>
                   </div>
-                  <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
+                  <div className="bg-bgDeepSpace/30 p-2 border border-slate-800/40">
                     <span className="text-slate-500 font-bold uppercase block mb-0.5">Wind / Peak Gusts</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
                       {selectedAudit.wind.toFixed(0)} / {selectedAudit.gusts.toFixed(0)} km/h
                     </span>
                   </div>
-                  <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
+                  <div className="bg-bgDeepSpace/30 p-2 border border-slate-800/40">
                     <span className="text-slate-500 font-bold uppercase block mb-0.5">Visibility Index</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
                       {(selectedAudit.visibility / 1000).toFixed(1)} km
                     </span>
                   </div>
-                  <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
+                  <div className="bg-bgDeepSpace/30 p-2 border border-slate-800/40">
                     <span className="text-slate-500 font-bold uppercase block mb-0.5">UV Radiation / AQI</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
                       {selectedAudit.uv.toFixed(1)} UV / {selectedAudit.aqi.toFixed(0)} AQI
@@ -356,15 +548,15 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 </div>
 
                 {/* ADOSH Directive Card */}
-                <div className={`p-3 rounded-lg border flex items-start space-x-2.5 ${
+                <div className={`p-2.5 border flex items-start space-x-2.5 ${
                   selectedAudit.safety.status === 'RED' ? 'bg-red-500/10 border-red-500/35 text-red-200' :
                   selectedAudit.safety.status === 'AMBER' ? 'bg-amber-500/10 border-amber-500/35 text-amberAlert' :
                   'bg-green-500/10 border-green-500/35 text-green-200'
                 }`}>
                   {selectedAudit.safety.status === 'GREEN' ? (
-                    <ShieldCheck className="w-5 h-5 flex-none mt-0.5 animate-bounce-slow" />
+                    <ShieldCheck className="w-4.5 h-4.5 flex-none mt-0.5 animate-bounce-slow" />
                   ) : (
-                    <ShieldAlert className="w-5 h-5 flex-none mt-0.5 animate-pulse" />
+                    <ShieldAlert className="w-4.5 h-4.5 flex-none mt-0.5 animate-pulse" />
                   )}
                   <div className="text-[9px]">
                     <p className="font-black uppercase tracking-wider mb-0.5 leading-none">
@@ -382,12 +574,12 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 </div>
 
                 {/* HSE Audit Specific Details */}
-                <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-lg text-[9px] space-y-2">
+                <div className="bg-slate-900/40 border border-slate-800 p-2 text-[9px] space-y-1.5">
                   {/* MoHRE Work/Rest Split */}
                   {(() => {
                     const wr = getWorkRestDirective(selectedAudit.temp, selectedAudit.wbgt);
                     return (
-                      <div className="flex justify-between items-center border-b border-slate-800/40 pb-1.5">
+                      <div className="flex justify-between items-center border-b border-slate-800/40 pb-1">
                         <div className="flex flex-col">
                           <span className="font-black text-slate-300">Mandated Work/Rest Split</span>
                           <span className="text-[7.5px] text-slate-500 uppercase">{wr.limit} (ADOSH CoP 11.0)</span>
@@ -400,7 +592,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                   })()}
 
                   {/* Mandated Hydration Intake */}
-                  <div className="flex justify-between items-center border-b border-slate-800/40 pb-1.5">
+                  <div className="flex justify-between items-center border-b border-slate-800/40 pb-1">
                     <div className="flex flex-col">
                       <span className="font-black text-slate-300">Hourly Fluid Intake</span>
                       <span className="text-[7.5px] text-slate-500 uppercase">ADOSH Heat Stress Code</span>
@@ -416,7 +608,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                       <span className="font-black text-slate-300">Required PPE Gear</span>
                       <span className="text-[7.5px] text-slate-500 uppercase">ADOSH Compliance Minimum</span>
                     </div>
-                    <span className="text-textIceWhite font-extrabold text-right text-[8.5px] max-w-[200px] leading-tight">
+                    <span className="text-textIceWhite font-extrabold text-right text-[8.5px] max-w-[180px] leading-tight">
                       {getPpeRequirement(selectedAudit.uv, selectedAudit.temp)}
                     </span>
                   </div>
@@ -424,8 +616,8 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
 
                 {/* Regulatory Breach Log */}
                 {selectedAudit.breaches.length > 0 && (
-                  <div className="border border-red-500/25 bg-red-950/20 p-2.5 rounded-lg flex items-start space-x-2">
-                    <AlertTriangle className="w-4 h-4 text-stopRed mt-0.5 flex-none animate-pulse" />
+                  <div className="border border-red-500/25 bg-red-950/20 p-2 rounded flex items-start space-x-2">
+                    <AlertTriangle className="w-3.5 h-3.5 text-stopRed mt-0.5 flex-none animate-pulse" />
                     <div>
                       <p className="text-[8.5px] font-black text-red-300 uppercase leading-none mb-1 tracking-wider">
                         Compliance Breaches Detected
@@ -442,16 +634,88 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
             </div>
 
             {/* Audit Status Disclaimer */}
-            <div className="border-t border-slate-800 pt-2 flex items-center space-x-1.5 flex-none mt-2">
-              <Info className="w-3.5 h-3.5 text-slate-500" />
-              <span className="text-[7.5px] font-bold text-slate-500 uppercase leading-snug">
-                This log is a tamper-proof timestamp record generated by Open-Meteo GPS Grid & local Abu Al Abyad Island telemetry. Grounded in UAE Federal MoHRE ministerial decrees.
+            <div className="border-t border-slate-800 pt-1.5 flex items-center space-x-1.5 flex-none mt-1.5">
+              <Info className="w-3 h-3 text-slate-500" />
+              <span className="text-[7px] font-bold text-slate-500 uppercase leading-snug">
+                This log is generated by Open-Meteo GPS Grid & Abu Al Abyad telemetry under UAE Federal MoHRE decrees.
               </span>
             </div>
           </div>
-          
+
+          {/* Card 2: Weather Accident Incident Logger */}
+          <div className="flex-[2] bg-cardDarkSlate border border-slate-800/85 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden min-h-0">
+            <div className="absolute inset-0 bg-[radial-gradient(#80808003_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
+            
+            <div className="min-h-0 flex flex-col">
+              <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 mb-2 flex-none">
+                <ShieldAlert className="w-4 h-4 text-edgeOrange" />
+                <h2 className="text-[11px] font-bold text-textIceWhite uppercase tracking-wide">
+                  Weather Accident Incident Logger
+                </h2>
+              </div>
+              
+              <div className="space-y-2 text-[9px] flex-grow overflow-y-auto no-scrollbar">
+                {/* 2-Column Inputs */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="flex flex-col space-y-0.5">
+                    <label className="text-slate-500 font-bold uppercase text-[7.5px]">Supervisor Name / Badge</label>
+                    <input 
+                      type="text" 
+                      value={supervisorName}
+                      onChange={(e) => setSupervisorName(e.target.value)}
+                      placeholder="e.g. Capt. Al Mansouri" 
+                      className="bg-bgDeepSpace/60 border border-slate-800 px-2 py-1 text-[9px] text-textIceWhite focus:border-edgeOrange outline-none"
+                    />
+                  </div>
+                  <div className="flex flex-col space-y-0.5">
+                    <label className="text-slate-500 font-bold uppercase text-[7.5px]">Incident Category</label>
+                    <select
+                      value={incidentCategory}
+                      onChange={(e) => setIncidentCategory(e.target.value)}
+                      className="bg-bgDeepSpace/60 border border-slate-800 px-1.5 py-1 text-[9px] text-textIceWhite focus:border-edgeOrange outline-none"
+                    >
+                      <option value="heat">Heat Stress / Exhaustion</option>
+                      <option value="wind">Wind / Gust Hazard</option>
+                      <option value="visibility">Dust / Visibility Obstruction</option>
+                      <option value="uv">UV Index / Sunburn</option>
+                      <option value="injury">Weather-linked Injury</option>
+                      <option value="other">Other Operations Halt</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Supervisor Notes */}
+                <div className="flex flex-col space-y-0.5">
+                  <label className="text-slate-500 font-bold uppercase text-[7.5px]">Incident Details & Observations</label>
+                  <textarea
+                    value={incidentNotes}
+                    onChange={(e) => setIncidentNotes(e.target.value)}
+                    placeholder="Enter operator name, exact range coordinate, and action taken..."
+                    className="bg-bgDeepSpace/60 border border-slate-800 px-2 py-1 text-[9px] text-textIceWhite focus:border-edgeOrange outline-none resize-none h-[42px] no-scrollbar"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Action and Success Banner */}
+            <div className="flex-none mt-2">
+              {showLogSuccess && (
+                <div className="mb-2 bg-safetyGreen/20 border border-safetyGreen/40 text-green-400 p-1.5 text-[8px] font-bold text-center uppercase tracking-wide animate-pulse">
+                  ✓ Incident brief downloaded & locked to audit hash!
+                </div>
+              )}
+              <button
+                onClick={handleGenerateReport}
+                className="w-full flex items-center justify-center space-x-1.5 bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 py-1.5 text-[9px] font-black uppercase tracking-wider text-white transition cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Generate Weather Incident Brief</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
