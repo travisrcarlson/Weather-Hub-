@@ -158,7 +158,7 @@ export default function App() {
       const stations = [
         {
           id: 'hq',
-          name: 'Main HQ',
+          name: 'X-Range HQ',
           readings: {
             ...data.current,
             temperature_2m: 41.3,

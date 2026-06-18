@@ -7,7 +7,7 @@ import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow'
 export const stationsList = [
   {
     id: 'hq',
-    name: 'Main HQ Station',
+    name: 'X-Range HQ',
     x: 310,
     y: 170,
     description: 'Administrative & Firing HQ',
@@ -411,7 +411,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                 className="uppercase font-sans tracking-wider"
                 style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.95)' }}
               >
-                {s.id === 'hq' ? (showSimulatedStations ? 'HQ' : 'Main HQ') : s.id}
+                {s.id === 'hq' ? 'X-Range HQ' : s.id}
               </text>
             </g>
           );
