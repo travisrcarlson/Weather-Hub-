@@ -101,7 +101,7 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
         <div className="flex-shrink-0">{renderIcon()}</div>
         <div className="min-w-0">
           <div className="flex items-center space-x-1.5 flex-wrap gap-y-0.5">
-            <h2 className="text-[13px] font-black tracking-wider uppercase leading-tight truncate">
+            <h2 className="text-[15.5px] font-black tracking-wider uppercase leading-tight truncate">
               {compactStatusText}
             </h2>
             {ncmWarnings && ncmWarnings.length > 0 && (
