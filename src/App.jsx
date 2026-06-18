@@ -541,21 +541,21 @@ export default function App() {
           /* Operations Console (Complex dashboard view) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none grid grid-cols-10 gap-4 w-full h-full">
             
-             {/* Left Sidebar (Col-span-2): Current, Wind, Humidity, Sunrise/Sunset */}
-            <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
-              <div className="h-[24%]">
-                <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
-              </div>
-              <div className="h-[18%]">
-                <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
-              </div>
-              <div className="h-[40%]">
-                <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
-              </div>
-              <div className="h-[14%]">
-                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
-              </div>
-            </div>
+             {/* Left Sidebar (Col-span-2): Current, Heat Stress, Hydration, Wind Safety */}
+             <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
+               <div className="h-[24%]">
+                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
+               </div>
+               <div className="h-[18%]">
+                 <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
+               </div>
+               <div className="h-[16%]">
+                 <HydrationWidget data={activeDisplayData} />
+               </div>
+               <div className="h-[38%]">
+                 <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
+               </div>
+             </div>
 
             {/* Center Column (Col-span-6): Safety Banner, Station Details overlay, and Forecasts */}
             <div className="col-span-6 h-full flex flex-col justify-between space-y-3 pointer-events-none">
@@ -593,21 +593,21 @@ export default function App() {
               </div>
             </div>
 
-            {/* Right Sidebar (Col-span-2): UV, Visibility, AQI, Hydration */}
-            <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
-              <div className="h-[47%]">
-                <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
-              </div>
-              <div className="h-[16%]">
-                <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
-              </div>
-              <div className="h-[15.5%]">
-                <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
-              </div>
-              <div className="h-[16%]">
-                <HydrationWidget data={activeDisplayData} />
-              </div>
-            </div>
+            {/* Right Sidebar (Col-span-2): UV, Visibility, AQI, Sunrise/Sunset (Light/Curfew) */}
+             <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
+               <div className="h-[47%]">
+                 <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
+               </div>
+               <div className="h-[16%]">
+                 <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
+               </div>
+               <div className="h-[15.5%]">
+                 <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
+               </div>
+               <div className="h-[16%]">
+                 <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+               </div>
+             </div>
 
           </div>
         )}
