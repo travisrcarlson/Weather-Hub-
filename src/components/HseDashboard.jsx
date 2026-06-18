@@ -10,6 +10,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   const [incidentCategory, setIncidentCategory] = useState('heat');
   const [incidentNotes, setIncidentNotes] = useState('');
   const [showLogSuccess, setShowLogSuccess] = useState(false);
+  const [lookbackHours, setLookbackHours] = useState(48); // default to 48H to capture yesterday
 
   if (!data || !hourlyData || !hourlyData.time) {
     return (
@@ -65,7 +66,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   const startIdx = curIdx >= 0 ? curIdx : 0;
 
   const logs24h = [];
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < lookbackHours; i++) {
     const idx = startIdx - i;
     if (idx >= 0 && idx < hourlyData.time.length) {
       const timeStr = hourlyData.time[idx];
@@ -314,27 +315,53 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
           <div className="flex-none flex items-center justify-between border-b border-slate-800/50 pb-2 mb-2">
             <span className="text-xs font-black text-textIceWhite uppercase tracking-wider flex items-center space-x-1.5">
               <Clock className="w-4 h-4 text-edgeOrange" />
-              <span>24-Hour Safety Audit Log</span>
+              <span>{lookbackHours}-Hour Safety Audit Log</span>
             </span>
             
-            {/* Tab Selector */}
-            <div className="flex bg-bgDeepSpace/60 border border-slate-800/80 p-0.5 rounded-none">
-              <button
-                onClick={() => setHseActiveTab('table')}
-                className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
-                  hseActiveTab === 'table' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
-                }`}
-              >
-                Log Table
-              </button>
-              <button
-                onClick={() => setHseActiveTab('trends')}
-                className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
-                  hseActiveTab === 'trends' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
-                }`}
-              >
-                Visual Trends
-              </button>
+            {/* Control Selectors */}
+            <div className="flex items-center space-x-2.5">
+              {/* Range Selector */}
+              <div className="flex bg-bgDeepSpace/60 border border-slate-800/80 p-0.5 rounded-none">
+                <button
+                  onClick={() => {
+                    setLookbackHours(24);
+                    if (selectedAuditIdx >= 24) setSelectedAuditIdx(0);
+                  }}
+                  className={`px-2 py-0.5 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                    lookbackHours === 24 ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                >
+                  24H
+                </button>
+                <button
+                  onClick={() => setLookbackHours(48)}
+                  className={`px-2 py-0.5 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                    lookbackHours === 48 ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                >
+                  48H
+                </button>
+              </div>
+
+              {/* Tab Selector */}
+              <div className="flex bg-bgDeepSpace/60 border border-slate-800/80 p-0.5 rounded-none">
+                <button
+                  onClick={() => setHseActiveTab('table')}
+                  className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                    hseActiveTab === 'table' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                >
+                  Log Table
+                </button>
+                <button
+                  onClick={() => setHseActiveTab('trends')}
+                  className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all ${
+                    hseActiveTab === 'trends' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                >
+                  Visual Trends
+                </button>
+              </div>
             </div>
           </div>
 

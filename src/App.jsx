@@ -39,24 +39,66 @@ const fallbackData = {
     pm2_5: 26.6,
     pm10: 52.2
   },
-  hourly: {
-    time: Array.from({ length: 24 }, (_, i) => `2026-06-15T${String(i).padStart(2, '0')}:00`),
-    temperature_2m: [28, 27, 26, 26, 27, 27, 30, 32, 35, 37, 39, 40, 41, 42, 43, 42, 41, 39, 38, 36, 34, 32, 30, 29],
-    apparent_temperature: [30, 29, 28, 28, 29, 29, 32, 34, 37, 39, 41, 42, 43, 44, 45, 44, 43, 41, 40, 38, 36, 34, 32, 31],
-    relative_humidity_2m: [55, 58, 60, 62, 60, 58, 50, 45, 40, 35, 30, 25, 20, 20, 20, 22, 25, 30, 35, 40, 45, 50, 52, 55],
-    weathercode: [0, 0, 0, 0, 1, 1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 2, 2, 1, 1, 1, 0, 0, 0, 0],
-    precipitation_probability: [0, 0, 0, 0, 0, 0, 5, 5, 5, 5, 5, 5, 10, 10, 10, 5, 5, 0, 0, 0, 0, 0, 0, 0],
-    wind_speed_10m: [10, 8, 9, 10, 11, 12, 15, 18, 22, 25, 30, 32, 35, 33, 30, 26, 22, 18, 15, 12, 10, 9, 9, 10],
-    wind_direction_10m: [270, 265, 260, 260, 265, 270, 275, 280, 280, 275, 270, 270, 275, 280, 285, 290, 290, 285, 280, 275, 270, 265, 265, 270],
-    wind_gusts_10m: [14, 11, 12, 14, 15, 16, 21, 25, 30, 33, 40, 44, 50, 47, 42, 36, 30, 24, 20, 16, 14, 13, 13, 14],
-    uv_index: [0, 0, 0, 0, 0, 1, 3, 6, 8, 10, 11, 11, 10, 9, 7, 5, 3, 1, 0, 0, 0, 0, 0, 0],
-    pressure_msl: [1010, 1010, 1010, 1011, 1011, 1011, 1010, 1010, 1009, 1009, 1008, 1008, 1008, 1009, 1009, 1010, 1010, 1010, 1011, 1011, 1011, 1011, 1011, 1010],
-    visibility: [8000, 8000, 8000, 8000, 8000, 8500, 9000, 10000, 10000, 10000, 10000, 12000, 12000, 10000, 9000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000, 8000],
-    cloud_cover: [30, 30, 35, 35, 40, 40, 35, 30, 25, 20, 20, 15, 15, 20, 25, 30, 35, 40, 40, 35, 30, 30, 30, 30],
-    european_aqi: [60, 62, 65, 68, 70, 72, 70, 68, 65, 62, 60, 58, 60, 62, 65, 68, 70, 72, 70, 68, 65, 62, 60, 58],
-    pm2_5: [22, 23, 24, 25, 26, 27, 26, 25, 24, 23, 22, 21, 22, 23, 24, 25, 26, 27, 26, 25, 24, 23, 22, 21],
-    pm10: [45, 47, 50, 52, 55, 58, 55, 52, 50, 48, 45, 43, 45, 47, 50, 52, 55, 58, 55, 52, 50, 48, 45, 43]
-  },
+  hourly: (() => {
+    const time = [];
+    const temperature_2m = [];
+    const apparent_temperature = [];
+    const relative_humidity_2m = [];
+    const wind_speed_10m = [];
+    const wind_gusts_10m = [];
+    const uv_index = [];
+    const visibility = [];
+    const pm10 = [];
+    const european_aqi = [];
+    
+    // Generate 9 days of hourly data starting from 2 days ago (9 * 24 = 216 hours)
+    // Simulated base date is June 15, 2026. Let's start from June 13, 2026.
+    const baseDate = new Date('2026-06-13T00:00:00');
+    for (let i = 0; i < 216; i++) {
+      const d = new Date(baseDate.getTime() + i * 3600000);
+      const pad = (num) => String(num).padStart(2, '0');
+      const timeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+      time.push(timeStr);
+      
+      const hour = d.getHours();
+      const tempVal = 30 + 12 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 1.5 - 0.75);
+      temperature_2m.push(tempVal);
+      apparent_temperature.push(tempVal + 2 + (Math.random() * 1.0 - 0.5));
+      
+      const rhVal = 55 - 25 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 5 - 2.5);
+      relative_humidity_2m.push(Math.round(rhVal));
+      
+      const windVal = 12 + 10 * Math.sin((hour - 9) * Math.PI / 12) + (Math.random() * 4 - 2);
+      wind_speed_10m.push(Math.max(5, windVal));
+      wind_gusts_10m.push(Math.max(8, windVal * 1.3 + (Math.random() * 3)));
+      
+      const uvVal = (hour >= 6 && hour <= 18) ? 11 * Math.sin((hour - 6) * Math.PI / 12) : 0;
+      uv_index.push(parseFloat(uvVal.toFixed(1)));
+      
+      visibility.push(12000 + (Math.random() * 2000 - 1000));
+      pm10.push(40 + Math.random() * 20);
+      european_aqi.push(Math.round(45 + Math.random() * 25));
+    }
+    
+    return {
+      time,
+      temperature_2m,
+      apparent_temperature,
+      relative_humidity_2m,
+      weathercode: Array(216).fill(0),
+      precipitation_probability: Array(216).fill(0),
+      wind_speed_10m,
+      wind_direction_10m: Array(216).fill(260),
+      wind_gusts_10m,
+      uv_index,
+      pressure_msl: Array(216).fill(1008.5),
+      visibility,
+      cloud_cover: Array(216).fill(10),
+      european_aqi,
+      pm2_5: Array(216).fill(20.2),
+      pm10
+    };
+  })(),
   daily: {
     time: ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-21'],
     weathercode: [3, 2, 1, 0, 0, 1, 3],

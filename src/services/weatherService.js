@@ -50,28 +50,66 @@ async function fetchNCMData() {
         pm2_5: 20.2,
         pm10: 45.1
       },
-      hourly: {
-        time: Array.from({ length: 24 }, (_, i) => {
-          const d = new Date();
-          d.setHours(i, 0, 0, 0);
-          return d.toISOString().slice(0, 16);
-        }),
-        temperature_2m: [29, 28, 27, 27, 28, 28, 31, 33, 36, 38, 40, 41, 42, 42, 42, 41, 40, 39, 38, 36, 34, 32, 30, 29],
-        apparent_temperature: [31, 30, 29, 29, 30, 30, 33, 35, 38, 40, 42, 43, 44, 44, 44, 43, 42, 41, 40, 38, 36, 34, 32, 31],
-        relative_humidity_2m: [50, 52, 55, 58, 55, 52, 48, 42, 38, 33, 28, 22, 18, 18, 18, 20, 22, 28, 33, 38, 42, 48, 50, 52],
-        weathercode: Array(24).fill(0),
-        precipitation_probability: Array(24).fill(0),
-        wind_speed_10m: [12, 10, 11, 12, 13, 14, 16, 18, 20, 22, 24, 23, 22, 21, 20, 18, 16, 14, 12, 11, 10, 9, 9, 10],
-        wind_direction_10m: Array(24).fill(260),
-        wind_gusts_10m: [16, 13, 14, 16, 17, 18, 22, 25, 28, 30, 33, 31, 30, 29, 28, 25, 22, 18, 16, 14, 13, 12, 12, 13],
-        uv_index: [0, 0, 0, 0, 0, 1, 3, 6, 8, 10, 11, 11, 10, 9, 7, 5, 3, 1, 0, 0, 0, 0, 0, 0],
-        pressure_msl: Array(24).fill(1008.5),
-        visibility: Array(24).fill(12000),
-        cloud_cover: Array(24).fill(10),
-        european_aqi: Array(24).fill(55),
-        pm2_5: Array(24).fill(20.2),
-        pm10: Array(24).fill(45.1)
-      },
+      hourly: (() => {
+        const time = [];
+        const temperature_2m = [];
+        const apparent_temperature = [];
+        const relative_humidity_2m = [];
+        const wind_speed_10m = [];
+        const wind_gusts_10m = [];
+        const uv_index = [];
+        const visibility = [];
+        const pm10 = [];
+        const european_aqi = [];
+        
+        // Generate 9 days of hourly data starting from 2 days ago (9 * 24 = 216 hours)
+        // Simulated base date is June 15, 2026. Let's start from June 13, 2026.
+        const baseDate = new Date('2026-06-13T00:00:00');
+        for (let i = 0; i < 216; i++) {
+          const d = new Date(baseDate.getTime() + i * 3600000);
+          const pad = (num) => String(num).padStart(2, '0');
+          const timeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+          time.push(timeStr);
+          
+          const hour = d.getHours();
+          const tempVal = 30 + 12 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 1.5 - 0.75);
+          temperature_2m.push(tempVal);
+          apparent_temperature.push(tempVal + 2 + (Math.random() * 1.0 - 0.5));
+          
+          const rhVal = 55 - 25 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 5 - 2.5);
+          relative_humidity_2m.push(Math.round(rhVal));
+          
+          const windVal = 12 + 10 * Math.sin((hour - 9) * Math.PI / 12) + (Math.random() * 4 - 2);
+          wind_speed_10m.push(Math.max(5, windVal));
+          wind_gusts_10m.push(Math.max(8, windVal * 1.3 + (Math.random() * 3)));
+          
+          const uvVal = (hour >= 6 && hour <= 18) ? 11 * Math.sin((hour - 6) * Math.PI / 12) : 0;
+          uv_index.push(parseFloat(uvVal.toFixed(1)));
+          
+          visibility.push(12000 + (Math.random() * 2000 - 1000));
+          pm10.push(40 + Math.random() * 20);
+          european_aqi.push(Math.round(45 + Math.random() * 25));
+        }
+        
+        return {
+          time,
+          temperature_2m,
+          apparent_temperature,
+          relative_humidity_2m,
+          weathercode: Array(216).fill(0),
+          precipitation_probability: Array(216).fill(0),
+          wind_speed_10m,
+          wind_direction_10m: Array(216).fill(260),
+          wind_gusts_10m,
+          uv_index,
+          pressure_msl: Array(216).fill(1008.5),
+          visibility,
+          cloud_cover: Array(216).fill(10),
+          european_aqi,
+          pm2_5: Array(216).fill(20.2),
+          pm10
+        };
+      })(),
       daily: {
         time: Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
@@ -259,7 +297,8 @@ export async function fetchDashboardData() {
       ].join(','),
       timezone: TIMEZONE,
       wind_speed_unit: 'kmh',
-      forecast_days: 7
+      forecast_days: 7,
+      past_days: 2
     };
 
     const aqiParams = {
@@ -267,7 +306,8 @@ export async function fetchDashboardData() {
       longitude: LON,
       current: 'european_aqi,pm2_5,pm10',
       hourly: 'european_aqi,pm2_5,pm10',
-      timezone: TIMEZONE
+      timezone: TIMEZONE,
+      past_days: 2
     };
 
     const fetchWeather = async () => {
