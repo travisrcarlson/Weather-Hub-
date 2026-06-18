@@ -153,6 +153,16 @@ export default function Header({
             Safety Advisory
           </button>
           <button
+            onClick={() => onViewModeChange('hse')}
+            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
+              viewMode === 'hse'
+                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
+                : 'text-slate-400 hover:text-textIceWhite'
+            }`}
+          >
+            HSE Dashboard
+          </button>
+          <button
             onClick={() => onViewModeChange('backend')}
             className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
               viewMode === 'backend'

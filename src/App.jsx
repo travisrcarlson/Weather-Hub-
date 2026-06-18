@@ -14,6 +14,7 @@ import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
 import SafetyAdvisory from './components/SafetyAdvisory';
 import BackendFeeds from './components/BackendFeeds';
+import HseDashboard from './components/HseDashboard';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -434,6 +435,18 @@ export default function App() {
               </div>
             </div>
           )}
+
+          {mobileTab === 'hse' && (
+            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+              <HseDashboard 
+                data={data} 
+                hourlyData={data.hourly} 
+                currentTime={activeTime} 
+                activeStation={activeStation} 
+                isSimulated={isSimulated} 
+              />
+            </div>
+          )}
         </main>
 
         {/* Mobile Navigation Bar */}
@@ -465,6 +478,13 @@ export default function App() {
           >
             <span className={`text-base ${globalSafety.status === 'RED' ? 'text-stopRed animate-pulse' : globalSafety.status === 'AMBER' ? 'text-amberAlert' : ''}`}>⚠️</span>
             <span className="text-[9px] uppercase tracking-wider">Alerts</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('hse')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'hse' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">🛡️</span>
+            <span className="text-[9px] uppercase tracking-wider">HSE</span>
           </button>
         </nav>
       </div>
@@ -616,6 +636,19 @@ export default function App() {
           /* Safety Advisory (Standard Operating Procedures & Survival Guidelines) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
             <SafetyAdvisory data={activeDisplayData} ncmWarnings={data?.ncmWarnings} />
+          </div>
+        )}
+
+        {viewMode === 'hse' && (
+          /* HSE Dashboard (Compliance & Historical Auditing) */
+          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
+            <HseDashboard 
+              data={data} 
+              hourlyData={data.hourly} 
+              currentTime={activeTime} 
+              activeStation={activeStation} 
+              isSimulated={isSimulated} 
+            />
           </div>
         )}
 
