@@ -237,7 +237,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       </defs>
 
       {/* Isometric 3D Map Image Backdrop */}
-      <image href="/xrange_map_3.png" x="30" y="57.5" width="440" height="185" />
+      <image href="xrange_map_3.png" xlinkHref="xrange_map_3.png" x="30" y="57.5" width="440" height="185" />
 
       {/* Night Map Overlay (Darkens map during night hours, scaled with moonlight) */}
       {isNight && (

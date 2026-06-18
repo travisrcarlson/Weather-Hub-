@@ -37,7 +37,7 @@ export default function Header({
       <header className="w-full h-14 bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-4 select-none relative z-50 flex-none">
         <div className="flex items-center space-x-2">
           <img 
-            src="/remaya_logo.png" 
+            src="remaya_logo.png" 
             alt="REMAYA" 
             className="h-7 w-auto object-contain bg-white px-1.5 py-0.5 rounded border border-white/80" 
           />
@@ -91,7 +91,7 @@ export default function Header({
         {/* Remaya Corporate Logo Image Badge */}
         <div className="h-16 bg-white rounded-lg px-2 py-0.5 flex items-center justify-center shadow-md shadow-white/5 border border-white/85">
           <img 
-            src="/remaya_logo.png" 
+            src="remaya_logo.png" 
             alt="REMAYA Logo" 
             className="h-full w-auto object-contain" 
           />
