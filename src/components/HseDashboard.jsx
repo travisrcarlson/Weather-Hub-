@@ -166,7 +166,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   const handleExportCSV = () => {
     try {
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Timestamp,Temperature(C),WBGT(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
+      csvContent += "Timestamp,Dry Bulb Temp(C),WBGT(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
       
       logs24h.forEach(log => {
         const timeLabel = log.time.replace('T', ' ');
@@ -233,7 +233,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
               <thead>
                 <tr className="border-b border-slate-800 text-[8.5px] text-slate-400 font-black uppercase tracking-widest sticky top-0 bg-slate-950/80 backdrop-blur-md z-20">
                   <th className="py-2 px-2.5">Time</th>
-                  <th className="py-2 px-1">Temp</th>
+                  <th className="py-2 px-1">Dry Bulb</th>
                   <th className="py-2 px-1">WBGT</th>
                   <th className="py-2 px-1">Wind/Gust</th>
                   <th className="py-2 px-1 text-center">UV</th>
@@ -330,7 +330,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
                 {/* Audit Parameters Grid */}
                 <div className="grid grid-cols-2 gap-2 text-[8px]">
                   <div className="bg-bgDeepSpace/30 p-2 rounded border border-slate-800/40">
-                    <span className="text-slate-500 font-bold uppercase block mb-0.5">Shade Temp / WBGT</span>
+                    <span className="text-slate-500 font-bold uppercase block mb-0.5">Dry Bulb / WBGT</span>
                     <span className="text-xs font-mono font-black text-textIceWhite">
                       {selectedAudit.temp.toFixed(1)}°C / {selectedAudit.wbgt.toFixed(1)}°C
                     </span>
