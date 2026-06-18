@@ -150,7 +150,9 @@ export function HumidityWidget({ data, hourlyData }) {
               <span className={`text-[11px] ml-1.5 ${wbgtTrend.class}`}>{wbgtTrend.arrow}</span>
             )}
           </div>
-          <span className="text-[9.5px] font-bold text-slate-300 block mt-0.5">Dew Pt: {dewPoint.toFixed(1)}°C</span>
+          <span className="text-[9px] font-bold text-slate-300 block mt-0.5 truncate">
+            Dry Bulb: {temp.toFixed(1)}°C • Dew Pt: {dewPoint.toFixed(1)}°C
+          </span>
         </div>
       </div>
 
