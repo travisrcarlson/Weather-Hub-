@@ -230,7 +230,7 @@ export function evaluateSafety(data) {
   // 12. MoHRE Midday Ban Check
   const midday = evaluateMiddayBan(data.time);
   if (midday.isActive) {
-    if (status !== "RED") status = "AMBER";
+    status = "RED";
     reasons.unshift(`MoHRE MIDDAY BAN ACTIVE (${midday.countdownText}). No outdoor work allowed.`);
   } else if (midday.isUpcoming) {
     if (status !== "RED" && status !== "AMBER") status = "AMBER";

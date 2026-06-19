@@ -20,14 +20,20 @@ const climateDb = [
 ];
 
 export default function PlanningDashboard({ isSimulated }) {
-  // Default to today + 30 days for future planning
-  const getFutureDateString = (daysAhead) => {
-    const d = new Date();
-    d.setDate(d.getDate() + daysAhead);
-    return d.toISOString().slice(0, 10);
+  const getDubaiDateString = (dateVal) => {
+    const date = dateVal instanceof Date ? dateVal : new Date(dateVal);
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dubai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+    const parts = formatter.formatToParts(date);
+    const getPart = (type) => parts.find(p => p.type === type).value;
+    return `${getPart('year')}-${getPart('month')}-${getPart('day')}`;
   };
 
-  const [selectedDate, setSelectedDate] = useState(getFutureDateString(30));
+  const [selectedDate, setSelectedDate] = useState(getDubaiDateString(new Date()));
   const [hourlyLogs, setHourlyLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataSource, setDataSource] = useState('SIMULATED'); // 'API' or 'SIMULATED' or 'API_ANALOG'
@@ -460,16 +466,36 @@ export default function PlanningDashboard({ isSimulated }) {
       ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
       return ranges.join(", ") + " GST";
     };
+
+    const targetMonth = parseInt(selectedDate.slice(5, 7), 10);
+    const targetDay = parseInt(selectedDate.slice(8, 10), 10);
+    const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
+    
+    let haltWindowText = "";
+    if (isMiddayBanActiveForDay) {
+      // Filter out the midday ban hours (13:00 and 14:00) from the normal haltWindows to prevent duplicates/overlaps in formatting
+      const otherHaltWindows = haltWindows.filter(t => {
+        const hr = new Date(t).getHours();
+        return hr !== 13 && hr !== 14;
+      });
+      const otherHaltText = getFormattedWindows(otherHaltWindows);
+      if (otherHaltText === "NONE") {
+        haltWindowText = "12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban)";
+      } else {
+        haltWindowText = `12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban), ${otherHaltText}`;
+      }
+    } else {
+      haltWindowText = getFormattedWindows(haltWindows);
+    }
     
     const safeWindowText = getFormattedWindows(safeWindows);
     const cautionWindowText = getFormattedWindows(cautionWindows);
-    const haltWindowText = getFormattedWindows(haltWindows);
     
     let overallStatus = "SAFE (GREEN)";
     let overallInstruction = "Normal range operations permitted. Continuous environmental monitoring active.";
-    if (haltWindows.length > 0) {
+    if (haltWindows.length > 0 || isMiddayBanActiveForDay) {
       overallStatus = "CRITICAL (RED HALT)";
-      overallInstruction = "WARNING: Extreme threshold breaches detected today. Outdoor range exercises must be suspended during HALT windows.";
+      overallInstruction = "WARNING: Extreme threshold breaches or mandatory MoHRE midday ban detected today. Outdoor range exercises must be suspended during HALT windows.";
     } else if (cautionWindows.length > 0) {
       overallStatus = "RESTRICTED OPERATIONAL CLEARANCE (AMBER CAUTION)";
       overallInstruction = "CAUTION: Mandatory work/rest cycles and hydration monitoring in force. Exercise high supervisor vigilance.";
@@ -515,7 +541,7 @@ ${haltWindows.length > 0 ? "  [!] RED ALERT: Extreme thermal load / wind gusts w
 ${cautionWindows.length > 0 ? "  [!] AMBER CAUTION: Heat stress or wind gusts require operational modifications." : ""}
 ${maxUv >= 8 ? "  [!] UV ADVISORY: Extreme UV Index requires mandatory sunscreen protocols." : ""}
 ${maxAqi >= 100 ? "  [!] AQI WARNING: Elevated particulate counts (dust/sand suspension)." : ""}
-${maxTemp >= 43 ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation active between 12:30-15:00 GST." : ""}
+${isMiddayBanActiveForDay ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation active between 12:30-15:00 GST." : ""}
 
 ----------------------------------------------------------------------
 2. DIURNAL OPERATIONAL WINDOWS (RCO SCHEDULING GUIDELINES)
@@ -554,7 +580,7 @@ ${maxTemp >= 43 ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation activ
 ----------------------------------------------------------------------
 5. PERSONNEL SAFETY & COMPLIANCE SUMMARY
 ----------------------------------------------------------------------
-* UAE MoHRE Midday Work Ban:   ${maxTemp >= 43 ? "ACTIVE COMPLIANCE MANDATED (12:30 - 15:00 GST)" : "NOT APPLICABLE TODAY"}
+* UAE MoHRE Midday Work Ban:   ${isMiddayBanActiveForDay ? "ACTIVE COMPLIANCE MANDATED (12:30 - 15:00 GST)" : "NOT APPLICABLE TODAY"}
 * Mandated Work/Rest Cycles:   ${maxWbgt >= 30 ? "30m Work / 30m Rest (Extreme Heat Load)" : maxWbgt >= 27.9 ? "40m Work / 20m Rest (High Heat Load)" : "50m Work / 10m Rest (Standard split)"}
 * Required Daily Fluid Volume: ${maxWbgt >= 30 ? "1.25 L/hr + Electrolytes" : maxWbgt >= 27.9 ? "1.00 L/hr + Electrolytes" : "0.75 L/hr (Chilled Water)"}
 * PPE Gear Requirements:       ${maxUv >= 8 ? "SPF 50+ Sunscreen, UV Protective Glasses, Hard Hat, High-Wick Clothing" : "Standard Range PPE"}

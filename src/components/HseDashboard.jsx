@@ -195,9 +195,76 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   };
 
   const handleGenerateRcoBrief = () => {
-    // Compile daily logs over the active 24h operational day
-    const dailyLogs = logs24h.slice(0, 24);
-    const chronoLogs = dailyLogs.slice().reverse();
+    const activeTimeStr = getDubaiHourString(currentTime || data.current.time);
+    const targetDateStr = activeTimeStr.split('T')[0]; // e.g. "2026-06-19"
+    
+    // Find all hourly logs matching the target calendar day
+    const dailyLogs = [];
+    for (let idx = 0; idx < hourlyData.time.length; idx++) {
+      const timeStr = hourlyData.time[idx];
+      if (timeStr.startsWith(targetDateStr)) {
+        const temp = hourlyData.temperature_2m[idx];
+        const rh = hourlyData.relative_humidity_2m[idx];
+        const wind = hourlyData.wind_speed_10m[idx];
+        const gusts = hourlyData.wind_gusts_10m ? hourlyData.wind_gusts_10m[idx] : wind * 1.3;
+        const visibility = hourlyData.visibility ? hourlyData.visibility[idx] : 10000;
+        const uv = hourlyData.uv_index ? hourlyData.uv_index[idx] : 0;
+        const aqIndex = hourlyData.pm10 ? (hourlyData.pm10[idx] * 0.9) : 50;
+
+        const dp = calculateDewPoint(temp, rh);
+        const wbgt = calculateWBGT(temp, rh, wind, uv);
+
+        const readings = {
+          temperature_2m: temp,
+          relative_humidity_2m: rh,
+          wind_speed_10m: wind,
+          wind_gusts_10m: gusts,
+          visibility,
+          uv_index: uv,
+          pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 50
+        };
+        
+        const safetyEval = evaluateSafety(readings);
+
+        const breaches = [];
+        if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
+        if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
+        if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
+        if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
+        if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        
+        // Midday work ban compliance
+        const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
+        const minute = parseInt(timeStr.split('T')[1].slice(3, 5), 10);
+        const totalMinutes = hour * 60 + minute;
+        const month = parseInt(timeStr.slice(5, 7), 10);
+        const day = parseInt(timeStr.slice(8, 10), 10);
+        const isMiddayBanDateRange = (month === 6 && day >= 15) || month === 7 || month === 8 || (month === 9 && day <= 15);
+        const isMiddayBanTimeRange = totalMinutes >= 750 && totalMinutes <= 900; // 12:30 to 15:00 GST
+        const isMiddayBanActive = isMiddayBanDateRange && isMiddayBanTimeRange;
+        if (isMiddayBanActive) {
+          breaches.push("MOHRE MIDDAY BAN");
+        }
+
+        dailyLogs.push({
+          time: timeStr,
+          temp,
+          rh,
+          wbgt,
+          dewPoint: dp,
+          wind,
+          gusts,
+          visibility,
+          uv,
+          aqi: aqIndex,
+          safety: safetyEval,
+          breaches,
+          isMiddayBanActive
+        });
+      }
+    }
+
+    const chronoLogs = dailyLogs.length > 0 ? dailyLogs : logs24h.slice(0, 24).reverse();
     
     if (chronoLogs.length === 0) {
       alert("No meteorological logs available for briefing compilation.");
@@ -265,16 +332,37 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
       return ranges.join(", ") + " GST";
     };
+
+    const firstLogTime = chronoLogs[0].time;
+    const targetMonth = parseInt(firstLogTime.slice(5, 7), 10);
+    const targetDay = parseInt(firstLogTime.slice(8, 10), 10);
+    const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
+    
+    let haltWindowText = "";
+    if (isMiddayBanActiveForDay) {
+      // Filter out the midday ban hours (13:00 and 14:00) from the normal haltWindows to prevent duplicates/overlaps in formatting
+      const otherHaltWindows = haltWindows.filter(t => {
+        const hr = new Date(t).getHours();
+        return hr !== 13 && hr !== 14;
+      });
+      const otherHaltText = getFormattedWindows(otherHaltWindows);
+      if (otherHaltText === "NONE") {
+        haltWindowText = "12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban)";
+      } else {
+        haltWindowText = `12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban), ${otherHaltText}`;
+      }
+    } else {
+      haltWindowText = getFormattedWindows(haltWindows);
+    }
     
     const safeWindowText = getFormattedWindows(safeWindows);
     const cautionWindowText = getFormattedWindows(cautionWindows);
-    const haltWindowText = getFormattedWindows(haltWindows);
     
     let overallStatus = "SAFE (GREEN)";
     let overallInstruction = "Normal range operations permitted. Continuous environmental monitoring active.";
-    if (haltWindows.length > 0) {
+    if (haltWindows.length > 0 || isMiddayBanActiveForDay) {
       overallStatus = "CRITICAL (RED HALT)";
-      overallInstruction = "WARNING: Extreme threshold breaches detected today. Outdoor range exercises must be suspended during HALT windows.";
+      overallInstruction = "WARNING: Extreme threshold breaches or mandatory MoHRE midday ban detected today. Outdoor range exercises must be suspended during HALT windows.";
     } else if (cautionWindows.length > 0) {
       overallStatus = "RESTRICTED OPERATIONAL CLEARANCE (AMBER CAUTION)";
       overallInstruction = "CAUTION: Mandatory work/rest cycles and hydration monitoring in force. Exercise high supervisor vigilance.";
@@ -290,8 +378,8 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       droneInstruction = "Moderate winds/gusts present. High risk of wind drift and battery drain. Experienced pilots only.";
     }
     
-    const activeTimeStr = getDubaiHourString(currentTime || data.current.time);
-    const hashSeed = `${activeTimeStr}-${maxTemp}-${maxWind}-${maxWbgt}`;
+    const activeTimeStrForHash = getDubaiHourString(currentTime || data.current.time);
+    const hashSeed = `${activeTimeStrForHash}-${maxTemp}-${maxWind}-${maxWbgt}`;
     let hash = 0;
     for (let i = 0; i < hashSeed.length; i++) {
       hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
@@ -321,7 +409,7 @@ ${haltWindows.length > 0 ? "  [!] RED ALERT: Extreme thermal load / wind gusts w
 ${cautionWindows.length > 0 ? "  [!] AMBER CAUTION: Heat stress or wind gusts require operational modifications." : ""}
 ${maxUv >= 8 ? "  [!] UV ADVISORY: Extreme UV Index requires mandatory sunscreen protocols." : ""}
 ${maxAqi >= 100 ? "  [!] AQI WARNING: Elevated particulate counts (dust/sand suspension)." : ""}
-${maxTemp >= 43 ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation active between 12:30-15:00 GST." : ""}
+${isMiddayBanActiveForDay ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation active between 12:30-15:00 GST." : ""}
 
 ----------------------------------------------------------------------
 2. DIURNAL OPERATIONAL WINDOWS (RCO SCHEDULING GUIDELINES)
@@ -360,7 +448,7 @@ ${maxTemp >= 43 ? "  [!] MOHRE MIDDAY BAN: Mandated outdoor work cessation activ
 ----------------------------------------------------------------------
 5. PERSONNEL SAFETY & COMPLIANCE SUMMARY
 ----------------------------------------------------------------------
-* UAE MoHRE Midday Work Ban:   ${maxTemp >= 43 ? "ACTIVE COMPLIANCE MANDATED (12:30 - 15:00 GST)" : "NOT APPLICABLE TODAY"}
+* UAE MoHRE Midday Work Ban:   ${isMiddayBanActiveForDay ? "ACTIVE COMPLIANCE MANDATED (12:30 - 15:00 GST)" : "NOT APPLICABLE TODAY"}
 * Mandated Work/Rest Cycles:   ${maxWbgt >= 30 ? "30m Work / 30m Rest (Extreme Heat Load)" : maxWbgt >= 27.9 ? "40m Work / 20m Rest (High Heat Load)" : "50m Work / 10m Rest (Standard split)"}
 * Required Daily Fluid Volume: ${maxWbgt >= 30 ? "1.25 L/hr + Electrolytes" : maxWbgt >= 27.9 ? "1.00 L/hr + Electrolytes" : "0.75 L/hr (Chilled Water)"}
 * PPE Gear Requirements:       ${maxUv >= 8 ? "SPF 50+ Sunscreen, UV Protective Glasses, Hard Hat, High-Wick Clothing" : "Standard Range PPE"}
