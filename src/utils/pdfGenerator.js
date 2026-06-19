@@ -491,17 +491,17 @@ export function generateRcoPdfBrief({
       const statusClass = isRed ? 'cell-RED' : (isAmber ? 'cell-AMBER' : 'cell-GREEN');
 
       row.innerHTML = \`
-        <td style="font-weight: bold; font-family: monospace;">\\\${timeStr}</td>
-        <td>\\\${log.temp.toFixed(1)}</td>
-        <td>\\\${log.rh}%</td>
-        <td>\\\${log.dewPoint.toFixed(1)}</td>
-        <td style="font-weight: 700; color: \\\${log.wbgt >= 30 ? '#b91c1c' : (log.wbgt >= 25.9 ? '#b45309' : '#047857')};">\\\${log.wbgt.toFixed(1)}</td>
-        <td>\\\${log.wind.toFixed(0)}</td>
-        <td>\\\${log.gusts.toFixed(0)}</td>
-        <td>\\\${(log.visibility / 1000).toFixed(1)}</td>
-        <td>\\\${log.uv.toFixed(1)}</td>
-        <td>\\\${log.aqi.toFixed(0)}</td>
-        <td class="\\\${statusClass}">\\\${log.safety.status}</td>
+        <td style="font-weight: bold; font-family: monospace;">\${timeStr}</td>
+        <td>\${log.temp.toFixed(1)}</td>
+        <td>\${log.rh}%</td>
+        <td>\${log.dewPoint.toFixed(1)}</td>
+        <td style="font-weight: 700; color: \${log.wbgt >= 30 ? '#b91c1c' : (log.wbgt >= 25.9 ? '#b45309' : '#047857')};">\${log.wbgt.toFixed(1)}</td>
+        <td>\${log.wind.toFixed(0)}</td>
+        <td>\${log.gusts.toFixed(0)}</td>
+        <td>\${(log.visibility / 1000).toFixed(1)}</td>
+        <td>\${log.uv.toFixed(1)}</td>
+        <td>\${log.aqi.toFixed(0)}</td>
+        <td class="\${statusClass}">\${log.safety.status}</td>
       \`;
       tableBody.appendChild(row);
     });
@@ -527,7 +527,7 @@ export function generateRcoPdfBrief({
       const valRange = maxVal - minVal;
 
       // Create main SVG structure
-      let svgHtml = \`<svg width="100%" height="\\\${height}" viewBox="0 0 \\\${width} \\\${height}" style="overflow: visible;">\`;
+      let svgHtml = \`<svg width="100%" height="\${height}" viewBox="0 0 \${width} \${height}" style="overflow: visible;">\`;
 
       // 1. Gridlines & Axes
       // Horizontal gridlines (4 steps)
@@ -535,14 +535,14 @@ export function generateRcoPdfBrief({
         const val = minVal + (valRange * (i / 4));
         const y = padding.top + plotH - (plotH * (i / 4));
         // Gridline
-        svgHtml += \`<line x1="\\\${padding.left}" y1="\\\${y}" x2="\\\${width - padding.right}" y2="\\\${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2,2" />\`;
+        svgHtml += \`<line x1="\${padding.left}" y1="\${y}" x2="\${width - padding.right}" y2="\${y}" stroke="#e2e8f0" stroke-width="1" stroke-dasharray="2,2" />\`;
         // Left Axis Label
-        svgHtml += \`<text x="\\\${padding.left - 6}" y="\\\${y + 3}" text-anchor="end" font-size="7.5" fill="#64748b" font-weight="bold">\\\${val.toFixed(0)}\\\${configs.yUnit || ''}</text>\`;
+        svgHtml += \`<text x="\${padding.left - 6}" y="\${y + 3}" text-anchor="end" font-size="7.5" fill="#64748b" font-weight="bold">\${val.toFixed(0)}\${configs.yUnit || ''}</text>\`;
         
         // Right Axis Label (for UV if applicable)
         if (configs.rightAxisKey) {
           const rVal = 0 + (configs.rightAxisMax * (i / 4));
-          svgHtml += \`<text x="\\\${width - padding.right + 6}" y="\\\${y + 3}" text-anchor="start" font-size="7.5" fill="#a855f7" font-weight="bold">\\\${rVal.toFixed(0)} UV</text>\`;
+          svgHtml += \`<text x="\${width - padding.right + 6}" y="\${y + 3}" text-anchor="start" font-size="7.5" fill="#a855f7" font-weight="bold">\${rVal.toFixed(0)} UV</text>\`;
         }
       }
 
@@ -551,8 +551,8 @@ export function generateRcoPdfBrief({
         if (idx % 2 === 0) {
           const x = padding.left + (idx / 23) * plotW;
           const timeLabel = formatTimeLabel(d.time);
-          svgHtml += \`<line x1="\\\${x}" y1="\\\${padding.top}" x2="\\\${x}" y2="\\\${padding.top + plotH}" stroke="#cbd5e1" stroke-width="0.5" opacity="0.3" />\`;
-          svgHtml += \`<text x="\\\${x}" y="\\\${height - 8}" text-anchor="middle" font-size="7.5" fill="#64748b" font-family="monospace">\\\${timeLabel}</text>\`;
+          svgHtml += \`<line x1="\${x}" y1="\${padding.top}" x2="\${x}" y2="\${padding.top + plotH}" stroke="#cbd5e1" stroke-width="0.5" opacity="0.3" />\`;
+          svgHtml += \`<text x="\${x}" y="\${height - 8}" text-anchor="middle" font-size="7.5" fill="#64748b" font-family="monospace">\${timeLabel}</text>\`;
         }
       });
 
@@ -561,8 +561,8 @@ export function generateRcoPdfBrief({
         configs.thresholds.forEach(t => {
           if (t.val >= minVal && t.val <= maxVal) {
             const y = padding.top + plotH - (((t.val - minVal) / valRange) * plotH);
-            svgHtml += \`<line x1="\\\${padding.left}" y1="\\\${y}" x2="\\\${width - padding.right}" y2="\\\${y}" stroke="\\\${t.color}" stroke-width="1.2" stroke-dasharray="4,3" />\`;
-            svgHtml += \`<text x="\\\${width - padding.right - 5}" y="\\\${y - 3}" text-anchor="end" font-size="7" fill="\\\${t.color}" font-weight="black">\\\${t.label}</text>\`;
+            svgHtml += \`<line x1="\${padding.left}" y1="\${y}" x2="\${width - padding.right}" y2="\${y}" stroke="\${t.color}" stroke-width="1.2" stroke-dasharray="4,3" />\`;
+            svgHtml += \`<text x="\${width - padding.right - 5}" y="\${y - 3}" text-anchor="end" font-size="7" fill="\${t.color}" font-weight="black">\${t.label}</text>\`;
           }
         });
       }
@@ -574,11 +574,11 @@ export function generateRcoPdfBrief({
           const x = padding.left + (idx / 23) * plotW;
           const val = d[s.key];
           const y = padding.top + plotH - (((val - minVal) / valRange) * plotH);
-          points += \`\\\${x},\\\${y} \`;
+          points += \`\${x},\${y} \`;
         });
 
         // Draw path
-        svgHtml += \`<polyline points="\\\${points}" fill="none" stroke="\\\${s.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />\`;
+        svgHtml += \`<polyline points="\${points}" fill="none" stroke="\${s.color}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />\`;
 
         // Draw dot markers
         dataset.forEach((d, idx) => {
@@ -586,7 +586,7 @@ export function generateRcoPdfBrief({
             const x = padding.left + (idx / 23) * plotW;
             const val = d[s.key];
             const y = padding.top + plotH - (((val - minVal) / valRange) * plotH);
-            svgHtml += \`<circle cx="\\\${x}" cy="\\\${y}" r="2" fill="#ffffff" stroke="\\\${s.color}" stroke-width="1.5" />\`;
+            svgHtml += \`<circle cx="\${x}" cy="\${y}" r="2" fill="#ffffff" stroke="\${s.color}" stroke-width="1.5" />\`;
           }
         });
       });
@@ -598,17 +598,17 @@ export function generateRcoPdfBrief({
           const x = padding.left + (idx / 23) * plotW;
           const val = d[configs.rightAxisKey];
           const y = padding.top + plotH - ((val / configs.rightAxisMax) * plotH);
-          points += \`\\\${x},\\\${y} \`;
+          points += \`\${x},\${y} \`;
         });
         // Line
-        svgHtml += \`<polyline points="\\\${points}" fill="none" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="3,3" stroke-linecap="round" />\`;
+        svgHtml += \`<polyline points="\${points}" fill="none" stroke="#a855f7" stroke-width="1.2" stroke-dasharray="3,3" stroke-linecap="round" />\`;
         // Dots
         dataset.forEach((d, idx) => {
           if (idx % 2 === 0) {
             const x = padding.left + (idx / 23) * plotW;
             const val = d[configs.rightAxisKey];
             const y = padding.top + plotH - ((val / configs.rightAxisMax) * plotH);
-            svgHtml += \`<circle cx="\\\${x}" cy="\\\${y}" r="1.5" fill="#ffffff" stroke="#a855f7" stroke-width="1" />\`;
+            svgHtml += \`<circle cx="\${x}" cy="\${y}" r="1.5" fill="#ffffff" stroke="#a855f7" stroke-width="1" />\`;
           }
         });
       }
@@ -616,13 +616,13 @@ export function generateRcoPdfBrief({
       // 4. Legend
       let legendX = padding.left;
       configs.series.forEach(s => {
-        svgHtml += \`<rect x="\\\${legendX}" y="2" width="8" height="4" fill="\\\${s.color}" />\`;
-        svgHtml += \`<text x="\\\${legendX + 12}" y="6" font-size="7.5" font-weight="bold" fill="#334155">\\\${s.name}</text>\`;
+        svgHtml += \`<rect x="\${legendX}" y="2" width="8" height="4" fill="\${s.color}" />\`;
+        svgHtml += \`<text x="\${legendX + 12}" y="6" font-size="7.5" font-weight="bold" fill="#334155">\${s.name}</text>\`;
         legendX += 80;
       });
       if (configs.rightAxisKey) {
-        svgHtml += \`<rect x="\\\${legendX}" y="2" width="8" height="4" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="2,2" />\`;
-        svgHtml += \`<text x="\\\${legendX + 12}" y="6" font-size="7.5" font-weight="bold" fill="#334155">\\\${configs.rightAxisName}</text>\`;
+        svgHtml += \`<rect x="\${legendX}" y="2" width="8" height="4" fill="none" stroke="#a855f7" stroke-width="1" stroke-dasharray="2,2" />\`;
+        svgHtml += \`<text x="\${legendX + 12}" y="6" font-size="7.5" font-weight="bold" fill="#334155">\${configs.rightAxisName}</text>\`;
       }
 
       svgHtml += '</svg>';
