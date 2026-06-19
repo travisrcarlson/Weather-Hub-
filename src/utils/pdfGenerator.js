@@ -50,11 +50,11 @@ export function generateRcoPdfBrief({
       padding: 0;
     }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: Arial, Helvetica, sans-serif;
       color: #0f172a;
       background: #ffffff;
       line-height: 1.4;
-      font-size: 11.5px;
+      font-size: 11px;
       padding: 30px;
     }
 
@@ -81,37 +81,40 @@ export function generateRcoPdfBrief({
       }
     }
 
-    /* Top header */
+    /* Top header block (Orange with white text) */
     .header {
-      border-bottom: 2.5px solid #0f172a;
-      padding-bottom: 8px;
+      background: #ea580c;
+      color: #ffffff;
+      padding: 10px 15px;
       margin-bottom: 15px;
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: center;
     }
     .header-left h1 {
       font-size: 16px;
       font-weight: 900;
       letter-spacing: 0.5px;
-      color: #0f172a;
+      color: #ffffff;
       text-transform: uppercase;
+      font-family: Arial, Helvetica, sans-serif;
     }
     .header-left p {
       font-size: 9px;
       font-weight: 700;
-      color: #ea580c;
+      color: rgba(255, 255, 255, 0.9);
       text-transform: uppercase;
       letter-spacing: 1.5px;
       margin-bottom: 2px;
+      font-family: Arial, Helvetica, sans-serif;
     }
     .header-right {
       text-align: right;
     }
     .header-right p {
       font-size: 8.5px;
-      font-family: monospace;
-      color: #64748b;
+      font-family: Arial, Helvetica, sans-serif;
+      color: rgba(255, 255, 255, 0.9);
       line-height: 1.2;
     }
 
@@ -122,11 +125,11 @@ export function generateRcoPdfBrief({
       padding: 8px 12px;
       margin-bottom: 15px;
       display: grid;
-      grid-template-cols: 2.5fr 1fr;
+      grid-template-cols: 2.5fr 1.5fr;
       gap: 10px;
     }
     .meta-item {
-      font-size: 9.5px;
+      font-size: 11px;
     }
     .meta-label {
       font-weight: 800;
@@ -138,20 +141,36 @@ export function generateRcoPdfBrief({
       font-weight: 700;
       color: #0f172a;
     }
+    .meta-right {
+      text-align: left;
+      border-left: 1px solid #cbd5e1;
+      padding-left: 10px;
+    }
+    .meta-right p {
+      font-size: 9px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #475569;
+      line-height: 1.3;
+    }
+    .meta-right strong {
+      color: #0f172a;
+      font-weight: 800;
+    }
 
     /* Sections styling */
     .section {
       margin-bottom: 15px;
     }
     .section-title {
-      font-size: 11px;
-      font-weight: 900;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 16px;
+      font-weight: bold;
+      color: #c2410c; /* Dark Orange */
       text-transform: uppercase;
-      background: #0f172a;
-      color: #ffffff;
-      padding: 4px 8px;
-      margin-bottom: 8px;
-      letter-spacing: 0.5px;
+      margin-top: 15px;
+      margin-bottom: 10px;
+      border-bottom: 1.5px solid #ea580c;
+      padding-bottom: 4px;
     }
 
     /* Operational status block */
@@ -186,7 +205,7 @@ export function generateRcoPdfBrief({
       position: relative;
       padding-left: 12px;
       margin-bottom: 4px;
-      font-size: 10.5px;
+      font-size: 11px;
     }
     .directives-list li::before {
       content: "▪";
@@ -208,29 +227,32 @@ export function generateRcoPdfBrief({
       background: #ffffff;
     }
     .grid-card-title {
-      font-size: 10px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
       font-weight: 800;
       text-transform: uppercase;
+      background: #ea580c;
+      color: #ffffff !important;
+      padding: 5px 10px;
+      margin: -8px -10px 8px -10px;
       border-bottom: 1px solid #cbd5e1;
-      padding-bottom: 3px;
-      margin-bottom: 6px;
-      color: #1e293b;
     }
 
     /* Tables */
     table.data-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 9px;
+      font-size: 10px;
       text-align: center;
       margin-top: 5px;
     }
     table.data-table th {
-      background: #f1f5f9;
-      color: #334155;
+      background: #ea580c;
+      color: #ffffff;
+      font-family: Arial, Helvetica, sans-serif;
       font-weight: 800;
-      border: 1px solid #cbd5e1;
-      padding: 4px 2px;
+      border: 1px solid #c2410c;
+      padding: 5px 2px;
       text-transform: uppercase;
     }
     table.data-table td {
@@ -254,17 +276,19 @@ export function generateRcoPdfBrief({
       padding: 5px;
     }
     .chart-title {
-      font-size: 9px;
-      font-weight: 800;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      color: #475569;
-      margin-bottom: 2px;
+      color: #c2410c; /* Dark Orange */
+      margin-bottom: 4px;
+      margin-top: 8px;
     }
 
     /* Quick print warning bar */
     .print-control-bar {
-      background: #0f172a;
+      background: #ea580c;
       color: #ffffff;
       padding: 10px 20px;
       display: flex;
@@ -274,7 +298,7 @@ export function generateRcoPdfBrief({
       border-radius: 4px;
     }
     .print-btn {
-      background: #ea580c;
+      background: #0f172a;
       color: #ffffff;
       border: none;
       padding: 6px 14px;
@@ -285,7 +309,7 @@ export function generateRcoPdfBrief({
       border-radius: 2px;
     }
     .print-btn:hover {
-      background: #c2410c;
+      background: #1e293b;
     }
   </style>
 </head>
@@ -317,7 +341,7 @@ export function generateRcoPdfBrief({
         <span class="meta-label">Station:</span> <span class="meta-value" style="font-family: inherit;">${activeStationName} (Abu Al Abyad Island, UAE)</span><br/>
         <span class="meta-label">Data Mode:</span> <span class="meta-value" style="font-family: inherit;">${systemMode}</span>
       </div>
-      <div class="header-right" style="border-left: 1px solid #cbd5e1; padding-left: 10px; text-align: left;">
+      <div class="meta-right">
         <p><strong>TIMESTAMP:</strong></p>
         <p>${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST</p>
         <p><strong>VERIFICATION HASH:</strong></p>
@@ -357,20 +381,20 @@ export function generateRcoPdfBrief({
       <div class="section-title">2. Diurnal Operational Windows (RCO Scheduling)</div>
       <div class="grid-2">
         <div class="grid-card" style="border-left: 3px solid #16a34a;">
-          <div class="grid-card-title" style="color: #16a34a;">[+] Safe Operating Windows</div>
+          <div class="grid-card-title">[+] Safe Operating Windows</div>
           <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${safeWindowText}</p>
-          <p style="font-size: 8px; color: #64748b; margin-top: 4px;">* Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
+          <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
         </div>
         <div class="grid-card" style="border-left: 3px solid #d97706;">
-          <div class="grid-card-title" style="color: #d97706;">[!] Caution Operating Windows</div>
+          <div class="grid-card-title">[!] Caution Operating Windows</div>
           <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${cautionWindowText}</p>
-          <p style="font-size: 8px; color: #64748b; margin-top: 4px;">* Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
+          <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
         </div>
       </div>
       <div class="grid-card" style="border-left: 3px solid #dc2626; margin-bottom: 5px;">
-        <div class="grid-card-title" style="color: #dc2626;">[X] Suspension / Halt Windows (RED)</div>
+        <div class="grid-card-title">[X] Suspension / Halt Windows (RED)</div>
         <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${haltWindowText}</p>
-        <p style="font-size: 8px; color: #64748b; margin-top: 4px;">* Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
+        <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
       </div>
     </div>
 
@@ -380,14 +404,14 @@ export function generateRcoPdfBrief({
       <div class="grid-2" style="margin-bottom: 5px;">
         <div class="grid-card">
           <div class="grid-card-title">Thermal Extremes</div>
-          <p style="font-size: 10px; margin-bottom: 3px;">☀️ <strong>Peak Temperature</strong>: <span style="font-weight: 700;">${maxTemp.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxTempTime}</span></p>
-          <p style="font-size: 10px;">🔥 <strong>Peak Heat Stress (WBGT)</strong>: <span style="font-weight: 700; color: #dc2626;">${maxWbgt.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxWbgtTime}</span></p>
+          <p style="font-size: 11px; margin-bottom: 3px;">☀️ <strong>Peak Temperature</strong>: <span style="font-weight: 700;">${maxTemp.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxTempTime}</span></p>
+          <p style="font-size: 11px;">🔥 <strong>Peak Heat Stress (WBGT)</strong>: <span style="font-weight: 700; color: #dc2626;">${maxWbgt.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxWbgtTime}</span></p>
         </div>
         <div class="grid-card">
           <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
-          <p style="font-size: 10px; margin-bottom: 3px;">💨 <strong>Peak Wind Gusts</strong>: <span style="font-weight: 700;">${maxGust.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxGustTime}</span></p>
-          <p style="font-size: 10px; margin-bottom: 3px;">🍃 <strong>Max Sustained Wind</strong>: <span style="font-weight: 700;">${maxWind.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxWindTime}</span></p>
-          <p style="font-size: 10px;">🧴 <strong>Peak UV Radiation</strong>: <span style="font-weight: 700; color: #854d0e;">${maxUv.toFixed(1)} UV</span> at <span style="font-family: monospace;">${maxUvTime}</span></p>
+          <p style="font-size: 11px; margin-bottom: 3px;">💨 <strong>Peak Wind Gusts</strong>: <span style="font-weight: 700;">${maxGust.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxGustTime}</span></p>
+          <p style="font-size: 11px; margin-bottom: 3px;">🍃 <strong>Max Sustained Wind</strong>: <span style="font-weight: 700;">${maxWind.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxWindTime}</span></p>
+          <p style="font-size: 11px;">🧴 <strong>Peak UV Radiation</strong>: <span style="font-weight: 700; color: #854d0e;">${maxUv.toFixed(1)} UV</span> at <span style="font-family: monospace;">${maxUvTime}</span></p>
         </div>
       </div>
     </div>
@@ -398,17 +422,17 @@ export function generateRcoPdfBrief({
       <div class="grid-2" style="margin-bottom: 0;">
         <div class="grid-card">
           <div class="grid-card-title">Drone Flight Readiness</div>
-          <p style="font-size: 10px; font-weight: bold; margin-bottom: 3px; color: ${droneRating.includes('HALT') ? '#dc2626' : droneRating.includes('CAUTION') ? '#d97706' : '#16a34a'}">
+          <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${droneRating.includes('HALT') ? '#dc2626' : droneRating.includes('CAUTION') ? '#d97706' : '#16a34a'}">
             Rating: ${droneRating}
           </p>
-          <p style="font-size: 9px; color: #334155; line-height: 1.3;">${droneInstruction}</p>
+          <p style="font-size: 11px; color: #334155; line-height: 1.3;">${droneInstruction}</p>
         </div>
         <div class="grid-card">
           <div class="grid-card-title">Ballistics Wind Drift Warning</div>
-          <p style="font-size: 10px; font-weight: bold; margin-bottom: 3px; color: ${maxGust >= 30 ? '#d97706' : '#16a34a'}">
+          <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${maxGust >= 30 ? '#d97706' : '#16a34a'}">
             Crosswind Drift: ${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}
           </p>
-          <p style="font-size: 9px; color: #334155; line-height: 1.3;">${ballisticsCrosswindDrift}</p>
+          <p style="font-size: 11px; color: #334155; line-height: 1.3;">${ballisticsCrosswindDrift}</p>
         </div>
       </div>
     </div>
