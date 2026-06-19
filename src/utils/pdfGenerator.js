@@ -68,9 +68,19 @@ export function generateRcoPdfBrief({
 
     /* Print specific settings */
     @media print {
+      * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
       body {
         padding: 0;
         font-size: 11px;
+      }
+      .page {
+        max-width: none;
+        width: 100%;
+        margin: 0;
+        padding: 0;
       }
       .page-break {
         page-break-before: always;
