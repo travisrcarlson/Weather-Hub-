@@ -91,13 +91,15 @@ export const stationsList = [
   }
 ];
 
-export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings }) {
+export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning }) {
   const warnings = ncmWarnings || apiData?.ncmWarnings || [];
   const activeWarning = warnings.reduce((highest, w) => {
     if (!highest) return w;
     const priority = { 'RED': 3, 'AMBER': 2, 'YELLOW': 1 };
     return (priority[w.type] || 0) > (priority[highest.type] || 0) ? w : highest;
   }, null);
+
+  const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
 
   const currentActive = showSimulatedStations ? activeStation : 'hq';
   const currentStationInfo = stationsList.find(s => s.id === currentActive) || stationsList[0];
@@ -234,6 +236,14 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         <filter id="cloudBlur" x="-50%" y="-50%" width="200%" height="200%">
           <feGaussianBlur stdDeviation="25" />
         </filter>
+        <linearGradient id="radarSweepGradient-green" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="radarSweepGradient-red" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
+        </linearGradient>
       </defs>
 
       {/* Isometric 3D Map Image Backdrop */}
@@ -250,6 +260,80 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           opacity={nightOpacity} 
           className="pointer-events-none mix-blend-multiply"
         />
+      )}
+
+      {/* Tactical Radar Sweep (Pulsing sweep around active station) */}
+      <g className="pointer-events-none">
+        <g 
+          className="animate-radar-sweep" 
+          style={{ 
+            transformOrigin: `${currentStationInfo.x}px ${currentStationInfo.y}px`,
+            animationDuration: '6s'
+          }}
+        >
+          <line 
+            x1={currentStationInfo.x} 
+            y1={currentStationInfo.y} 
+            x2={currentStationInfo.x} 
+            y2={currentStationInfo.y - 110} 
+            stroke={isLightningActive ? "#ef4444" : "#10b981"} 
+            strokeWidth="0.8" 
+            opacity="0.25" 
+          />
+          <polygon 
+            points={`${currentStationInfo.x},${currentStationInfo.y} ${currentStationInfo.x},${currentStationInfo.y - 110} ${currentStationInfo.x + 35},${currentStationInfo.y - 100} ${currentStationInfo.x},${currentStationInfo.y}`} 
+            fill={`url(#radarSweepGradient-${isLightningActive ? 'red' : 'green'})`} 
+            opacity="0.1" 
+          />
+        </g>
+      </g>
+
+      {/* Active Storm Cell Overlay & Lightning Strikes */}
+      {isLightningActive && (
+        <g className="pointer-events-none">
+          <circle 
+            cx="290" 
+            cy="130" 
+            r="45" 
+            fill="#ef4444" 
+            fillOpacity="0.08" 
+            stroke="#ef4444" 
+            strokeWidth="1" 
+            strokeDasharray="3,3" 
+            className="animate-pulse"
+          />
+          <circle 
+            cx="280" 
+            cy="125" 
+            r="18" 
+            fill="#dc2626" 
+            fillOpacity="0.1" 
+            stroke="#dc2626" 
+            strokeWidth="0.75"
+            strokeDasharray="1.5,1.5"
+          />
+          
+          {/* Simulated strike points */}
+          {[
+            { id: 1, x: 275, y: 135 },
+            { id: 2, x: 310, y: 120 },
+            { id: 3, x: 190, y: 145 }
+          ].map(strike => (
+            <g key={strike.id} transform={`translate(${strike.x}, ${strike.y})`}>
+              <circle cx="0" cy="0" r="8" fill="none" stroke="#facc15" strokeWidth="0.75" opacity="0.5">
+                <animate attributeName="r" values="0;16" dur="2s" repeatCount="indefinite" />
+                <animate attributeName="opacity" values="0.7;0" dur="2s" repeatCount="indefinite" />
+              </circle>
+              <path 
+                d="M -1,-4 L 1.5,-1 L -0.5,0 L 1.5,4 L -2,0 L 0,-0.5 Z" 
+                fill="#facc15" 
+                stroke="#eab308" 
+                strokeWidth="0.3" 
+                className="animate-pulse"
+              />
+            </g>
+          ))}
+        </g>
       )}
 
       {/* Very Light Cloud Cover Overlay */}
@@ -441,18 +525,36 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       
       {/* Compact Title Bar */}
       <div className="flex justify-between items-center z-10 w-full border-b border-slate-800/60 pb-1.5 mb-1.5 flex-none">
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2.5">
           <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
             Z12 • XRANGE TACTICAL MAP
+          </span>
+          <span className={`text-[8.5px] font-black uppercase tracking-widest flex items-center space-x-1 ${isLightningActive ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>
+            <span className={`w-1.5 h-1.5 rounded-full bg-current ${isLightningActive ? 'animate-ping' : ''}`} />
+            <span>{isLightningActive ? '🔴 LIVE ALERT' : '🟢 Radar Connected'}</span>
           </span>
           <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">
             ({isSimulated ? 'Simulated Overlay' : 'Live GPS Grid'})
           </span>
         </div>
-        <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-1.5 py-0.5 rounded text-[8px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
-          <Map className="w-2.5 h-2.5 text-edgeOrange" />
-          <span>ABU AL ABYAD ISLAND</span>
-        </span>
+        <div className="flex items-center space-x-2">
+          {isSimulated && onToggleSimulatedLightning && (
+            <button
+              onClick={onToggleSimulatedLightning}
+              className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer border ${
+                simulatedLightning 
+                  ? 'bg-red-500/25 border-red-500/50 text-red-200 hover:bg-red-500/40' 
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+              }`}
+            >
+              ⚡ Test Lightning: {simulatedLightning ? 'ON' : 'OFF'}
+            </button>
+          )}
+          <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-1.5 py-0.5 rounded text-[8px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
+            <Map className="w-2.5 h-2.5 text-edgeOrange" />
+            <span>ABU AL ABYAD ISLAND</span>
+          </span>
+        </div>
       </div>
 
       {/* Dedicated NCM Alerts Area (Full-Width Strip) */}
@@ -505,6 +607,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               isSimulated={isSimulated} 
               activeStation={currentActive} 
               setActiveStation={setActiveStation}
+              warnings={warnings}
             />
           </div>
         )}
@@ -514,12 +617,25 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 }
 
 // Named export for the station details panel
-export function StationDetailsWidget({ apiData, isSimulated, activeStation, setActiveStation }) {
+export function StationDetailsWidget({ apiData, isSimulated, activeStation, setActiveStation, warnings = [] }) {
   const currentStationInfo = stationsList.find(s => s.id === activeStation) || stationsList[0];
   const stationReadings = apiData 
     ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) 
     : null;
-  const safety = stationReadings ? evaluateSafety(stationReadings) : null;
+  let safety = stationReadings ? evaluateSafety(stationReadings) : null;
+
+  const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
+
+  if (isLightningActive && safety) {
+    safety = {
+      ...safety,
+      status: 'RED',
+      reasons: [
+        '⚡ EMERGENCY: Severe thunderstorm & lightning strikes detected. Evacuate all personnel to shelters.',
+        ...safety.reasons
+      ]
+    };
+  }
 
   const tempDisplay = stationReadings?.temperature_2m || 0;
   const rhDisplay = stationReadings?.relative_humidity_2m || 0;
@@ -582,6 +698,20 @@ export function StationDetailsWidget({ apiData, isSimulated, activeStation, setA
         <p className="text-[10.5px] font-bold text-slate-400 uppercase leading-none mb-3 flex-none">
           {currentStationInfo.description}
         </p>
+
+        {isLightningActive && (
+          <div className="mb-3 border border-red-500 bg-red-500/10 p-2.5 rounded-none flex items-start space-x-2 animate-pulse flex-none">
+            <ShieldAlert className="w-4 h-4 text-red-500 mt-0.5 flex-none" />
+            <div>
+              <p className="text-[10px] font-black text-red-400 uppercase tracking-wide">
+                LIGHTNING WARNING IN EFFECT
+              </p>
+              <p className="text-[9px] font-bold text-slate-200 mt-0.5 leading-tight uppercase">
+                Active strikes detected over the sector. Suspend all live fire training and seek immediate shelter.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 2x2 Telemetry Grid (Fills space nicely, numbers are highly scaled up) */}
         {stationReadings ? (

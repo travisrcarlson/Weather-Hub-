@@ -193,16 +193,31 @@ export default function SafetyAdvisory({ data, ncmWarnings }) {
 
               <div>
                 <p className="text-[9px] text-edgeOrange font-black uppercase tracking-wider mb-1">
-                  Lightning Protocol (WMO Standard)
+                  Lightning Safety Protocols (ADOSH & WMO)
                 </p>
-                <div className="bg-bgDeepSpace/40 rounded border border-slate-800/60 p-2 text-[8px] space-y-1.5">
-                  <div className="flex items-center space-x-2 text-stopRed font-bold">
+                <div className="bg-bgDeepSpace/40 rounded-none border border-slate-800/60 p-2.5 text-[8px] space-y-1.5">
+                  <div className="flex items-center space-x-2 text-stopRed font-bold border-b border-slate-800/40 pb-1">
                     <CloudLightning className="w-3.5 h-3.5 animate-pulse" />
-                    <span>30/30 DETECTED PROTOCOL</span>
+                    <span>MANDATORY 10KM RANGE SUSPENSION</span>
                   </div>
-                  <p className="text-[7.5px] text-slate-400 leading-normal">
-                    If lightning is seen and thunder is heard within 30 seconds, suspend all range activities. Wait 30 minutes after the last thunder/lightning event before resuming operations.
-                  </p>
+                  <div>
+                    <span className="font-black text-slate-300">ADOSH 10KM BOUNDARY RULE:</span>
+                    <p className="text-[7.5px] text-slate-400 leading-normal mt-0.5">
+                      All range activities must suspend immediately if lightning is observed, detected, or officially warned within a 10km radius of Abu Al Abyad Island.
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-black text-slate-300">THE 30/30 EVACUATION STANDARD:</span>
+                    <p className="text-[7.5px] text-slate-400 leading-normal mt-0.5">
+                      Seek shelter immediately if the flash-to-bang count is under 30 seconds. Wait a minimum of 30 minutes after the last thunder/lightning event before resuming outdoor training.
+                    </p>
+                  </div>
+                  <div>
+                    <span className="font-black text-slate-300">DESIGNATED LIGHTNING SHELTERS:</span>
+                    <p className="text-[7.5px] text-slate-400 leading-normal mt-0.5">
+                      Evacuate to fully enclosed masonry structures (e.g., HQ) or metal-topped range transport vehicles. NEVER stand near high wire fences, radio towers, open beaches, or elevated control towers.
+                    </p>
+                  </div>
                 </div>
               </div>
 

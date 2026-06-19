@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
@@ -389,7 +390,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
 
     const reportText = `======================================================================
                  X-RANGE RCO DAILY ENVIRONMENTAL WEATHER BRIEF
-                 CONFIDENTIAL OPERATIONS PLANNING RESOURCE
+                 OPEN SOURCE RANGE OPERATIONS BRIEFING
 ======================================================================
 GENERATION TIMESTAMP: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST
 TARGET BRIEF DATE:    ${formatDateLabel(chronoLogs[0].time)}
@@ -468,6 +469,219 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleGenerateRcoPdfBrief = () => {
+    const activeTimeStr = getDubaiHourString(currentTime || data.current.time);
+    const targetDateStr = activeTimeStr.split('T')[0];
+    
+    const dailyLogs = [];
+    for (let idx = 0; idx < hourlyData.time.length; idx++) {
+      const timeStr = hourlyData.time[idx];
+      if (timeStr.startsWith(targetDateStr)) {
+        const temp = hourlyData.temperature_2m[idx];
+        const rh = hourlyData.relative_humidity_2m[idx];
+        const wind = hourlyData.wind_speed_10m[idx];
+        const gusts = hourlyData.wind_gusts_10m ? hourlyData.wind_gusts_10m[idx] : wind * 1.3;
+        const visibility = hourlyData.visibility ? hourlyData.visibility[idx] : 10000;
+        const uv = hourlyData.uv_index ? hourlyData.uv_index[idx] : 0;
+        const aqIndex = hourlyData.pm10 ? (hourlyData.pm10[idx] * 0.9) : 50;
+
+        const dp = calculateDewPoint(temp, rh);
+        const wbgt = calculateWBGT(temp, rh, wind, uv);
+
+        const readings = {
+          temperature_2m: temp,
+          relative_humidity_2m: rh,
+          wind_speed_10m: wind,
+          wind_gusts_10m: gusts,
+          visibility,
+          uv_index: uv,
+          pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 50
+        };
+        
+        const safetyEval = evaluateSafety(readings);
+        const breaches = [];
+        if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
+        if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
+        if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
+        if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
+        if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        
+        const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
+        const minute = parseInt(timeStr.split('T')[1].slice(3, 5), 10);
+        const totalMinutes = hour * 60 + minute;
+        const month = parseInt(timeStr.slice(5, 7), 10);
+        const day = parseInt(timeStr.slice(8, 10), 10);
+        const isMiddayBanDateRange = (month === 6 && day >= 15) || month === 7 || month === 8 || (month === 9 && day <= 15);
+        const isMiddayBanTimeRange = totalMinutes >= 750 && totalMinutes <= 900;
+        const isMiddayBanActive = isMiddayBanDateRange && isMiddayBanTimeRange;
+        if (isMiddayBanActive) {
+          breaches.push("MOHRE MIDDAY BAN");
+        }
+
+        dailyLogs.push({
+          time: timeStr,
+          temp,
+          rh,
+          wbgt,
+          dewPoint: dp,
+          wind,
+          gusts,
+          visibility,
+          uv,
+          aqi: aqIndex,
+          safety: safetyEval,
+          breaches,
+          isMiddayBanActive
+        });
+      }
+    }
+
+    const chronoLogs = dailyLogs.length > 0 ? dailyLogs : logs24h.slice(0, 24).reverse();
+    
+    if (chronoLogs.length === 0) {
+      alert("No meteorological logs available for briefing compilation.");
+      return;
+    }
+    
+    let maxTemp = -999;
+    let maxTempTime = '';
+    let maxWbgt = -999;
+    let maxWbgtTime = '';
+    let maxWind = -999;
+    let maxWindTime = '';
+    let maxGust = -999;
+    let maxGustTime = '';
+    let maxUv = -999;
+    let maxUvTime = '';
+    let maxAqi = -999;
+    let maxAqiTime = '';
+    
+    let totalWindSpeed = 0;
+    const safeWindows = [];
+    const cautionWindows = [];
+    const haltWindows = [];
+    
+    chronoLogs.forEach(log => {
+      const timeStr = formatTimeLabel(log.time);
+      if (log.temp > maxTemp) { maxTemp = log.temp; maxTempTime = timeStr; }
+      if (log.wbgt > maxWbgt) { maxWbgt = log.wbgt; maxWbgtTime = timeStr; }
+      if (log.wind > maxWind) { maxWind = log.wind; maxWindTime = timeStr; }
+      if (log.gusts > maxGust) { maxGust = log.gusts; maxGustTime = timeStr; }
+      if (log.uv > maxUv) { maxUv = log.uv; maxUvTime = timeStr; }
+      if (log.aqi > maxAqi) { maxAqi = log.aqi; maxAqiTime = timeStr; }
+      
+      totalWindSpeed += log.wind;
+      
+      const status = log.safety.status;
+      if (status === 'RED') {
+        haltWindows.push(log.time);
+      } else if (status === 'AMBER') {
+        cautionWindows.push(log.time);
+      } else {
+        safeWindows.push(log.time);
+      }
+    });
+    
+    const avgWind = totalWindSpeed / chronoLogs.length;
+    
+    const getFormattedWindows = (timeArray) => {
+      if (timeArray.length === 0) return "NONE";
+      const sortedHours = timeArray.map(t => new Date(t).getHours()).sort((a, b) => a - b);
+      
+      const ranges = [];
+      let start = sortedHours[0];
+      let prev = sortedHours[0];
+      
+      for (let i = 1; i < sortedHours.length; i++) {
+        if (sortedHours[i] === prev + 1) {
+          prev = sortedHours[i];
+        } else {
+          ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
+          start = sortedHours[i];
+          prev = sortedHours[i];
+        }
+      }
+      ranges.push(`${String(start).padStart(2, '0')}:00 - ${String(prev + 1).padStart(2, '0')}:00`);
+      return ranges.join(", ") + " GST";
+    };
+
+    const firstLogTime = chronoLogs[0].time;
+    const targetMonth = parseInt(firstLogTime.slice(5, 7), 10);
+    const targetDay = parseInt(firstLogTime.slice(8, 10), 10);
+    const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
+    
+    let haltWindowText = "";
+    if (isMiddayBanActiveForDay) {
+      const otherHaltWindows = haltWindows.filter(t => {
+        const hr = new Date(t).getHours();
+        return hr !== 13 && hr !== 14;
+      });
+      const otherHaltText = getFormattedWindows(otherHaltWindows);
+      if (otherHaltText === "NONE") {
+        haltWindowText = "12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban)";
+      } else {
+        haltWindowText = `12:30 - 15:00 GST (Mandatory UAE MoHRE Midday Ban), ${otherHaltText}`;
+      }
+    } else {
+      haltWindowText = getFormattedWindows(haltWindows);
+    }
+    
+    const safeWindowText = getFormattedWindows(safeWindows);
+    const cautionWindowText = getFormattedWindows(cautionWindows);
+    
+    let overallStatus = "SAFE (GREEN)";
+    let overallInstruction = "Normal range operations permitted. Continuous environmental monitoring active.";
+    if (haltWindows.length > 0 || isMiddayBanActiveForDay) {
+      overallStatus = "CRITICAL (RED HALT)";
+      overallInstruction = "WARNING: Extreme threshold breaches or mandatory MoHRE midday ban detected today. Outdoor range exercises must be suspended during HALT windows.";
+    } else if (cautionWindows.length > 0) {
+      overallStatus = "RESTRICTED OPERATIONAL CLEARANCE (AMBER CAUTION)";
+      overallInstruction = "CAUTION: Mandatory work/rest cycles and hydration monitoring in force. Exercise high supervisor vigilance.";
+    }
+    
+    let droneRating = "OPTIMAL";
+    let droneInstruction = "Wind speeds and gusts are within safe operating limits for standard drone sorties.";
+    if (maxGust >= 50 || maxWind >= 38) {
+      droneRating = "DANGEROUS / HALTED";
+      droneInstruction = "Gale force winds or gusts exceed maximum airframe tolerance. Cancel all drone flights.";
+    } else if (maxGust >= 30 || maxWind >= 20) {
+      droneRating = "MARGINAL / CAUTION";
+      droneInstruction = "Moderate winds/gusts present. High risk of wind drift and battery drain. Experienced pilots only.";
+    }
+
+    const activeTimeStrForHash = getDubaiHourString(currentTime || data.current.time);
+    const hashSeed = `${activeTimeStrForHash}-${maxTemp}-${maxWind}-${maxWbgt}`;
+    let hash = 0;
+    for (let i = 0; i < hashSeed.length; i++) {
+      hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
+      hash = hash & hash;
+    }
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+
+    generateRcoPdfBrief({
+      targetDateLabel: formatDateLabel(chronoLogs[0].time),
+      activeStationName: activeStation ? activeStation.toUpperCase() : "X-RANGE HQ",
+      secureHash,
+      systemMode: isSimulated ? "SIMULATION MODE (HIGH-FIDELITY)" : "LIVE SENSOR TELEMETRY",
+      overallStatus,
+      overallInstruction,
+      safeWindowText,
+      cautionWindowText,
+      haltWindowText,
+      maxTemp, maxTempTime,
+      maxWbgt, maxWbgtTime,
+      maxWind, maxWindTime,
+      maxGust, maxGustTime,
+      maxUv, maxUvTime,
+      maxAqi, maxAqiTime,
+      avgWind,
+      droneRating,
+      droneInstruction,
+      ballisticsCrosswindDrift: maxGust >= 30 ? "HIGH - Expect significant wind-drift on live fire. Apply compensation tables." : "NEGLIGIBLE - Wind vectors within normal range tolerances.",
+      chronoLogs
+    });
   };
 
   const handleGenerateReport = () => {
@@ -578,6 +792,14 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
           >
             <FileText className="w-3.5 h-3.5 text-edgeOrange animate-pulse" />
             <span className="text-edgeOrange">Draft RCO Brief</span>
+          </button>
+          <button
+            onClick={handleGenerateRcoPdfBrief}
+            className="flex items-center space-x-1.5 bg-bgDeepSpace/80 border border-slate-700/65 hover:border-slate-500 hover:text-white px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-wider transition cursor-pointer shadow-sm"
+            title="Draft Daily Weather Briefing PDF for the Range Control Officer"
+          >
+            <FileText className="w-3.5 h-3.5 text-edgeOrange" />
+            <span>Draft PDF Brief</span>
           </button>
           <button
             onClick={handleExportCSV}
@@ -955,14 +1177,24 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
             {/* RCO Daily Brief Action */}
             <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-col space-y-1 flex-none">
               <span className="text-[8px] font-black text-slate-450 uppercase tracking-wider block mb-0.5">Range Control Officer Briefing</span>
-              <button
-                onClick={handleGenerateRcoBrief}
-                className="w-full flex items-center justify-center space-x-1.5 bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 py-1.5 rounded-none text-[9.5px] font-black uppercase tracking-wider text-white transition cursor-pointer shadow-md shadow-edgeOrange/15"
-                title="Draft Daily Weather Briefing for the Range Control Officer"
-              >
-                <FileText className="w-3.5 h-3.5 text-white animate-pulse" />
-                <span>Draft RCO Daily Weather Brief</span>
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={handleGenerateRcoBrief}
+                  className="w-full flex items-center justify-center space-x-1 bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 py-1.5 rounded-none text-[9px] font-black uppercase tracking-wider text-white transition cursor-pointer shadow-md"
+                  title="Draft Daily Weather Briefing for the Range Control Officer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-white animate-pulse" />
+                  <span>Draft RCO Text Brief</span>
+                </button>
+                <button
+                  onClick={handleGenerateRcoPdfBrief}
+                  className="w-full flex items-center justify-center space-x-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 rounded-none text-[9px] font-black uppercase tracking-wider text-slate-200 transition cursor-pointer shadow-md"
+                  title="Draft Daily Weather Briefing PDF for the Range Control Officer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-edgeOrange" />
+                  <span>Draft RCO PDF Brief</span>
+                </button>
+              </div>
             </div>
           </div>
 

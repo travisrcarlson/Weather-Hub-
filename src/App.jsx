@@ -116,6 +116,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState('12:30:00');
   const [isOffline, setIsOffline] = useState(false);
   const [isSimulated, setIsSimulated] = useState(false);
+  const [simulatedLightning, setSimulatedLightning] = useState(false);
   const [activeStation, setActiveStation] = useState('hq');
   const [viewMode, setViewMode] = useState('ops');
   const [systemTime, setSystemTime] = useState(new Date());
@@ -183,9 +184,27 @@ export default function App() {
   }, []);
 
   const handleToggleSim = () => {
-    setIsSimulated(prev => !prev);
+    setIsSimulated(prev => {
+      const nextSim = !prev;
+      if (!nextSim) setSimulatedLightning(false);
+      return nextSim;
+    });
   };
 
+  const combinedNcmWarnings = [...(data?.ncmWarnings || [])];
+  if (isSimulated && simulatedLightning) {
+    if (!combinedNcmWarnings.some(w => w.id === "ncm-w-lightning-red")) {
+      combinedNcmWarnings.unshift({
+        id: "ncm-w-lightning-red",
+        type: "RED",
+        category: "LIGHTNING",
+        title: "ACTIVE LIGHTNING & THUNDERSTORM WARNING",
+        description: "Official Weather Agency Alert: Active convective thunderstorm and lightning strikes detected in the Abu Al Abyad sector. Halt all range activities and evacuate personnel immediately.",
+        issued: new Date().toISOString(),
+        expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+      });
+    }
+  }
   const getCombinedSafety = () => {
     if (!data) return { status: 'GREEN', reasons: [], colors: { banner: 'bg-safetyGreen', pulse: false } };
 
@@ -208,7 +227,7 @@ export default function App() {
             wind_speed_10m: 25,
             wind_gusts_10m: 35,
             relative_humidity_2m: 20,
-            weathercode: 3,
+            weathercode: simulatedLightning ? 95 : 3,
             uv_index: 9.0
           }
         },
@@ -223,7 +242,7 @@ export default function App() {
             wind_gusts_10m: 53,
             relative_humidity_2m: 25,
             visibility: 4000,
-            weathercode: 45,
+            weathercode: simulatedLightning ? 95 : 45,
             uv_index: 9.0
           }
         },
@@ -238,7 +257,7 @@ export default function App() {
             wind_gusts_10m: 18,
             relative_humidity_2m: 15,
             visibility: 12000,
-            weathercode: 0,
+            weathercode: simulatedLightning ? 95 : 0,
             uv_index: 9.0
           }
         },
@@ -253,7 +272,7 @@ export default function App() {
             wind_gusts_10m: 42,
             relative_humidity_2m: 89,
             visibility: 2000,
-            weathercode: 3,
+            weathercode: simulatedLightning ? 95 : 3,
             uv_index: 9.0
           }
         }
@@ -280,15 +299,25 @@ export default function App() {
     }
 
     // Incorporate NCM warnings into the safety state
-    const ncmWarnings = data.ncmWarnings || [];
-    ncmWarnings.forEach(w => {
+    let isLightningHalt = false;
+    combinedNcmWarnings.forEach(w => {
       if (w.type === 'RED') {
         globalStatus = 'RED';
       } else if (w.type === 'AMBER' && globalStatus !== 'RED') {
         globalStatus = 'AMBER';
       }
+      if (w.category === 'LIGHTNING') {
+        isLightningHalt = true;
+      }
       globalReasons.unshift(`[NCM ${w.type} ALERT] ${w.title}`);
     });
+
+    if (isLightningHalt) {
+      globalStatus = 'RED';
+      if (!globalReasons.some(r => r.includes('Severe thunderstorm & lightning strikes'))) {
+        globalReasons.unshift(`⚡ EMERGENCY: Severe thunderstorm & lightning strikes detected. Evacuate all personnel to shelters.`);
+      }
+    }
 
     let bannerColor = "bg-safetyGreen border-green-500 text-white";
     let pulse = false;
@@ -379,7 +408,7 @@ export default function App() {
 
   if (isMobile) {
     return (
-      <div className="w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-14">
+      <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-14 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
         {/* Top Header bar (Z1) */}
         <Header 
           lastUpdated={lastUpdated} 
@@ -403,7 +432,7 @@ export default function App() {
           {mobileTab === 'live' && (
             <div className="space-y-4">
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={data?.ncmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
               <div className="h-auto">
                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
@@ -433,7 +462,9 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={true}
-                  ncmWarnings={data?.ncmWarnings}
+                  ncmWarnings={combinedNcmWarnings}
+                  simulatedLightning={simulatedLightning}
+                  onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
                 />
               </div>
               <div className="w-full">
@@ -471,10 +502,10 @@ export default function App() {
           {mobileTab === 'alerts' && (
             <div className="space-y-4">
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={data?.ncmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
               <div className="border border-slate-800 bg-cardDarkSlate p-4 rounded-xl">
-                <SafetyAdvisory data={activeDisplayData} ncmWarnings={data?.ncmWarnings} />
+                <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
               </div>
             </div>
           )}
@@ -548,7 +579,7 @@ export default function App() {
   }
 
   return (
-    <div className="w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative">
+    <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-650' : ''}`}>
       {/* Top Header bar (Z1) */}
       <Header 
         lastUpdated={lastUpdated} 
@@ -569,7 +600,7 @@ export default function App() {
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none flex flex-col justify-between space-y-3.5 w-full h-full">
             {/* Z8 Safety Status Banner */}
             <div className="h-[12%] pointer-events-auto">
-              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={data?.ncmWarnings} />
+              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
             </div>
 
             {/* 3-Column Split Layout */}
@@ -601,7 +632,9 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
-                  ncmWarnings={data?.ncmWarnings}
+                  ncmWarnings={combinedNcmWarnings}
+                  simulatedLightning={simulatedLightning}
+                  onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
                 />
               </div>
 
@@ -637,7 +670,7 @@ export default function App() {
             <div className="col-span-6 h-full flex flex-col justify-between space-y-3 pointer-events-none">
               {/* Z8 Safety Status Banner */}
               <div className="h-[12%] pointer-events-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={data?.ncmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
               </div>
 
               {/* Central Area: Opaque Map Card with Station Details */}
@@ -650,7 +683,9 @@ export default function App() {
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
-                  ncmWarnings={data?.ncmWarnings}
+                  ncmWarnings={combinedNcmWarnings}
+                  simulatedLightning={simulatedLightning}
+                  onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
                 />
               </div>
 
@@ -691,7 +726,7 @@ export default function App() {
         {viewMode === 'advisory' && (
           /* Safety Advisory (Standard Operating Procedures & Survival Guidelines) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <SafetyAdvisory data={activeDisplayData} ncmWarnings={data?.ncmWarnings} />
+            <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
           </div>
         )}
 

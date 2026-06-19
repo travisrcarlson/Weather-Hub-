@@ -176,6 +176,20 @@ export function generateMockNcmWarnings(currentData) {
   const wind = currentData.wind_speed_10m || 0;
   const visibility = currentData.visibility || 10000;
   const pm10 = currentData.pm10 || 0;
+  const weathercode = currentData.weathercode || 0;
+
+  // 0. Lightning / Thunderstorm Warnings (WMO codes 95, 96, 99)
+  if (weathercode === 95 || weathercode === 96 || weathercode === 99) {
+    warnings.push({
+      id: "ncm-w-lightning-red",
+      type: "RED",
+      category: "LIGHTNING",
+      title: "ACTIVE LIGHTNING & THUNDERSTORM WARNING",
+      description: "Official Weather Agency Alert: Active convective thunderstorm and lightning strikes detected in the Abu Al Abyad sector. Halt all range activities and evacuate personnel immediately.",
+      issued: new Date().toISOString().slice(0, 16) + "+04:00",
+      expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString().slice(0, 16) + "+04:00"
+    });
+  }
 
   // 1. Heat Warnings
   if (temp >= 43) {
