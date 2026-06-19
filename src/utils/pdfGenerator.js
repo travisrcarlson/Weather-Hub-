@@ -174,13 +174,17 @@ export function generateRcoPdfBrief({
     }
     .meta-item {
       font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
     }
     .meta-label {
+      font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
       font-weight: 800;
       color: #475569;
       text-transform: uppercase;
     }
     .meta-value {
+      font-size: 11px;
       font-family: Arial, Helvetica, sans-serif;
       font-weight: 700;
       color: #0f172a;
@@ -224,6 +228,7 @@ export function generateRcoPdfBrief({
     }
     .status-title {
       font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
       font-weight: 900;
       text-transform: uppercase;
       margin-bottom: 4px;
@@ -236,6 +241,7 @@ export function generateRcoPdfBrief({
     
     .status-desc {
       font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
       font-weight: 700;
       color: #334155;
     }
@@ -249,6 +255,7 @@ export function generateRcoPdfBrief({
       padding-left: 12px;
       margin-bottom: 4px;
       font-size: 11px;
+      font-family: Arial, Helvetica, sans-serif;
     }
     .directives-list li::before {
       content: "▪";
@@ -268,6 +275,10 @@ export function generateRcoPdfBrief({
       border: 1px solid #cbd5e1;
       padding: 8px 10px;
       background: #ffffff;
+    }
+    .grid-card p {
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
     }
     .grid-card-title {
       font-family: Arial, Helvetica, sans-serif;
@@ -302,6 +313,8 @@ export function generateRcoPdfBrief({
     table.data-table td {
       border: 1px solid #e2e8f0;
       padding: 3.5px 2px;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
     }
     table.data-table tr:nth-child(even) td {
       background: #f8fafc;
@@ -415,7 +428,7 @@ export function generateRcoPdfBrief({
         </div>
 
         <div style="margin-top: 10px;">
-          <p style="font-weight: 800; text-transform: uppercase; font-size: 9.5px; color: #475569; margin-bottom: 4px;">Operational Directives & Action Items:</p>
+          <p style="font-weight: 800; text-transform: uppercase; font-size: 11px; color: #475569; margin-bottom: 4px;">Operational Directives & Action Items:</p>
           <ul class="directives-list">
             <li><strong>Thermal Exposure</strong>: Ensure mandatory hydration splits matched to Wet Bulb Globe Temperature (WBGT) flag ratings. Provide shaded rest structures with active cooling.</li>
             <li><strong>Wind Limits</strong>: Secure all sensitive flight equipment, drone ground control arrays, and tall targets if wind gusts exceed safe limits.</li>
