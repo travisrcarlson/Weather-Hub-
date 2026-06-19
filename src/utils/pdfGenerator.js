@@ -52,10 +52,10 @@ export function generateRcoPdfBrief({
     body {
       font-family: Arial, Helvetica, sans-serif;
       color: #0f172a;
-      background: #ffffff;
+      background: #f1f5f9;
       line-height: 1.4;
       font-size: 11px;
-      padding: 30px;
+      padding: 20px;
     }
 
     /* Page container formatting for standard A4/Letter size */
@@ -63,7 +63,32 @@ export function generateRcoPdfBrief({
       width: 100%;
       max-width: 800px;
       margin: 0 auto;
+    }
+
+    .print-page {
       background: #ffffff;
+      padding: 30px 40px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+      position: relative;
+      min-height: 1080px;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+    }
+
+    .page-footer {
+      position: absolute;
+      bottom: 20px;
+      left: 40px;
+      right: 40px;
+      text-align: center;
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 11px;
+      font-weight: bold;
+      color: #64748b;
+      text-transform: uppercase;
+      line-height: 1.4;
     }
 
     /* Print specific settings */
@@ -74,6 +99,7 @@ export function generateRcoPdfBrief({
       }
       body {
         padding: 0;
+        background: #ffffff;
         font-size: 11px;
       }
       .page {
@@ -82,18 +108,26 @@ export function generateRcoPdfBrief({
         margin: 0;
         padding: 0;
       }
+      .print-page {
+        padding: 30px 40px;
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+        min-height: 297mm;
+        height: 297mm;
+      }
       .page-break {
-        page-break-before: always;
-        break-before: page;
+        display: none;
       }
       .no-print {
         display: none;
       }
     }
 
-    /* Top header block (Orange with white text) */
+    /* Top header block (Terracotta with white text) */
     .header {
-      background: #ea580c;
+      background: #b86857;
       color: #ffffff;
       padding: 10px 15px;
       margin-bottom: 15px;
@@ -110,7 +144,7 @@ export function generateRcoPdfBrief({
       font-family: Arial, Helvetica, sans-serif;
     }
     .header-left p {
-      font-size: 9px;
+      font-size: 11px;
       font-weight: 700;
       color: rgba(255, 255, 255, 0.9);
       text-transform: uppercase;
@@ -122,7 +156,7 @@ export function generateRcoPdfBrief({
       text-align: right;
     }
     .header-right p {
-      font-size: 8.5px;
+      font-size: 11px;
       font-family: Arial, Helvetica, sans-serif;
       color: rgba(255, 255, 255, 0.9);
       line-height: 1.2;
@@ -147,7 +181,7 @@ export function generateRcoPdfBrief({
       text-transform: uppercase;
     }
     .meta-value {
-      font-family: monospace;
+      font-family: Arial, Helvetica, sans-serif;
       font-weight: 700;
       color: #0f172a;
     }
@@ -157,7 +191,7 @@ export function generateRcoPdfBrief({
       padding-left: 10px;
     }
     .meta-right p {
-      font-size: 9px;
+      font-size: 11px;
       font-family: Arial, Helvetica, sans-serif;
       color: #475569;
       line-height: 1.3;
@@ -175,11 +209,10 @@ export function generateRcoPdfBrief({
       font-family: Arial, Helvetica, sans-serif;
       font-size: 16px;
       font-weight: bold;
-      color: #c2410c; /* Dark Orange */
+      color: #b86857; /* Terracotta Orange */
       text-transform: uppercase;
       margin-top: 15px;
       margin-bottom: 10px;
-      border-bottom: 1.5px solid #ea580c;
       padding-bottom: 4px;
     }
 
@@ -190,7 +223,7 @@ export function generateRcoPdfBrief({
       margin-bottom: 12px;
     }
     .status-title {
-      font-size: 13px;
+      font-size: 11px;
       font-weight: 900;
       text-transform: uppercase;
       margin-bottom: 4px;
@@ -221,7 +254,7 @@ export function generateRcoPdfBrief({
       content: "▪";
       position: absolute;
       left: 0;
-      color: #ea580c;
+      color: #b86857;
     }
 
     /* Grid columns */
@@ -238,12 +271,12 @@ export function generateRcoPdfBrief({
     }
     .grid-card-title {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 11px;
+      font-size: 16px;
       font-weight: 800;
       text-transform: uppercase;
-      background: #ea580c;
+      background: #b86857;
       color: #ffffff !important;
-      padding: 5px 10px;
+      padding: 6px 10px;
       margin: -8px -10px 8px -10px;
       border-bottom: 1px solid #cbd5e1;
     }
@@ -252,17 +285,18 @@ export function generateRcoPdfBrief({
     table.data-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 10px;
+      font-size: 11px;
       text-align: center;
       margin-top: 5px;
     }
     table.data-table th {
-      background: #ea580c;
+      background: #b86857;
       color: #ffffff;
       font-family: Arial, Helvetica, sans-serif;
+      font-size: 16px;
       font-weight: 800;
-      border: 1px solid #c2410c;
-      padding: 5px 2px;
+      border: 1px solid #b86857;
+      padding: 6px 4px;
       text-transform: uppercase;
     }
     table.data-table td {
@@ -287,18 +321,18 @@ export function generateRcoPdfBrief({
     }
     .chart-title {
       font-family: Arial, Helvetica, sans-serif;
-      font-size: 11px;
+      font-size: 16px;
       font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      color: #c2410c; /* Dark Orange */
+      color: #b86857; /* Terracotta Orange */
       margin-bottom: 4px;
       margin-top: 8px;
     }
 
     /* Quick print warning bar */
     .print-control-bar {
-      background: #ea580c;
+      background: #b86857;
       color: #ffffff;
       padding: 10px 20px;
       display: flex;
@@ -306,13 +340,14 @@ export function generateRcoPdfBrief({
       align-items: center;
       margin-bottom: 20px;
       border-radius: 4px;
+      font-size: 16px;
     }
     .print-btn {
       background: #0f172a;
       color: #ffffff;
       border: none;
-      padding: 6px 14px;
-      font-size: 11px;
+      padding: 6px 16px;
+      font-size: 16px;
       font-weight: bold;
       cursor: pointer;
       text-transform: uppercase;
@@ -320,6 +355,9 @@ export function generateRcoPdfBrief({
     }
     .print-btn:hover {
       background: #1e293b;
+    }
+    svg text {
+      font-family: Arial, Helvetica, sans-serif;
     }
   </style>
 </head>
@@ -333,172 +371,185 @@ export function generateRcoPdfBrief({
 
   <div class="page">
     
-    <!-- Page 1: RCO Operational Directive -->
-    <div class="header">
-      <div class="header-left">
-        <p>X-Range Tactical Safety Network</p>
-        <h1>Daily Environmental Operations Brief</h1>
+    <div class="print-page">
+      <!-- Page 1: RCO Operational Directive -->
+      <div class="header">
+        <div class="header-left">
+          <p>X-Range Tactical Safety Network</p>
+          <h1>Daily Environmental Operations Brief</h1>
+        </div>
+        <div class="header-right">
+          <p>REPORT TYPE: Daily RCO Brief</p>
+          <p>SECURITY: Open Source Release</p>
+        </div>
       </div>
-      <div class="header-right">
-        <p>REPORT TYPE: Daily RCO Brief</p>
-        <p>SECURITY: Open Source Release</p>
+
+      <div class="meta-bar">
+        <div class="meta-item">
+          <span class="meta-label">Target Date:</span> <span class="meta-value">${targetDateLabel}</span><br/>
+          <span class="meta-label">Station:</span> <span class="meta-value">${activeStationName} (Abu Al Abyad Island, UAE)</span><br/>
+          <span class="meta-label">Data Mode:</span> <span class="meta-value">${systemMode}</span>
+        </div>
+        <div class="meta-right">
+          <p><strong>TIMESTAMP:</strong></p>
+          <p>${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST</p>
+          <p><strong>VERIFICATION HASH:</strong></p>
+          <p>${secureHash}</p>
+        </div>
+      </div>
+
+      <!-- Section 1: Executive Summary -->
+      <div class="section">
+        <div class="section-title">1. Executive Operations Advisory</div>
+        
+        <div class="status-block">
+          <div class="status-title">
+            Rating: &nbsp;
+            <span class="status-${overallStatus.includes('RED') ? 'RED' : overallStatus.includes('AMBER') ? 'AMBER' : 'GREEN'}">
+              ${overallStatus}
+            </span>
+          </div>
+          <div class="status-desc">
+            Directive: ${overallInstruction}
+          </div>
+        </div>
+
+        <div style="margin-top: 10px;">
+          <p style="font-weight: 800; text-transform: uppercase; font-size: 9.5px; color: #475569; margin-bottom: 4px;">Operational Directives & Action Items:</p>
+          <ul class="directives-list">
+            <li><strong>Thermal Exposure</strong>: Ensure mandatory hydration splits matched to Wet Bulb Globe Temperature (WBGT) flag ratings. Provide shaded rest structures with active cooling.</li>
+            <li><strong>Wind Limits</strong>: Secure all sensitive flight equipment, drone ground control arrays, and tall targets if wind gusts exceed safe limits.</li>
+            <li><strong>Midday Break Compliance</strong>: In date ranges from June 15 to Sept 15, completely cease range activities between 12:30 and 15:00 GST in compliance with UAE MoHRE Midday Work Ban guidelines.</li>
+            <li><strong>ADOSH Lightning Guidelines</strong>: In the event of lightning activity or storm cell alerts inside the 10km boundary, immediately trigger emergency strobe sirens and evacuate all range crews to solid masonry shelter facilities. Wait at least 30 minutes after the last observed lightning strike or official alert clear before training resumption.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Section 2: Diurnal Windows -->
+      <div class="section">
+        <div class="section-title">2. Diurnal Operational Windows (RCO Scheduling)</div>
+        <div class="grid-2">
+          <div class="grid-card" style="border-left: 3px solid #16a34a;">
+            <div class="grid-card-title">[+] Safe Operating Windows</div>
+            <p style="font-size: 11px; font-weight: bold;">${safeWindowText}</p>
+            <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
+          </div>
+          <div class="grid-card" style="border-left: 3px solid #d97706;">
+            <div class="grid-card-title">[!] Caution Operating Windows</div>
+            <p style="font-size: 11px; font-weight: bold;">${cautionWindowText}</p>
+            <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
+          </div>
+        </div>
+        <div class="grid-card" style="border-left: 3px solid #dc2626; margin-bottom: 5px;">
+          <div class="grid-card-title">[X] Suspension / Halt Windows (RED)</div>
+          <p style="font-size: 11px; font-weight: bold;">${haltWindowText}</p>
+          <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
+        </div>
+      </div>
+
+      <!-- Section 3: Daily Extremes -->
+      <div class="section" style="margin-bottom: 0;">
+        <div class="section-title">3. Diurnal Environmental Extremes</div>
+        <div class="grid-2" style="margin-bottom: 5px;">
+          <div class="grid-card">
+            <div class="grid-card-title">Thermal Extremes</div>
+            <p style="font-size: 11px; margin-bottom: 3px;">☀️ <strong>Peak Temperature</strong>: <span style="font-weight: 700;">${maxTemp.toFixed(1)}°C</span> at <span>${maxTempTime}</span></p>
+            <p style="font-size: 11px;">🔥 <strong>Peak Heat Stress (WBGT)</strong>: <span style="font-weight: 700; color: #dc2626;">${maxWbgt.toFixed(1)}°C</span> at <span>${maxWbgtTime}</span></p>
+          </div>
+          <div class="grid-card">
+            <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
+            <p style="font-size: 11px; margin-bottom: 3px;">💨 <strong>Peak Wind Gusts</strong>: <span style="font-weight: 700;">${maxGust.toFixed(0)} km/h</span> at <span>${maxGustTime}</span></p>
+            <p style="font-size: 11px; margin-bottom: 3px;">🍃 <strong>Max Sustained Wind</strong>: <span style="font-weight: 700;">${maxWind.toFixed(0)} km/h</span> at <span>${maxWindTime}</span></p>
+            <p style="font-size: 11px;">🧴 <strong>Peak UV Radiation</strong>: <span style="font-weight: 700; color: #854d0e;">${maxUv.toFixed(1)} UV</span> at <span>${maxUvTime}</span></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section 4: Flight & Ballistics -->
+      <div class="section">
+        <div class="section-title">4. Flight Operations & Ballistics Assessment</div>
+        <div class="grid-2" style="margin-bottom: 0;">
+          <div class="grid-card">
+            <div class="grid-card-title">Drone Flight Readiness</div>
+            <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${droneRating.includes('HALT') ? '#dc2626' : droneRating.includes('CAUTION') ? '#d97706' : '#16a34a'}">
+              Rating: ${droneRating}
+            </p>
+            <p style="font-size: 11px; color: #334155; line-height: 1.3;">${droneInstruction}</p>
+          </div>
+          <div class="grid-card">
+            <div class="grid-card-title">Ballistics Wind Drift Warning</div>
+            <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${maxGust >= 30 ? '#d97706' : '#16a34a'}">
+              Crosswind Drift: ${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}
+            </p>
+            <p style="font-size: 11px; color: #334155; line-height: 1.3;">${ballisticsCrosswindDrift}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer for Page 1 -->
+      <div class="page-footer">
+        PUBLIC<br/>Page 1 of 2
       </div>
     </div>
-
-    <div class="meta-bar">
-      <div class="meta-item">
-        <span class="meta-label">Target Date:</span> <span class="meta-value" style="font-size: 11px; font-family: inherit;">${targetDateLabel}</span><br/>
-        <span class="meta-label">Station:</span> <span class="meta-value" style="font-family: inherit;">${activeStationName} (Abu Al Abyad Island, UAE)</span><br/>
-        <span class="meta-label">Data Mode:</span> <span class="meta-value" style="font-family: inherit;">${systemMode}</span>
-      </div>
-      <div class="meta-right">
-        <p><strong>TIMESTAMP:</strong></p>
-        <p>${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST</p>
-        <p><strong>VERIFICATION HASH:</strong></p>
-        <p>${secureHash}</p>
-      </div>
-    </div>
-
-    <!-- Section 1: Executive Summary -->
-    <div class="section">
-      <div class="section-title">1. Executive Operations Advisory</div>
-      
-      <div class="status-block">
-        <div class="status-title">
-          Rating: &nbsp;
-          <span class="status-${overallStatus.includes('RED') ? 'RED' : overallStatus.includes('AMBER') ? 'AMBER' : 'GREEN'}">
-            ${overallStatus}
-          </span>
-        </div>
-        <div class="status-desc">
-          Directive: ${overallInstruction}
-        </div>
-      </div>
-
-      <div style="margin-top: 10px;">
-        <p style="font-weight: 800; text-transform: uppercase; font-size: 9.5px; color: #475569; margin-bottom: 4px;">Operational Directives & Action Items:</p>
-        <ul class="directives-list">
-          <li><strong>Thermal Exposure</strong>: Ensure mandatory hydration splits matched to Wet Bulb Globe Temperature (WBGT) flag ratings. Provide shaded rest structures with active cooling.</li>
-          <li><strong>Wind Limits</strong>: Secure all sensitive flight equipment, drone ground control arrays, and tall targets if wind gusts exceed safe limits.</li>
-          <li><strong>Midday Break Compliance</strong>: In date ranges from June 15 to Sept 15, completely cease range activities between 12:30 and 15:00 GST in compliance with UAE MoHRE Midday Work Ban guidelines.</li>
-          <li><strong>ADOSH Lightning Guidelines</strong>: In the event of lightning activity or storm cell alerts inside the 10km boundary, immediately trigger emergency strobe sirens and evacuate all range crews to solid masonry shelter facilities. Wait at least 30 minutes after the last observed lightning strike or official alert clear before training resumption.</li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Section 2: Diurnal Windows -->
-    <div class="section">
-      <div class="section-title">2. Diurnal Operational Windows (RCO Scheduling)</div>
-      <div class="grid-2">
-        <div class="grid-card" style="border-left: 3px solid #16a34a;">
-          <div class="grid-card-title">[+] Safe Operating Windows</div>
-          <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${safeWindowText}</p>
-          <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
-        </div>
-        <div class="grid-card" style="border-left: 3px solid #d97706;">
-          <div class="grid-card-title">[!] Caution Operating Windows</div>
-          <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${cautionWindowText}</p>
-          <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
-        </div>
-      </div>
-      <div class="grid-card" style="border-left: 3px solid #dc2626; margin-bottom: 5px;">
-        <div class="grid-card-title">[X] Suspension / Halt Windows (RED)</div>
-        <p style="font-size: 11px; font-weight: bold; font-family: monospace;">${haltWindowText}</p>
-        <p style="font-size: 9px; color: #64748b; margin-top: 4px;">* Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
-      </div>
-    </div>
-
-    <!-- Section 3: Daily Extremes -->
-    <div class="section" style="margin-bottom: 0;">
-      <div class="section-title">3. Diurnal Environmental Extremes</div>
-      <div class="grid-2" style="margin-bottom: 5px;">
-        <div class="grid-card">
-          <div class="grid-card-title">Thermal Extremes</div>
-          <p style="font-size: 11px; margin-bottom: 3px;">☀️ <strong>Peak Temperature</strong>: <span style="font-weight: 700;">${maxTemp.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxTempTime}</span></p>
-          <p style="font-size: 11px;">🔥 <strong>Peak Heat Stress (WBGT)</strong>: <span style="font-weight: 700; color: #dc2626;">${maxWbgt.toFixed(1)}°C</span> at <span style="font-family: monospace;">${maxWbgtTime}</span></p>
-        </div>
-        <div class="grid-card">
-          <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
-          <p style="font-size: 11px; margin-bottom: 3px;">💨 <strong>Peak Wind Gusts</strong>: <span style="font-weight: 700;">${maxGust.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxGustTime}</span></p>
-          <p style="font-size: 11px; margin-bottom: 3px;">🍃 <strong>Max Sustained Wind</strong>: <span style="font-weight: 700;">${maxWind.toFixed(0)} km/h</span> at <span style="font-family: monospace;">${maxWindTime}</span></p>
-          <p style="font-size: 11px;">🧴 <strong>Peak UV Radiation</strong>: <span style="font-weight: 700; color: #854d0e;">${maxUv.toFixed(1)} UV</span> at <span style="font-family: monospace;">${maxUvTime}</span></p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Section 4: Flight & Ballistics -->
-    <div class="section">
-      <div class="section-title">4. Flight Operations & Ballistics Assessment</div>
-      <div class="grid-2" style="margin-bottom: 0;">
-        <div class="grid-card">
-          <div class="grid-card-title">Drone Flight Readiness</div>
-          <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${droneRating.includes('HALT') ? '#dc2626' : droneRating.includes('CAUTION') ? '#d97706' : '#16a34a'}">
-            Rating: ${droneRating}
-          </p>
-          <p style="font-size: 11px; color: #334155; line-height: 1.3;">${droneInstruction}</p>
-        </div>
-        <div class="grid-card">
-          <div class="grid-card-title">Ballistics Wind Drift Warning</div>
-          <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${maxGust >= 30 ? '#d97706' : '#16a34a'}">
-            Crosswind Drift: ${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}
-          </p>
-          <p style="font-size: 11px; color: #334155; line-height: 1.3;">${ballisticsCrosswindDrift}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Page Break for Charts & Table -->
+    
     <div class="page-break"></div>
 
-    <div class="header" style="margin-top: 20px;">
-      <div class="header-left">
-        <p>X-Range Tactical Safety Network</p>
-        <h1>Environmental Charts & Data Logs</h1>
-      </div>
-      <div class="header-right">
-        <p>Target Date: ${targetDateLabel}</p>
-        <p>Verification Hash: ${secureHash}</p>
-      </div>
-    </div>
-
-    <!-- Section 5: Profiles Charts -->
-    <div class="section">
-      <div class="section-title">5. Daily Meteorological Profiles</div>
-      
-      <div class="chart-title">Thermal Load Profile (Dry Bulb vs. WBGT Index)</div>
-      <div class="chart-container" id="thermalChart">
-        <!-- SVG generated programmatically -->
+    <div class="print-page">
+      <div class="header">
+        <div class="header-left">
+          <p>X-Range Tactical Safety Network</p>
+          <h1>Environmental Charts & Data Logs</h1>
+        </div>
+        <div class="header-right">
+          <p>Target Date: ${targetDateLabel}</p>
+          <p>Verification Hash: ${secureHash}</p>
+        </div>
       </div>
 
-      <div class="chart-title">Aerodynamic & Solar Profile (Wind Speed, Gusts, & UV)</div>
-      <div class="chart-container" id="aeroChart">
-        <!-- SVG generated programmatically -->
-      </div>
-    </div>
+      <!-- Section 5: Profiles Charts -->
+      <div class="section">
+        <div class="section-title">5. Daily Meteorological Profiles</div>
+        
+        <div class="chart-title">Thermal Load Profile (Dry Bulb vs. WBGT Index)</div>
+        <div class="chart-container" id="thermalChart">
+          <!-- SVG generated programmatically -->
+        </div>
 
-    <!-- Section 6: Hourly Table -->
-    <div class="section">
-      <div class="section-title">6. Hourly Environmental Log Database</div>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Temp (°C)</th>
-            <th>Humidity (%)</th>
-            <th>Dew Pt (°C)</th>
-            <th>WBGT (°C)</th>
-            <th>Wind (km/h)</th>
-            <th>Gusts (km/h)</th>
-            <th>Visibility (km)</th>
-            <th>UV Index</th>
-            <th>AQI (PM10)</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody">
-          <!-- Filled dynamically -->
-        </tbody>
-      </table>
+        <div class="chart-title">Aerodynamic & Solar Profile (Wind Speed, Gusts, & UV)</div>
+        <div class="chart-container" id="aeroChart">
+          <!-- SVG generated programmatically -->
+        </div>
+      </div>
+
+      <!-- Section 6: Hourly Table -->
+      <div class="section">
+        <div class="section-title">6. Hourly Environmental Log Database</div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Temp (°C)</th>
+              <th>Humidity (%)</th>
+              <th>Dew Pt (°C)</th>
+              <th>WBGT (°C)</th>
+              <th>Wind (km/h)</th>
+              <th>Gusts (km/h)</th>
+              <th>Visibility (km)</th>
+              <th>UV Index</th>
+              <th>AQI (PM10)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <!-- Filled dynamically -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Footer for Page 2 -->
+      <div class="page-footer">
+        PUBLIC<br/>Page 2 of 2
+      </div>
     </div>
 
   </div>
@@ -525,7 +576,7 @@ export function generateRcoPdfBrief({
       const statusClass = isRed ? 'cell-RED' : (isAmber ? 'cell-AMBER' : 'cell-GREEN');
 
       row.innerHTML = \`
-        <td style="font-weight: bold; font-family: monospace;">\${timeStr}</td>
+        <td style="font-weight: bold;">\${timeStr}</td>
         <td>\${log.temp.toFixed(1)}</td>
         <td>\${log.rh}%</td>
         <td>\${log.dewPoint.toFixed(1)}</td>
@@ -586,7 +637,7 @@ export function generateRcoPdfBrief({
           const x = padding.left + (idx / 23) * plotW;
           const timeLabel = formatTimeLabel(d.time);
           svgHtml += \`<line x1="\${x}" y1="\${padding.top}" x2="\${x}" y2="\${padding.top + plotH}" stroke="#cbd5e1" stroke-width="0.5" opacity="0.3" />\`;
-          svgHtml += \`<text x="\${x}" y="\${height - 8}" text-anchor="middle" font-size="7.5" fill="#64748b" font-family="monospace">\${timeLabel}</text>\`;
+          svgHtml += \`<text x="\${x}" y="\${height - 8}" text-anchor="middle" font-size="7.5" fill="#64748b" font-family="Arial, sans-serif">\${timeLabel}</text>\`;
         }
       });
 
@@ -668,7 +719,7 @@ export function generateRcoPdfBrief({
       // 1. Thermal chart (Temp vs WBGT)
       renderSvgChart('thermalChart', logs, {
         series: [
-          { key: 'temp', name: 'Dry Bulb Temp', color: '#ea580c' },
+          { key: 'temp', name: 'Dry Bulb Temp', color: '#b86857' },
           { key: 'wbgt', name: 'WBGT Index', color: '#b91c1c' }
         ],
         yUnit: '°C',
@@ -700,7 +751,7 @@ export function generateRcoPdfBrief({
       
       // Auto open print dialog
       setTimeout(() => {
-        window.print();
+        // window.print();
       }, 500);
     });
   </script>
