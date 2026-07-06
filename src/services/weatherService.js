@@ -353,17 +353,29 @@ export async function fetchDashboardData() {
     const weatherData = weatherResult.res.data;
     const aqiData = aqiResult.res.data;
 
-    // Merge current weather and air quality parameters
+    // Merge current weather and air quality parameters with UAE-specific UV index calibration (1.3x capped at 12)
+    const rawCurrentUv = weatherData.current ? weatherData.current.uv_index : undefined;
+    const calibratedCurrentUv = rawCurrentUv !== undefined 
+      ? Number(Math.min(12.0, rawCurrentUv * 1.3).toFixed(1)) 
+      : undefined;
+
+    const rawHourlyUv = weatherData.hourly ? weatherData.hourly.uv_index : null;
+    const calibratedHourlyUv = rawHourlyUv 
+      ? rawHourlyUv.map(uv => uv !== null ? Number(Math.min(12.0, uv * 1.3).toFixed(1)) : null)
+      : null;
+
     const mergedData = {
       latitude: LAT,
       longitude: LON,
       timezone: TIMEZONE,
       current: {
         ...weatherData.current,
-        ...aqiData.current
+        ...aqiData.current,
+        uv_index: calibratedCurrentUv
       },
       hourly: {
         ...weatherData.hourly,
+        uv_index: calibratedHourlyUv,
         european_aqi: aqiData.hourly ? aqiData.hourly.european_aqi : null,
         pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
         pm10: aqiData.hourly ? aqiData.hourly.pm10 : null
@@ -371,7 +383,8 @@ export async function fetchDashboardData() {
       daily: weatherData.daily,
       ncmWarnings: generateMockNcmWarnings({
         ...weatherData.current,
-        ...aqiData.current
+        ...aqiData.current,
+        uv_index: calibratedCurrentUv
       })
     };
 

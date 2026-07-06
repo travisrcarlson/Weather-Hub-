@@ -502,4 +502,51 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
   return projected;
 }
 
+export function getClimaticAnomalyForYear(year) {
+  const y = parseInt(year, 10);
+  if (isNaN(y)) {
+    return {
+      type: 'NEUTRAL',
+      name: 'Neutral Climate Baseline',
+      tempOffset: 0.0,
+      rhOffset: 0,
+      windMultiplier: 1.0,
+      dustMultiplier: 1.0,
+      visOffset: 0.0
+    };
+  }
+  
+  if (y === 2023 || y === 2026 || y === 2030) {
+    return {
+      type: 'EL_NINO',
+      name: 'El Niño Anomaly (Warmer/Drier)',
+      tempOffset: 2.2,
+      rhOffset: -12,
+      windMultiplier: 0.85,
+      dustMultiplier: 1.6,
+      visOffset: -3.0
+    };
+  } else if (y === 2020 || y === 2021 || y === 2022 || y === 2025 || y === 2029) {
+    return {
+      type: 'LA_NINA',
+      name: 'La Niña Anomaly (Cooler/Wetter/Windier)',
+      tempOffset: -1.5,
+      rhOffset: 15,
+      windMultiplier: 1.25,
+      dustMultiplier: 0.75,
+      visOffset: 1.5
+    };
+  } else {
+    return {
+      type: 'NEUTRAL',
+      name: 'Neutral Climate Baseline',
+      tempOffset: 0.0,
+      rhOffset: 0,
+      windMultiplier: 1.0,
+      dustMultiplier: 1.0,
+      visOffset: 0.0
+    };
+  }
+}
+
 

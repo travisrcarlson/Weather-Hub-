@@ -3,6 +3,7 @@ import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Downl
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
+import { generateRcoWordBrief } from '../utils/wordGenerator';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
@@ -471,7 +472,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     document.body.removeChild(link);
   };
 
-  const handleGenerateRcoPdfBrief = () => {
+  const compileRcoBriefPayload = () => {
     const activeTimeStr = getDubaiHourString(currentTime || data.current.time);
     const targetDateStr = activeTimeStr.split('T')[0];
     
@@ -542,7 +543,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     
     if (chronoLogs.length === 0) {
       alert("No meteorological logs available for briefing compilation.");
-      return;
+      return null;
     }
     
     let maxTemp = -999;
@@ -660,7 +661,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     }
     const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
 
-    generateRcoPdfBrief({
+    return {
       targetDateLabel: formatDateLabel(chronoLogs[0].time),
       activeStationName: activeStation ? activeStation.toUpperCase() : "X-RANGE HQ",
       secureHash,
@@ -681,7 +682,21 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       droneInstruction,
       ballisticsCrosswindDrift: maxGust >= 30 ? "HIGH - Expect significant wind-drift on live fire. Apply compensation tables." : "NEGLIGIBLE - Wind vectors within normal range tolerances.",
       chronoLogs
-    });
+    };
+  };
+
+  const handleGenerateRcoPdfBrief = () => {
+    const payload = compileRcoBriefPayload();
+    if (payload) {
+      generateRcoPdfBrief(payload);
+    }
+  };
+
+  const handleGenerateRcoWordBrief = () => {
+    const payload = compileRcoBriefPayload();
+    if (payload) {
+      generateRcoWordBrief(payload);
+    }
   };
 
   const handleGenerateReport = () => {
@@ -800,6 +815,14 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
           >
             <FileText className="w-3.5 h-3.5 text-edgeOrange" />
             <span>Draft PDF Brief</span>
+          </button>
+          <button
+            onClick={handleGenerateRcoWordBrief}
+            className="flex items-center space-x-1.5 bg-bgDeepSpace/80 border border-slate-700/65 hover:border-slate-500 hover:text-white px-3 py-1.5 rounded-none text-[10px] font-black uppercase tracking-wider transition cursor-pointer shadow-sm"
+            title="Draft Daily Weather Briefing Word Document for the Range Control Officer"
+          >
+            <FileText className="w-3.5 h-3.5 text-edgeOrange" />
+            <span>Draft Word Brief</span>
           </button>
           <button
             onClick={handleExportCSV}
@@ -1177,22 +1200,30 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
             {/* RCO Daily Brief Action */}
             <div className="mt-2 pt-2 border-t border-slate-800/80 flex flex-col space-y-1 flex-none">
               <span className="text-[8px] font-black text-slate-450 uppercase tracking-wider block mb-0.5">Range Control Officer Briefing</span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   onClick={handleGenerateRcoBrief}
-                  className="w-full flex items-center justify-center space-x-1 bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 py-1.5 rounded-none text-[9px] font-black uppercase tracking-wider text-white transition cursor-pointer shadow-md"
+                  className="w-full flex items-center justify-center space-x-0.5 bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 py-1.5 rounded-none text-[8.5px] font-black uppercase tracking-wider text-white transition cursor-pointer shadow-md"
                   title="Draft Daily Weather Briefing for the Range Control Officer"
                 >
-                  <FileText className="w-3.5 h-3.5 text-white animate-pulse" />
-                  <span>Draft RCO Text Brief</span>
+                  <FileText className="w-3 h-3 text-white animate-pulse" />
+                  <span>Text Brief</span>
                 </button>
                 <button
                   onClick={handleGenerateRcoPdfBrief}
-                  className="w-full flex items-center justify-center space-x-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 rounded-none text-[9px] font-black uppercase tracking-wider text-slate-200 transition cursor-pointer shadow-md"
+                  className="w-full flex items-center justify-center space-x-0.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 rounded-none text-[8.5px] font-black uppercase tracking-wider text-slate-200 transition cursor-pointer shadow-md"
                   title="Draft Daily Weather Briefing PDF for the Range Control Officer"
                 >
-                  <FileText className="w-3.5 h-3.5 text-edgeOrange" />
-                  <span>Draft RCO PDF Brief</span>
+                  <FileText className="w-3 h-3 text-edgeOrange" />
+                  <span>PDF Brief</span>
+                </button>
+                <button
+                  onClick={handleGenerateRcoWordBrief}
+                  className="w-full flex items-center justify-center space-x-0.5 bg-slate-850 hover:bg-slate-750 border border-slate-700 py-1.5 rounded-none text-[8.5px] font-black uppercase tracking-wider text-slate-300 transition cursor-pointer shadow-md"
+                  title="Draft Daily Weather Briefing Word Document for the Range Control Officer"
+                >
+                  <FileText className="w-3 h-3 text-edgeOrange" />
+                  <span>Word Brief</span>
                 </button>
               </div>
             </div>

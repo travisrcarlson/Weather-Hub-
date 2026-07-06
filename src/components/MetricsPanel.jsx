@@ -607,6 +607,9 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         <p className="text-[9px] text-slate-400 leading-tight font-semibold italic text-right">
           {details.warning}
         </p>
+        <p className="text-[7.5px] text-slate-500 font-medium normal-case tracking-normal border-t border-slate-800/40 pt-1 mt-1 leading-normal text-right">
+          * Calibrated for high-reflection desert sand albedo (1.3x scaling applied).
+        </p>
       </div>
     </div>
   );

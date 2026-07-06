@@ -48,6 +48,7 @@ export function generateRcoPdfBrief({
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+      font-family: Arial, Helvetica, sans-serif;
     }
     body {
       font-family: Arial, Helvetica, sans-serif;
@@ -56,6 +57,112 @@ export function generateRcoPdfBrief({
       line-height: 1.4;
       font-size: 11px;
       padding: 20px;
+    }
+
+    /* Enforce Arial 11px on all body content, regular weight, uniform dark color */
+    body, p, td, li, span, strong, em, b, i, 
+    .meta-item, .meta-label, .meta-value, 
+    .status-desc, .status-title, 
+    .grid-card p,
+    .directives-list li {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 11px !important;
+      font-weight: normal !important;
+      color: #0f172a !important;
+    }
+
+    /* Exceptions for Headers, Titles, and Orange Blocks (must remain Arial 16px, bold if designed) */
+    .header-left h1,
+    .section-title,
+    .grid-card-title,
+    .chart-title,
+    table.data-table th,
+    .print-control-bar,
+    .print-btn {
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+    }
+
+    /* Orange background white text elements */
+    .header,
+    .grid-card-title,
+    table.data-table th,
+    .print-control-bar {
+      background: #FF4E02 !important;
+      color: #ffffff !important;
+    }
+
+    /* Orange text elements on white background */
+    .section-title,
+    .chart-title {
+      color: #FF4E02 !important;
+      background: transparent !important;
+    }
+
+    /* Header formatting */
+    .header * {
+      color: #ffffff !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+    }
+    .header p {
+      font-size: 11px !important;
+      font-weight: normal !important;
+    }
+    .header-left h1 {
+      font-size: 16px !important;
+      font-weight: 900 !important;
+    }
+
+    /* Print control bar specific color/font exception */
+    .print-btn {
+      color: #ffffff !important;
+      font-size: 16px !important;
+      background: #0f172a !important;
+    }
+    .print-control-bar span,
+    .print-control-bar strong {
+      color: #ffffff !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+    }
+
+    /* Status rating text colors in Executive Summary and cards */
+    span.status-RED {
+      color: #dc2626 !important;
+      font-weight: normal !important;
+    }
+    span.status-AMBER {
+      color: #d97706 !important;
+      font-weight: normal !important;
+    }
+    span.status-GREEN {
+      color: #16a34a !important;
+      font-weight: normal !important;
+    }
+
+    /* Table status cells */
+    td.cell-RED {
+      background: rgba(239, 68, 68, 0.15) !important;
+      color: #b91c1c !important;
+      font-weight: normal !important;
+    }
+    td.cell-AMBER {
+      background: rgba(245, 158, 11, 0.15) !important;
+      color: #b45309 !important;
+      font-weight: normal !important;
+    }
+    td.cell-GREEN {
+      background: rgba(16, 185, 129, 0.12) !important;
+      color: #047857 !important;
+      font-weight: normal !important;
+    }
+
+    /* Footer formatting */
+    .page-footer {
+      color: #64748b !important;
+      font-weight: bold !important;
+      font-size: 11px !important;
     }
 
     /* Page container formatting for standard A4/Letter size */
@@ -127,7 +234,7 @@ export function generateRcoPdfBrief({
 
     /* Top header block (Terracotta with white text) */
     .header {
-      background: #b86857;
+      background: #FF4E02;
       color: #ffffff;
       padding: 10px 15px;
       margin-bottom: 15px;
@@ -213,7 +320,7 @@ export function generateRcoPdfBrief({
       font-family: Arial, Helvetica, sans-serif;
       font-size: 16px;
       font-weight: bold;
-      color: #b86857; /* Terracotta Orange */
+      color: #FF4E02; /* Bright Orange */
       text-transform: uppercase;
       margin-top: 15px;
       margin-bottom: 10px;
@@ -261,7 +368,7 @@ export function generateRcoPdfBrief({
       content: "▪";
       position: absolute;
       left: 0;
-      color: #b86857;
+      color: #FF4E02;
     }
 
     /* Grid columns */
@@ -285,7 +392,7 @@ export function generateRcoPdfBrief({
       font-size: 16px;
       font-weight: 800;
       text-transform: uppercase;
-      background: #b86857;
+      background: #FF4E02;
       color: #ffffff !important;
       padding: 6px 10px;
       margin: -8px -10px 8px -10px;
@@ -301,12 +408,12 @@ export function generateRcoPdfBrief({
       margin-top: 5px;
     }
     table.data-table th {
-      background: #b86857;
+      background: #FF4E02;
       color: #ffffff;
       font-family: Arial, Helvetica, sans-serif;
       font-size: 16px;
       font-weight: 800;
-      border: 1px solid #b86857;
+      border: 1px solid #FF4E02;
       padding: 6px 4px;
       text-transform: uppercase;
     }
@@ -338,14 +445,14 @@ export function generateRcoPdfBrief({
       font-weight: bold;
       text-transform: uppercase;
       text-align: center;
-      color: #b86857; /* Terracotta Orange */
+      color: #FF4E02; /* Bright Orange */
       margin-bottom: 4px;
       margin-top: 8px;
     }
 
     /* Quick print warning bar */
     .print-control-bar {
-      background: #b86857;
+      background: #FF4E02;
       color: #ffffff;
       padding: 10px 20px;
       display: flex;
@@ -428,12 +535,12 @@ export function generateRcoPdfBrief({
         </div>
 
         <div style="margin-top: 10px;">
-          <p style="font-weight: 800; text-transform: uppercase; font-size: 11px; color: #475569; margin-bottom: 4px;">Operational Directives & Action Items:</p>
+          <p style="text-transform: uppercase; margin-bottom: 4px;">Operational Directives & Action Items:</p>
           <ul class="directives-list">
-            <li><strong>Thermal Exposure</strong>: Ensure mandatory hydration splits matched to Wet Bulb Globe Temperature (WBGT) flag ratings. Provide shaded rest structures with active cooling.</li>
-            <li><strong>Wind Limits</strong>: Secure all sensitive flight equipment, drone ground control arrays, and tall targets if wind gusts exceed safe limits.</li>
-            <li><strong>Midday Break Compliance</strong>: In date ranges from June 15 to Sept 15, completely cease range activities between 12:30 and 15:00 GST in compliance with UAE MoHRE Midday Work Ban guidelines.</li>
-            <li><strong>ADOSH Lightning Guidelines</strong>: In the event of lightning activity or storm cell alerts inside the 10km boundary, immediately trigger emergency strobe sirens and evacuate all range crews to solid masonry shelter facilities. Wait at least 30 minutes after the last observed lightning strike or official alert clear before training resumption.</li>
+            <li>Thermal Exposure: Ensure mandatory hydration splits matched to Wet Bulb Globe Temperature (WBGT) flag ratings. Provide shaded rest structures with active cooling.</li>
+            <li>Wind Limits: Secure all sensitive flight equipment, drone ground control arrays, and tall targets if wind gusts exceed safe limits.</li>
+            <li>Midday Break Compliance: In date ranges from June 15 to Sept 15, completely cease range activities between 12:30 and 15:00 GST in compliance with UAE MoHRE Midday Work Ban guidelines.</li>
+            <li>ADOSH Lightning Guidelines: In the event of lightning activity or storm cell alerts inside the 10km boundary, immediately trigger emergency strobe sirens and evacuate all range crews to solid masonry shelter facilities. Wait at least 30 minutes after the last observed lightning strike or official alert clear before training resumption.</li>
           </ul>
         </div>
       </div>
@@ -443,20 +550,20 @@ export function generateRcoPdfBrief({
         <div class="section-title">2. Diurnal Operational Windows (RCO Scheduling)</div>
         <div class="grid-2">
           <div class="grid-card" style="border-left: 3px solid #16a34a;">
-            <div class="grid-card-title">[+] Safe Operating Windows</div>
-            <p style="font-size: 11px; font-weight: bold;">${safeWindowText}</p>
-            <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
+            <div class="grid-card-title">Safe Operating Windows</div>
+            <p>${safeWindowText}</p>
+            <p>• Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
           </div>
           <div class="grid-card" style="border-left: 3px solid #d97706;">
-            <div class="grid-card-title">[!] Caution Operating Windows</div>
-            <p style="font-size: 11px; font-weight: bold;">${cautionWindowText}</p>
-            <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
+            <div class="grid-card-title">Caution Operating Windows</div>
+            <p>${cautionWindowText}</p>
+            <p>• Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
           </div>
         </div>
         <div class="grid-card" style="border-left: 3px solid #dc2626; margin-bottom: 5px;">
-          <div class="grid-card-title">[X] Suspension / Halt Windows (RED)</div>
-          <p style="font-size: 11px; font-weight: bold;">${haltWindowText}</p>
-          <p style="font-size: 11px; color: #64748b; margin-top: 4px;">* Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
+          <div class="grid-card-title">Suspension / Halt Windows (RED)</div>
+          <p>${haltWindowText}</p>
+          <p>• Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
         </div>
       </div>
 
@@ -466,14 +573,14 @@ export function generateRcoPdfBrief({
         <div class="grid-2" style="margin-bottom: 5px;">
           <div class="grid-card">
             <div class="grid-card-title">Thermal Extremes</div>
-            <p style="font-size: 11px; margin-bottom: 3px;">☀️ <strong>Peak Temperature</strong>: <span style="font-weight: 700;">${maxTemp.toFixed(1)}°C</span> at <span>${maxTempTime}</span></p>
-            <p style="font-size: 11px;">🔥 <strong>Peak Heat Stress (WBGT)</strong>: <span style="font-weight: 700; color: #dc2626;">${maxWbgt.toFixed(1)}°C</span> at <span>${maxWbgtTime}</span></p>
+            <p style="margin-bottom: 3px;">Peak Temperature: ${maxTemp.toFixed(1)}°C at ${maxTempTime}</p>
+            <p>Peak Heat Stress (WBGT): <span class="status-RED">${maxWbgt.toFixed(1)}°C</span> at ${maxWbgtTime}</p>
           </div>
           <div class="grid-card">
             <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
-            <p style="font-size: 11px; margin-bottom: 3px;">💨 <strong>Peak Wind Gusts</strong>: <span style="font-weight: 700;">${maxGust.toFixed(0)} km/h</span> at <span>${maxGustTime}</span></p>
-            <p style="font-size: 11px; margin-bottom: 3px;">🍃 <strong>Max Sustained Wind</strong>: <span style="font-weight: 700;">${maxWind.toFixed(0)} km/h</span> at <span>${maxWindTime}</span></p>
-            <p style="font-size: 11px;">🧴 <strong>Peak UV Radiation</strong>: <span style="font-weight: 700; color: #854d0e;">${maxUv.toFixed(1)} UV</span> at <span>${maxUvTime}</span></p>
+            <p style="margin-bottom: 3px;">Peak Wind Gusts: ${maxGust.toFixed(0)} km/h at ${maxGustTime}</p>
+            <p style="margin-bottom: 3px;">Max Sustained Wind: ${maxWind.toFixed(0)} km/h at ${maxWindTime}</p>
+            <p>Peak UV Radiation: <span class="status-AMBER">${maxUv.toFixed(1)} UV</span> at ${maxUvTime}</p>
           </div>
         </div>
       </div>
@@ -484,17 +591,13 @@ export function generateRcoPdfBrief({
         <div class="grid-2" style="margin-bottom: 0;">
           <div class="grid-card">
             <div class="grid-card-title">Drone Flight Readiness</div>
-            <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${droneRating.includes('HALT') ? '#dc2626' : droneRating.includes('CAUTION') ? '#d97706' : '#16a34a'}">
-              Rating: ${droneRating}
-            </p>
-            <p style="font-size: 11px; color: #334155; line-height: 1.3;">${droneInstruction}</p>
+            <p style="margin-bottom: 3px;">Rating: <span class="status-${droneRating.includes('HALT') ? 'RED' : droneRating.includes('CAUTION') ? 'AMBER' : 'GREEN'}">${droneRating}</span></p>
+            <p>${droneInstruction}</p>
           </div>
           <div class="grid-card">
             <div class="grid-card-title">Ballistics Wind Drift Warning</div>
-            <p style="font-size: 11px; font-weight: bold; margin-bottom: 3px; color: ${maxGust >= 30 ? '#d97706' : '#16a34a'}">
-              Crosswind Drift: ${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}
-            </p>
-            <p style="font-size: 11px; color: #334155; line-height: 1.3;">${ballisticsCrosswindDrift}</p>
+            <p style="margin-bottom: 3px;">Crosswind Drift: <span class="status-${maxGust >= 30 ? 'AMBER' : 'GREEN'}">${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}</span></p>
+            <p>${ballisticsCrosswindDrift}</p>
           </div>
         </div>
       </div>
@@ -589,11 +692,11 @@ export function generateRcoPdfBrief({
       const statusClass = isRed ? 'cell-RED' : (isAmber ? 'cell-AMBER' : 'cell-GREEN');
 
       row.innerHTML = \`
-        <td style="font-weight: bold;">\${timeStr}</td>
+        <td>\${timeStr}</td>
         <td>\${log.temp.toFixed(1)}</td>
         <td>\${log.rh}%</td>
         <td>\${log.dewPoint.toFixed(1)}</td>
-        <td style="font-weight: 700; color: \${log.wbgt >= 30 ? '#b91c1c' : (log.wbgt >= 25.9 ? '#b45309' : '#047857')};">\${log.wbgt.toFixed(1)}</td>
+        <td>\${log.wbgt.toFixed(1)}</td>
         <td>\${log.wind.toFixed(0)}</td>
         <td>\${log.gusts.toFixed(0)}</td>
         <td>\${(log.visibility / 1000).toFixed(1)}</td>
@@ -732,7 +835,7 @@ export function generateRcoPdfBrief({
       // 1. Thermal chart (Temp vs WBGT)
       renderSvgChart('thermalChart', logs, {
         series: [
-          { key: 'temp', name: 'Dry Bulb Temp', color: '#b86857' },
+          { key: 'temp', name: 'Dry Bulb Temp', color: '#FF4E02' },
           { key: 'wbgt', name: 'WBGT Index', color: '#b91c1c' }
         ],
         yUnit: '°C',

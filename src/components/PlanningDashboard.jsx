@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, Sun, Activity, Eye, FileText } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
-import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort, getClimaticAnomalyForYear } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
+import { generateRcoWordBrief } from '../utils/wordGenerator';
 
 // Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
 const climateDb = [
@@ -35,6 +36,13 @@ export default function PlanningDashboard({ isSimulated }) {
   };
 
   const [selectedDate, setSelectedDate] = useState(getDubaiDateString(new Date()));
+  const [planningSource, setPlanningSource] = useState('ARCHIVE'); // 'ARCHIVE' or 'CLIMATOLOGY'
+  
+  // Dynamically derive the climatic anomaly based on the selected year
+  const selectedYear = isNaN(new Date(selectedDate).getTime()) ? 2026 : new Date(selectedDate).getFullYear();
+  const anomalyObj = getClimaticAnomalyForYear(selectedYear);
+  const activeAnomaly = anomalyObj.type;
+
   const [hourlyLogs, setHourlyLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dataSource, setDataSource] = useState('SIMULATED'); // 'API' or 'SIMULATED' or 'API_ANALOG'
@@ -64,11 +72,11 @@ export default function PlanningDashboard({ isSimulated }) {
     for (let hr = 0; hr < 24; hr++) {
       // Diurnal temp cycle peaking at 14:00, coolest at 05:00
       const radT = Math.PI * (hr - 14) / 12;
-      const temp = c.minT + (c.maxT - c.minT) * (0.5 + 0.5 * Math.cos(radT));
+      let temp = c.minT + (c.maxT - c.minT) * (0.5 + 0.5 * Math.cos(radT));
 
       // Humidity is inversely proportional to Temperature
       const radH = Math.PI * (hr - 5) / 12;
-      const rh = Math.round(c.avgRH + 15 * Math.cos(radH));
+      let rh = Math.round(c.avgRH + 15 * Math.cos(radH));
 
       // UV peaks at 12:00
       let uv = 0;
@@ -78,12 +86,26 @@ export default function PlanningDashboard({ isSimulated }) {
 
       // Wind peaks in late afternoon (sea breeze effect)
       const radW = Math.PI * (hr - 16) / 12;
-      const wind = Math.round(c.wind + 5 * Math.cos(radW));
+      let wind = Math.round(c.wind + 5 * Math.cos(radW));
+
+      // Apply anomaly offsets
+      let pm10Val = 45;
+      let visibility = wind > 20 ? 8000 : 12000;
+      if (activeAnomaly === 'EL_NINO') {
+        temp = Number((temp + 2.2).toFixed(1));
+        rh = Math.max(5, Math.min(100, Math.round(rh - 12)));
+        wind = Math.round(wind * 0.85);
+        visibility = Math.max(100, visibility - 3000);
+        pm10Val = Math.round(pm10Val * 1.6);
+      } else if (activeAnomaly === 'LA_NINA') {
+        temp = Number((temp - 1.5).toFixed(1));
+        rh = Math.max(5, Math.min(100, Math.round(rh + 15)));
+        wind = Math.round(wind * 1.25);
+        visibility = Math.max(100, visibility + 1500);
+        pm10Val = Math.round(pm10Val * 0.75);
+      }
+
       const gusts = Math.round(wind * c.gustM);
-
-      // Typical visibility, occasional minor dust at peak winds
-      const visibility = wind > 20 ? 8000 : 12000;
-
       const dp = calculateDewPoint(temp, rh);
       const wbgt = calculateWBGT(temp, rh, wind, uv);
 
@@ -104,7 +126,7 @@ export default function PlanningDashboard({ isSimulated }) {
         wind_gusts_10m: gusts,
         visibility,
         uv_index: uv,
-        pm10: 45
+        pm10: pm10Val
       };
 
       const safetyEval = evaluateSafety(readings);
@@ -119,7 +141,7 @@ export default function PlanningDashboard({ isSimulated }) {
         wind,
         gusts,
         uv,
-        visibility,
+        visibility: visibility / 1000, // converted to km
         safetyStatus: safetyEval.status,
         safetyReasons: safetyEval.reasons,
         isMiddayBanActive
@@ -135,6 +157,16 @@ export default function PlanningDashboard({ isSimulated }) {
     async function loadPlanningData() {
       setIsLoading(true);
       setFetchError(null);
+
+      if (planningSource === 'CLIMATOLOGY') {
+        if (active) {
+          const simulatedLogs = generateSyntheticDay(selectedDate);
+          setHourlyLogs(simulatedLogs);
+          setDataSource('SIMULATED');
+          setIsLoading(false);
+        }
+        return;
+      }
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -200,11 +232,29 @@ export default function PlanningDashboard({ isSimulated }) {
         const logs = archive.hourly.time.map((timeStr, idx) => {
           const hr = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
           
-          const temp = archive.hourly.temperature_2m[idx];
-          const rh = archive.hourly.relative_humidity_2m[idx];
-          const wind = archive.hourly.wind_speed_10m[idx];
-          const gusts = archive.hourly.wind_gusts_10m ? archive.hourly.wind_gusts_10m[idx] : wind * 1.3;
-          const visibility = archive.hourly.visibility ? archive.hourly.visibility[idx] : 10000;
+          let temp = archive.hourly.temperature_2m[idx];
+          let rh = archive.hourly.relative_humidity_2m[idx];
+          let wind = archive.hourly.wind_speed_10m[idx];
+          let gusts = archive.hourly.wind_gusts_10m ? archive.hourly.wind_gusts_10m[idx] : wind * 1.3;
+          let visibility = archive.hourly.visibility ? archive.hourly.visibility[idx] : 10000;
+
+          // Apply anomaly offsets
+          let pm10Val = 40;
+          if (activeAnomaly === 'EL_NINO') {
+            temp = Number((temp + 2.2).toFixed(1));
+            rh = Math.max(5, Math.min(100, Math.round(rh - 12)));
+            wind = Number((wind * 0.85).toFixed(1));
+            gusts = Number((gusts * 0.85).toFixed(1));
+            visibility = Math.max(100, visibility - 3000);
+            pm10Val = Math.round(pm10Val * 1.6);
+          } else if (activeAnomaly === 'LA_NINA') {
+            temp = Number((temp - 1.5).toFixed(1));
+            rh = Math.max(5, Math.min(100, Math.round(rh + 15)));
+            wind = Number((wind * 1.25).toFixed(1));
+            gusts = Number((gusts * 1.25).toFixed(1));
+            visibility = Math.max(100, visibility + 1500);
+            pm10Val = Math.round(pm10Val * 0.75);
+          }
 
           // Estimate UV index from hour for clear skies
           let uv = 0;
@@ -229,7 +279,7 @@ export default function PlanningDashboard({ isSimulated }) {
             wind_gusts_10m: gusts,
             visibility,
             uv_index: uv,
-            pm10: 40
+            pm10: pm10Val
           };
 
           const safetyEval = evaluateSafety(readings);
@@ -244,7 +294,7 @@ export default function PlanningDashboard({ isSimulated }) {
             wind,
             gusts,
             uv,
-            visibility,
+            visibility: visibility / 1000, // converted to km
             safetyStatus: safetyEval.status,
             safetyReasons: safetyEval.reasons,
             isMiddayBanActive
@@ -271,7 +321,7 @@ export default function PlanningDashboard({ isSimulated }) {
     return () => {
       active = false;
     };
-  }, [selectedDate]);
+  }, [selectedDate, planningSource]);
 
   // Aggregate Key Planning Statistics
   const getPlanningStats = () => {
@@ -603,10 +653,10 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     document.body.removeChild(link);
   };
 
-  const handleGenerateRcoPdfBrief = () => {
+  const compilePlanningRcoBriefPayload = () => {
     if (hourlyLogs.length === 0) {
       alert("No meteorological logs available for briefing compilation.");
-      return;
+      return null;
     }
     
     const chronoLogs = hourlyLogs;
@@ -742,7 +792,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       safety: { status: l.safetyStatus }
     }));
 
-    generateRcoPdfBrief({
+    return {
       targetDateLabel: formatDateLabel(chronoLogs[0].time),
       activeStationName: "X-RANGE HQ",
       secureHash,
@@ -763,7 +813,21 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       droneInstruction,
       ballisticsCrosswindDrift: maxGust >= 30 ? "HIGH - Expect significant wind-drift on live fire. Apply compensation tables." : "NEGLIGIBLE - Wind vectors within normal range tolerances.",
       chronoLogs: formattedChronoLogs
-    });
+    };
+  };
+
+  const handleGenerateRcoPdfBrief = () => {
+    const payload = compilePlanningRcoBriefPayload();
+    if (payload) {
+      generateRcoPdfBrief(payload);
+    }
+  };
+
+  const handleGenerateRcoWordBrief = () => {
+    const payload = compilePlanningRcoBriefPayload();
+    if (payload) {
+      generateRcoWordBrief(payload);
+    }
   };
 
   // Safe shooting timeline display helpers
@@ -829,6 +893,18 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
             />
           </div>
 
+          <div className="flex items-center bg-bgDeepSpace border border-slate-700/80 px-3 py-1.5 gap-2">
+            <span className="text-[9.5px] font-black uppercase text-slate-400">MODEL DATA:</span>
+            <select
+              value={planningSource}
+              onChange={(e) => setPlanningSource(e.target.value)}
+              className="bg-transparent text-white font-bold text-xs border-none outline-none cursor-pointer uppercase font-mono"
+            >
+              <option value="ARCHIVE" className="bg-cardDarkSlate text-white">Specific Date (Archive)</option>
+              <option value="CLIMATOLOGY" className="bg-cardDarkSlate text-white">Monthly Average (Climatology)</option>
+            </select>
+          </div>
+
           <button
             onClick={handleGenerateRcoBrief}
             disabled={hourlyLogs.length === 0 || isLoading}
@@ -847,6 +923,16 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
           >
             <FileText className="w-4 h-4" />
             <span>DRAFT PDF BRIEF</span>
+          </button>
+
+          <button
+            onClick={handleGenerateRcoWordBrief}
+            disabled={hourlyLogs.length === 0 || isLoading}
+            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-550 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md"
+            title="Draft Daily Weather Briefing Word Document for the Range Control Officer"
+          >
+            <FileText className="w-4 h-4" />
+            <span>DRAFT WORD BRIEF</span>
           </button>
 
           <button
@@ -877,6 +963,11 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
             <Compass className="w-4 h-4" />
             <span>RANGE PLANNING PREDICTION ACTIVE • DISPLAYING CLIMATOLOGICAL ANALOG FROM ARCHIVE DATE: {analogDateUsed}</span>
           </div>
+        ) : planningSource === 'CLIMATOLOGY' ? (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[10px] font-black uppercase text-center py-2 tracking-widest flex items-center justify-center space-x-2">
+            <Compass className="w-4 h-4 animate-pulse" />
+            <span>CLIMATOLOGICAL AVERAGE MODEL ACTIVE • SHOWING REGIONAL HISTORICAL AVERAGES FOR THE MONTH OF {currentMonthAvg ? currentMonthAvg.name.toUpperCase() : ''}</span>
+          </div>
         ) : (
           <div className="bg-amber-500/10 border border-amber-500/30 text-amber-500 text-[10px] font-black uppercase text-center py-2 tracking-widest flex items-center justify-center space-x-2">
             <AlertTriangle className="w-4 h-4" />
@@ -884,6 +975,40 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
           </div>
         )}
       </div>
+
+      {/* Climatic Anomaly Warning Card */}
+      {activeAnomaly !== 'NEUTRAL' && (
+        <div className={`p-4 border flex items-start space-x-3 shrink-0 ${
+          activeAnomaly === 'EL_NINO' 
+            ? 'bg-amberAlert/20 border-edgeOrange/50 text-orange-200' 
+            : 'bg-blue-950/40 border-cyan-500/50 text-cyan-200'
+        }`}>
+          <AlertTriangle className={`w-5 h-5 mt-0.5 shrink-0 ${
+            activeAnomaly === 'EL_NINO' ? 'text-edgeOrange animate-pulse' : 'text-cyan-400'
+          }`} />
+          <div className="flex-1">
+            <div className="flex justify-between items-center">
+              <h4 className="text-[11px] font-black uppercase tracking-wider">
+                {activeAnomaly === 'EL_NINO' ? '🔥 PROJECTED EL NIÑO WEATHER ANOMALY WARNING' : '🌊 PROJECTED LA NIÑA WEATHER ANOMALY WARNING'}
+              </h4>
+              <span className="text-[9px] font-mono font-black border border-white/20 px-1 text-white">
+                PROJECTED CLIMATE SHIFT ACTIVE
+              </span>
+            </div>
+            <p className="text-[10.5px] text-slate-350 leading-relaxed mt-1">
+              {activeAnomaly === 'EL_NINO' ? (
+                <span>
+                  Regional models project 2026 as an active **El Niño** year. Diurnal temperature baselines are adjusted upward by **+2.2°C**, relative humidity is reduced by **-12%**, and suspended dust storms / PM10 density is increased. Training plans must anticipate earlier heat-stress halts (WBGT ≥30°C) and stricter midday work ban enforcement.
+                </span>
+              ) : (
+                <span>
+                  Regional models project an active **La Niña** year. Diurnal temperature baselines are adjusted downward by **-1.5°C**, relative humidity is increased by **+15%**, and wind velocities are scaled upward by **+25%**. Assess ballistic firing trajectories and drone flight sorties for wind-drift and gale-halt risks.
+                </span>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid Content */}
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto lg:overflow-hidden min-h-0">

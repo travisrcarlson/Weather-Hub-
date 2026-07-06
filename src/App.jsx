@@ -16,6 +16,7 @@ import SafetyAdvisory from './components/SafetyAdvisory';
 import BackendFeeds from './components/BackendFeeds';
 import HseDashboard from './components/HseDashboard';
 import PlanningDashboard from './components/PlanningDashboard';
+import CustomerPortal from './components/CustomerPortal';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -527,6 +528,12 @@ export default function App() {
               <PlanningDashboard isSimulated={isSimulated} />
             </div>
           )}
+
+          {mobileTab === 'customer' && (
+            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+              <CustomerPortal />
+            </div>
+          )}
         </main>
 
         {/* Mobile Navigation Bar */}
@@ -572,6 +579,13 @@ export default function App() {
           >
             <span className="text-base">🗓️</span>
             <span className="text-[9px] uppercase tracking-wider">Plan</span>
+          </button>
+          <button 
+            onClick={() => setMobileTab('customer')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'customer' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">💼</span>
+            <span className="text-[9px] uppercase tracking-wider">Portal</span>
           </button>
         </nav>
       </div>
@@ -747,6 +761,13 @@ export default function App() {
           /* Range Planning (Historical & Climatological Modeling) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
             <PlanningDashboard isSimulated={isSimulated} />
+          </div>
+        )}
+
+        {viewMode === 'customer' && (
+          /* Customer Portal (Climate Projections & R&D Simulation) */
+          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
+            <CustomerPortal />
           </div>
         )}
 
