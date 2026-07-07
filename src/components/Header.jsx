@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Clock, Wifi, WifiOff, Cpu } from 'lucide-react';
+import React from 'react';
+import { Clock, Wifi, WifiOff, Cpu, Bell } from 'lucide-react';
 
 export default function Header({ 
   lastUpdated, 
@@ -9,7 +9,9 @@ export default function Header({
   viewMode, 
   onViewModeChange,
   time,
-  isMobile
+  isMobile,
+  onOpenAlerts,
+  activeAlertsCount
 }) {
 
   const formatTime = (date) => {
@@ -51,12 +53,30 @@ export default function Header({
           </div>
         </div>
 
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-2 flex-shrink-0">
           {/* Clock */}
-          <div className="flex items-center space-x-1.5 text-textIceWhite bg-bgDeepSpace/40 px-2.5 py-1.5 rounded border border-slate-700/35">
+          <div className="flex items-center space-x-1 text-textIceWhite bg-bgDeepSpace/40 px-2 py-1 rounded border border-slate-700/35">
             <Clock className="w-3.5 h-3.5 text-edgeOrange" />
-            <span className="text-xs font-mono font-black tracking-wider leading-none">{formatTime(time)}</span>
+            <span className="text-[11px] font-mono font-black tracking-wider leading-none">{formatTime(time).slice(0, 5)}</span>
           </div>
+
+          {/* Notification Bell */}
+          <button
+            onClick={onOpenAlerts}
+            className={`flex items-center justify-center p-1.5 rounded border cursor-pointer relative ${
+              activeAlertsCount > 0
+                ? 'bg-red-500/15 border-red-500 text-red-400'
+                : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-400 hover:text-textIceWhite'
+            }`}
+            title="Open Safety Alert Center"
+          >
+            <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'animate-bounce text-red-400' : ''}`} />
+            {activeAlertsCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 border border-cardDarkSlate text-[7.5px] font-black text-white w-3.5 h-3.5 rounded-full flex items-center justify-center leading-none">
+                {activeAlertsCount}
+              </span>
+            )}
+          </button>
 
           {/* Simulation Toggle */}
           <button
@@ -85,7 +105,7 @@ export default function Header({
   }
 
   return (
-    <header className="w-full h-[8%] bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-6 select-none relative z-50">
+    <header className="w-full h-[8%] bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-6 select-none relative z-50 flex-none">
       {/* Remaya Logo & Title */}
       <div className="flex items-center space-x-5">
         {/* Remaya Corporate Logo Image Badge */}
@@ -108,7 +128,7 @@ export default function Header({
 
       {/* Clock & Date */}
       <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-3 text-textIceWhite bg-bgDeepSpace/40 px-5 py-2 rounded-lg border border-slate-700/35">
+        <div className="flex items-center space-x-3 text-textIceWhite bg-bgDeepSpace/40 px-5 py-2 rounded-lg border border-slate-700/35 font-sans">
           <Clock className="w-5 h-5 text-edgeOrange" />
           <span className="text-2xl font-mono font-black tracking-wider">{formatTime(time)}</span>
           <span className="text-xs text-slate-400 font-bold uppercase pl-1">GST (UTC+4)</span>
@@ -193,6 +213,25 @@ export default function Header({
             Backend Feeds
           </button>
         </div>
+
+        {/* Notification Bell */}
+        <button
+          onClick={onOpenAlerts}
+          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-305 cursor-pointer relative ${
+            activeAlertsCount > 0
+              ? 'bg-red-500/10 border-red-500/50 text-red-200 shadow-lg shadow-red-500/5'
+              : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-400 hover:text-textIceWhite hover:border-slate-600'
+          }`}
+          title="Open Safety Alert Center & Dispatcher"
+        >
+          <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'text-red-400 animate-bounce' : ''}`} />
+          <span className="text-[10px] uppercase tracking-wide">Alert Center</span>
+          {activeAlertsCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 border border-cardDarkSlate text-[8.5px] font-black text-white px-1.5 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[16px] h-[16px] shadow-sm select-none">
+              {activeAlertsCount}
+            </span>
+          )}
+        </button>
 
         {/* Simulation Toggle */}
         <button

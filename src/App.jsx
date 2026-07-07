@@ -17,6 +17,7 @@ import BackendFeeds from './components/BackendFeeds';
 import HseDashboard from './components/HseDashboard';
 import PlanningDashboard from './components/PlanningDashboard';
 import CustomerPortal from './components/CustomerPortal';
+import AlertCenter from './components/AlertCenter';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -124,6 +125,70 @@ export default function App() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
+
+  const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  const [broadcastHistory, setBroadcastHistory] = useState([
+    {
+      id: 1,
+      channel: 'sms',
+      group: 'hands',
+      message: '📢 RANGE SAFETY NOTICE: Hydration protocols are active (ADOSH orange zone). Ensure all personnel consume 0.75L/hour chilled water and work in shade where possible.',
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString()
+    },
+    {
+      id: 2,
+      channel: 'whatsapp',
+      group: 'officers',
+      message: '☀️ Midday Work Ban compliance reminder: All outdoor physical activities must stand down from 12:30 to 15:00 GST. Range Officers please ensure all field teams comply.',
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1.5).toISOString()
+    }
+  ]);
+
+  // Calculate active alerts count for header notification badge
+  const getActiveAlertsCount = () => {
+    let count = 0;
+    if (!data) return 0;
+
+    // Check lightning
+    const hasLightning = simulatedLightning || (data.ncmWarnings && data.ncmWarnings.some(w => w.category === 'LIGHTNING'));
+    if (hasLightning) count++;
+
+    // Stations evaluation rules
+    const stations = [
+      { id: 'hq', t: 41.3, ws: 25, rh: 20, uv: 10, pm: 45, vis: 10000 },
+      { id: 'north', t: 39.5, ws: 42, rh: 25, uv: 11, pm: 50, vis: 4000 },
+      { id: 'south', t: 44.5, ws: 12, rh: 15, uv: 12, pm: 50, vis: 12000 },
+      { id: 'sea', t: 34.0, ws: 28, rh: 89, uv: 9, pm: 50, vis: 2000 }
+    ];
+
+    stations.forEach(s => {
+      const temp = isSimulated ? s.t : (data.current?.temperature_2m || 0);
+      const wind = isSimulated ? s.ws : (data.current?.wind_speed_10m || 0);
+      const gusts = isSimulated ? s.ws * 1.3 : (data.current?.wind_gusts_10m || wind * 1.3);
+      const uv = isSimulated ? s.uv : (data.current?.uv_index || 0);
+      const visibility = isSimulated ? s.vis : (data.current?.visibility || 10000);
+      const pm10 = isSimulated ? s.pm : (data.current?.pm10 || 50);
+
+      // Check temperature
+      if (temp >= 43) count++;
+      else if (temp >= 40) count++;
+
+      // Check wind / gusts
+      if (wind >= 38 || gusts >= 50) count++;
+      else if (wind >= 25 || gusts >= 35) count++;
+
+      // Check visibility
+      if (visibility < 1000) count++;
+      else if (visibility < 3000) count++;
+
+      // Check PM10 AQI
+      if (pm10 >= 150) count++;
+    });
+
+    return count;
+  };
+
+  const activeAlertsCount = getActiveAlertsCount();
 
   useEffect(() => {
     const handleResize = () => {
@@ -420,6 +485,8 @@ export default function App() {
           onViewModeChange={setViewMode}
           time={activeTime}
           isMobile={true}
+          onOpenAlerts={() => setIsAlertCenterOpen(true)}
+          activeAlertsCount={activeAlertsCount}
         />
 
         {/* Main Scrollable Content */}
@@ -603,6 +670,8 @@ export default function App() {
         viewMode={viewMode}
         onViewModeChange={setViewMode}
         time={activeTime}
+        onOpenAlerts={() => setIsAlertCenterOpen(true)}
+        activeAlertsCount={activeAlertsCount}
       />
 
       {/* Main Container */}
@@ -793,6 +862,17 @@ export default function App() {
           ⚠️ DATA UNAVAILABLE • DISPLAYING CACHED METEOROLOGICAL OBSERVATIONS
         </div>
       )}
+
+      {/* Safety Alert Center slide-over drawer */}
+      <AlertCenter
+        isOpen={isAlertCenterOpen}
+        onClose={() => setIsAlertCenterOpen(false)}
+        isSimulated={isSimulated}
+        apiData={data}
+        simulatedLightning={simulatedLightning}
+        broadcastHistory={broadcastHistory}
+        onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
+      />
     </div>
   );
 }
