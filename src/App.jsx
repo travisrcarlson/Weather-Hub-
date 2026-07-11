@@ -127,20 +127,56 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
 
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  
+  const [recipientDirectory, setRecipientDirectory] = useState({
+    officers: [
+      { name: 'Captain Al-Mansoori', phone: '+971 50 123 4567' },
+      { name: 'Lieutenant Al-Shehhi', phone: '+971 50 234 5678' },
+      { name: 'Range Officer J. Davis', phone: '+971 54 888 1234' }
+    ],
+    hands: [
+      { name: 'HQ Logistics Lead', phone: '+971 56 345 6789' },
+      { name: 'North Range Duty Officer', phone: '+971 52 456 7890' },
+      { name: 'South Range Gate Security', phone: '+971 50 567 8901' },
+      { name: 'Target Crew Crew Chief', phone: '+971 55 678 9012' }
+    ],
+    rd_teams: [
+      { name: 'Dr. Sarah Carter (Ballistics)', phone: '+971 56 789 0123' },
+      { name: 'Engineer Chen (Drones)', phone: '+971 55 890 1234' },
+      { name: 'Laser Safety Specialist', phone: '+971 50 901 2345' }
+    ],
+    supervisors: [
+      { name: 'HSE Director Salem', phone: '+971 52 111 2222' },
+      { name: 'Operations Chief Miller', phone: '+971 50 333 4444' },
+      { name: 'Range Commander Al-Nahyan', phone: '+971 50 555 6666' }
+    ]
+  });
+
   const [broadcastHistory, setBroadcastHistory] = useState([
     {
       id: 1,
       channel: 'sms',
       group: 'hands',
       message: '📢 RANGE SAFETY NOTICE: Hydration protocols are active (ADOSH orange zone). Ensure all personnel consume 0.75L/hour chilled water and work in shade where possible.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString()
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+      recipients: [
+        { name: 'HQ Logistics Lead', phone: '+971 56 345 6789', status: 'delivered', time: '13:45:10' },
+        { name: 'North Range Duty Officer', phone: '+971 52 456 7890', status: 'delivered', time: '13:45:12' },
+        { name: 'South Range Gate Security', phone: '+971 50 567 8901', status: 'delivered', time: '13:45:15' },
+        { name: 'Target Crew Crew Chief', phone: '+971 55 678 9012', status: 'delivered', time: '13:45:18' }
+      ]
     },
     {
       id: 2,
       channel: 'whatsapp',
       group: 'officers',
       message: '☀️ Midday Work Ban compliance reminder: All outdoor physical activities must stand down from 12:30 to 15:00 GST. Range Officers please ensure all field teams comply.',
-      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1.5).toISOString()
+      timestamp: new Date(Date.now() - 1000 * 60 * 60 * 1.5).toISOString(),
+      recipients: [
+        { name: 'Captain Al-Mansoori', phone: '+971 50 123 4567', status: 'read', time: '15:15:30' },
+        { name: 'Lieutenant Al-Shehhi', phone: '+971 50 234 5678', status: 'read', time: '15:16:02' },
+        { name: 'Range Officer J. Davis', phone: '+971 54 888 1234', status: 'read', time: '15:17:11' }
+      ]
     }
   ]);
 
@@ -872,6 +908,8 @@ export default function App() {
         simulatedLightning={simulatedLightning}
         broadcastHistory={broadcastHistory}
         onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
+        recipientDirectory={recipientDirectory}
+        onUpdateRecipientDirectory={setRecipientDirectory}
       />
     </div>
   );
