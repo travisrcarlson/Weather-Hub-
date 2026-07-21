@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
 import { ShieldAlert, Compass, Sun, Droplets, Map } from 'lucide-react';
 import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow';
@@ -92,6 +92,96 @@ export const stationsList = [
 ];
 
 export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning }) {
+  const [activeLayer, setActiveLayer] = useState('none'); // 'none', 'thermal', 'wind', 'vis'
+
+  const getInterpolatedWind = (x, y) => {
+    const defaultHQ = { speed: 25, dir: 250 };
+    const defaultNorth = { speed: 42, dir: 320 };
+    const defaultSouth = { speed: 12, dir: 90 };
+    const defaultSea = { speed: 28, dir: 210 };
+    
+    let hqSpeed = defaultHQ.speed;
+    let hqDir = defaultHQ.dir;
+    let northSpeed = defaultNorth.speed;
+    let northDir = defaultNorth.dir;
+    let southSpeed = defaultSouth.speed;
+    let southDir = defaultSouth.dir;
+    let seaSpeed = defaultSea.speed;
+    let seaDir = defaultSea.dir;
+
+    if (apiData) {
+      const getStationData = (stationId, defaultVal) => {
+        if (!isSimulated) {
+          return {
+            speed: apiData.current?.wind_speed_10m || defaultVal.speed,
+            dir: apiData.current?.wind_direction_10m || defaultVal.dir
+          };
+        }
+        const station = stationsList.find(s => s.id === stationId);
+        const readings = station ? station.getReadings(apiData.current) : null;
+        return {
+          speed: readings?.wind_speed_10m ?? defaultVal.speed,
+          dir: readings?.wind_direction_10m ?? defaultVal.dir
+        };
+      };
+
+      const hq = getStationData('hq', defaultHQ);
+      hqSpeed = hq.speed; hqDir = hq.dir;
+
+      const north = getStationData('north', defaultNorth);
+      northSpeed = north.speed; northDir = north.dir;
+
+      const south = getStationData('south', defaultSouth);
+      southSpeed = south.speed; southDir = south.dir;
+
+      const sea = getStationData('sea', defaultSea);
+      seaSpeed = sea.speed; seaDir = sea.dir;
+    }
+
+    const stations = [
+      { x: 310, y: 170, speed: hqSpeed, dir: hqDir },
+      { x: 365, y: 100, speed: northSpeed, dir: northDir },
+      { x: 135, y: 180, speed: southSpeed, dir: southDir },
+      { x: 240, y: 205, speed: seaSpeed, dir: seaDir }
+    ];
+
+    let totalWeight = 0;
+    let weightedSpeed = 0;
+    let weightedCos = 0;
+    let weightedSin = 0;
+
+    for (let i = 0; i < stations.length; i++) {
+      const s = stations[i];
+      const dx = x - s.x;
+      const dy = y - s.y;
+      const distSq = dx * dx + dy * dy;
+      if (distSq === 0) {
+        return { speed: s.speed, direction: s.dir };
+      }
+      const weight = 1 / distSq;
+      totalWeight += weight;
+      weightedSpeed += s.speed * weight;
+      
+      const rad = (s.dir * Math.PI) / 180;
+      weightedCos += Math.cos(rad) * weight;
+      weightedSin += Math.sin(rad) * weight;
+    }
+
+    const finalSpeed = weightedSpeed / totalWeight;
+    const finalDir = (Math.atan2(weightedSin, weightedCos) * 180) / Math.PI;
+    return { 
+      speed: finalSpeed, 
+      direction: (finalDir + 360) % 360 
+    };
+  };
+
+  const windVectorGrid = [
+    { x: 70, y: 80 }, { x: 130, y: 80 }, { x: 190, y: 80 }, { x: 250, y: 80 }, { x: 310, y: 80 }, { x: 370, y: 80 }, { x: 430, y: 80 },
+    { x: 70, y: 120 }, { x: 130, y: 120 }, { x: 190, y: 120 }, { x: 250, y: 120 }, { x: 310, y: 120 }, { x: 370, y: 120 }, { x: 430, y: 120 },
+    { x: 70, y: 160 }, { x: 130, y: 160 }, { x: 190, y: 160 }, { x: 250, y: 160 }, { x: 310, y: 160 }, { x: 370, y: 160 }, { x: 430, y: 160 },
+    { x: 70, y: 200 }, { x: 130, y: 200 }, { x: 190, y: 200 }, { x: 250, y: 200 }, { x: 310, y: 200 }, { x: 370, y: 200 }, { x: 430, y: 200 }
+  ];
+
   const warnings = ncmWarnings || apiData?.ncmWarnings || [];
   const activeWarning = warnings.reduce((highest, w) => {
     if (!highest) return w;
@@ -244,6 +334,28 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           <stop offset="0%" stopColor="#ef4444" stopOpacity="0.4" />
           <stop offset="100%" stopColor="#ef4444" stopOpacity="0" />
         </linearGradient>
+
+        {/* Dynamic Thermal Heatmap Radial Gradients */}
+        <radialGradient id="heatHQ" cx="310" cy="170" r="85" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#ef4444" stopOpacity="0.45" />
+          <stop offset="50%" stopColor="#f59e0b" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="heatNorth" cx="365" cy="100" r="75" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.4" />
+          <stop offset="60%" stopColor="#eab308" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#eab308" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="heatSouth" cx="135" cy="180" r="95" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.55" />
+          <stop offset="40%" stopColor="#ef4444" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="heatSea" cx="240" cy="205" r="70" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+          <stop offset="50%" stopColor="#eab308" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#eab308" stopOpacity="0" />
+        </radialGradient>
       </defs>
 
       {/* Isometric 3D Map Image Backdrop */}
@@ -505,6 +617,116 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
             </g>
           );
         })}
+
+      {/* 1. Thermal Heatmap Layer */}
+      {activeLayer === 'thermal' && (
+        <g className="pointer-events-none mix-blend-color-dodge">
+          <rect x="30" y="57.5" width="440" height="185" fill="url(#heatHQ)" />
+          <rect x="30" y="57.5" width="440" height="185" fill="url(#heatNorth)" />
+          <rect x="30" y="57.5" width="440" height="185" fill="url(#heatSouth)" />
+          <rect x="30" y="57.5" width="440" height="185" fill="url(#heatSea)" />
+          
+          {/* Contour Lines */}
+          <path d="M 90 180 C 120 120, 180 140, 200 180 C 180 220, 120 220, 90 180 Z" fill="none" stroke="#dc2626" strokeWidth="0.75" strokeDasharray="3, 3" opacity="0.6" />
+          <text x="135" y="145" fontSize="4.5" fill="#f87171" fontWeight="bold" opacity="0.8" textAnchor="middle">WBGT 44°C HEAT CONTOUR</text>
+          
+          <path d="M 270 170 C 290 130, 340 140, 350 170 C 330 200, 290 200, 270 170 Z" fill="none" stroke="#ef4444" strokeWidth="0.75" strokeDasharray="3, 3" opacity="0.5" />
+          <text x="310" y="140" fontSize="4.5" fill="#fb923c" fontWeight="bold" opacity="0.8" textAnchor="middle">WBGT 41°C HEAT CONTOUR</text>
+          
+          <path d="M 320 100 C 340 70, 380 80, 390 100 C 370 120, 340 120, 320 100 Z" fill="none" stroke="#f59e0b" strokeWidth="0.75" strokeDasharray="3, 3" opacity="0.4" />
+        </g>
+      )}
+
+      {/* 2. Wind Flow Vector Field Layer */}
+      {activeLayer === 'wind' && (
+        <g className="pointer-events-none">
+          {windVectorGrid.map((p, idx) => {
+            const wind = getInterpolatedWind(p.x, p.y);
+            const angle = (wind.direction - 270 + 360) % 360;
+            
+            let color = '#10b981'; // Green
+            if (wind.speed >= 38) color = '#ef4444'; // Red
+            else if (wind.speed >= 25) color = '#f59e0b'; // Amber
+            
+            const animDuration = Math.max(1, 8 - (wind.speed / 6));
+
+            return (
+              <g 
+                key={idx} 
+                transform={`translate(${p.x}, ${p.y}) rotate(${angle})`}
+                opacity="0.85"
+              >
+                <line 
+                  x1="-6" 
+                  y1="0" 
+                  x2="6" 
+                  y2="0" 
+                  stroke={color} 
+                  strokeWidth="1.2" 
+                  strokeLinecap="round" 
+                />
+                <path 
+                  d="M 2.5 -2.5 L 6 0 L 2.5 2.5" 
+                  fill="none" 
+                  stroke={color} 
+                  strokeWidth="1.2" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                />
+                <circle cx="-6" cy="0" r="0.9" fill="#ffffff">
+                  <animate 
+                    attributeName="cx" 
+                    values="-6;6" 
+                    dur={`${animDuration}s`} 
+                    repeatCount="indefinite" 
+                  />
+                  <animate 
+                    attributeName="opacity" 
+                    values="0.2;1;0.2" 
+                    dur={`${animDuration}s`} 
+                    repeatCount="indefinite" 
+                  />
+                </circle>
+              </g>
+            );
+          })}
+        </g>
+      )}
+
+      {/* 3. Visibility Contours Layer */}
+      {activeLayer === 'vis' && (
+        <g className="pointer-events-none">
+          {/* North Spit Haze */}
+          <g>
+            <path 
+              d="M 310 90 Q 365 55 420 80 Q 445 110 395 130 Q 330 115 310 90 Z" 
+              fill="#b45309" 
+              fillOpacity="0.14" 
+              stroke="#b45309" 
+              strokeWidth="1.2" 
+              strokeDasharray="3,3" 
+            />
+            <text x="365" y="92" fontSize="4.5" fill="#f59e0b" fontWeight="black" textAnchor="middle" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.8)' }}>
+              🌫️ HAZE CONTROLS: 4.0KM
+            </text>
+          </g>
+
+          {/* Sea Spit Severe Sandstorm */}
+          <g className="animate-pulse" style={{ animationDuration: '3s' }}>
+            <path 
+              d="M 180 205 Q 240 180 300 205 Q 280 232 240 236 Q 195 232 180 205 Z" 
+              fill="#78350f" 
+              fillOpacity="0.22" 
+              stroke="#78350f" 
+              strokeWidth="1.5" 
+              strokeDasharray="4,2" 
+            />
+            <text x="240" y="212" fontSize="5" fill="#ef4444" fontWeight="black" textAnchor="middle" style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}>
+              ⚠️ SANDSTORM LIMITS: 2.0KM
+            </text>
+          </g>
+        </g>
+      )}
     </svg>
   );
 
@@ -598,6 +820,59 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       <div className="flex items-center justify-between flex-grow min-h-0 z-10 gap-3">
         <div className={`${(hideDetails || !showSimulatedStations) ? 'w-full' : 'w-[58%]'} h-full relative border border-slate-700/30 rounded-lg bg-bgDeepSpace/40 overflow-hidden flex items-center justify-center`}>
           {mapContent}
+
+          {/* Floating Tactical Overlay Selector Panel */}
+          {!isBackground && (
+            <div className="absolute bottom-2.5 left-2.5 flex items-center bg-slate-950/90 rounded-lg p-0.5 border border-slate-800/80 select-none z-25 text-[7.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-lg shadow-black/50">
+              <button
+                type="button"
+                onClick={() => setActiveLayer('none')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer font-sans ${
+                  activeLayer === 'none'
+                    ? 'bg-slate-800 text-white border border-slate-700/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                Satellite
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveLayer('thermal')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                  activeLayer === 'thermal'
+                    ? 'bg-red-500/20 text-red-200 border border-red-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+                <span>Thermal</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveLayer('wind')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                  activeLayer === 'wind'
+                    ? 'bg-sky-500/20 text-sky-200 border border-sky-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span className="w-1 h-1 rounded-full bg-sky-400 animate-pulse" />
+                <span>Wind Vectors</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveLayer('vis')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                  activeLayer === 'vis'
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                <span>Visibility</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {!hideDetails && showSimulatedStations && (
