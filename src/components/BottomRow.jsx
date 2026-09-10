@@ -345,89 +345,97 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const moonlightPct = Math.round(50 * (1 - Math.cos(2 * Math.PI * moonDetails.phase)));
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between select-none relative overflow-hidden">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-          Z11 • SUN & MOON TRANSIT
-        </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">Heat Acclimatization Planning</h2>
+      <div className="relative z-10 flex justify-between items-center">
+        <div>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
+            Z11 • CELESTIAL TRANSIT
+          </p>
+          <h2 className="text-xs font-bold text-slate-200 leading-none">Sun & Moon Position</h2>
+        </div>
+        <span className="text-[8.5px] font-mono font-bold text-slate-400 bg-slate-900/60 border border-slate-800 px-1.5 py-0.5 rounded">
+          {moonDetails.name} • {moonlightPct}%
+        </span>
       </div>
 
-      {/* Columns: Sun and Moon Side-by-Side (Upscaled height h-12 and text) */}
-      <div className="grid grid-cols-2 gap-2 flex-grow items-stretch my-2 relative z-10">
+      {/* Columns: Sun and Moon Side-by-Side with expanded arc height */}
+      <div className="grid grid-cols-2 gap-3 flex-grow items-stretch my-1.5 relative z-10">
         {/* Sun Column */}
-        <div className="flex flex-col justify-between border-r border-slate-800/60 pr-2">
+        <div className="flex flex-col justify-between border-r border-slate-800/60 pr-1.5">
           {/* Sun Arc Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-12 w-full mb-1">
+          <div className="flex flex-col items-center justify-center relative h-16 w-full mb-1">
             <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
-            <div className="w-[85%] h-[75%] border-t border-t-edgeOrange/40 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
+            <div className="w-[90%] h-[80%] border-t-2 border-t-edgeOrange/60 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
             <div 
-              className={`absolute text-lg leading-none transition-all duration-500 ${!sunTransit.visible ? 'opacity-20 grayscale' : 'animate-pulse-slow'}`}
+              className={`absolute text-xl leading-none transition-all duration-500 ${!sunTransit.visible ? 'opacity-25 grayscale' : 'animate-pulse-slow'}`}
               style={{ 
-                left: `calc(${sunX}% - 9px)`, 
-                bottom: `calc(${sunY}% - 9px)` 
+                left: `calc(${sunX}% - 10px)`, 
+                bottom: `calc(${sunY}% - 10px)` 
               }}
             >
               ☀️
             </div>
+            <span className="absolute bottom-1 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+              {sunTransit.visible ? `${Math.round(sunTransit.progress * 100)}% Day Arc` : 'Below Horizon'}
+            </span>
           </div>
           {/* Sunrise/Sunset times */}
-          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/40 pt-1.5">
+          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1.5">
             <div className="flex flex-col items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
+              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunrise className="w-2.5 h-2.5 text-amber-400" />
                 <span>RISE</span>
               </span>
-              <span className="text-2xl font-mono font-black text-textIceWhite tracking-tighter leading-none">{sunrise}</span>
+              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{sunrise}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
+              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunset className="w-2.5 h-2.5 text-edgeOrange" />
                 <span>SET</span>
               </span>
-              <span className="text-2xl font-mono font-black text-textIceWhite tracking-tighter leading-none">{sunset}</span>
+              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{sunset}</span>
             </div>
           </div>
         </div>
 
         {/* Moon Column */}
-        <div className="flex flex-col justify-between pl-1">
+        <div className="flex flex-col justify-between pl-1.5">
           {/* Moon Arc/Phase Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-12 w-full mb-1">
+          <div className="flex flex-col items-center justify-center relative h-16 w-full mb-1">
             <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
-            <div className="w-[85%] h-[75%] border-t border-t-slate-500/30 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
+            <div className="w-[90%] h-[80%] border-t-2 border-t-indigo-400/40 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
             <div 
-              className={`absolute text-lg leading-none transition-all duration-500 ${!moonTransit.visible ? 'opacity-20 grayscale' : 'animate-pulse-slow'}`}
+              className={`absolute text-xl leading-none transition-all duration-500 ${!moonTransit.visible ? 'opacity-25 grayscale' : 'animate-pulse-slow'}`}
               style={{ 
-                left: `calc(${moonX}% - 9px)`, 
-                bottom: `calc(${moonY}% - 9px)` 
+                left: `calc(${moonX}% - 10px)`, 
+                bottom: `calc(${moonY}% - 10px)` 
               }}
             >
               {moonDetails.emoji}
             </div>
-            <span className="absolute bottom-1 text-[9px] font-black text-slate-300 leading-none truncate max-w-full text-center">
-              {moonDetails.name} • {moonlightPct}% Light
+            <span className="absolute bottom-1 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+              {moonTransit.visible ? `${Math.round(moonTransit.progress * 100)}% Night Arc` : 'Below Horizon'}
             </span>
           </div>
           {/* Moonrise/Moonset times */}
-          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/40 pt-1.5">
+          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1.5">
             <div className="flex flex-col items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
+              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunrise className="w-2.5 h-2.5 text-slate-400" />
                 <span>RISE</span>
               </span>
-              <span className="text-2xl font-mono font-black text-textIceWhite tracking-tighter leading-none">{moonTimes.rise}</span>
+              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.rise}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[9px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
+              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunset className="w-2.5 h-2.5 text-slate-400" />
                 <span>SET</span>
               </span>
-              <span className="text-2xl font-mono font-black text-textIceWhite tracking-tighter leading-none">{moonTimes.set}</span>
+              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.set}</span>
             </div>
           </div>
         </div>

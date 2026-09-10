@@ -51,16 +51,24 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
   const cloudTrend = getTrendIndicator(cloudCover, prevCloudCover, 5.0); // 5% threshold
 
   return (
-    <div className={`w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none`}>
+    <div className={`w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none`}>
       {/* Decorative Grid Line for Tech Vibe */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none animate-grid-glow" />
 
       {/* Top Section: Title & Badge */}
       <div className="flex justify-between items-start relative z-10">
         <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-            Z2 • CURRENT CONDITIONS
-          </p>
+          <div className="flex items-center space-x-2 mb-1">
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
+              Z2 • CURRENT CONDITIONS
+            </p>
+            <span className="flex items-center space-x-1 bg-bgDeepSpace/70 border border-slate-800/80 px-1.5 py-0.5 rounded select-none">
+              <span className={`w-1.5 h-1.5 rounded-full ${condition.iconColor} bg-current`} />
+              <span className="text-[9px] font-black text-slate-200 uppercase tracking-wider leading-none">
+                {condition.label}
+              </span>
+            </span>
+          </div>
           <h2 className="text-sm font-bold text-slate-200 leading-none">HQ Observation Sector</h2>
         </div>
         {precipitation > 0 && (
@@ -72,17 +80,17 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
       </div>
 
       {/* Middle Section: Temp & Emoji */}
-      <div className="flex items-center justify-between my-2 relative z-10">
+      <div className="flex items-center justify-between my-1 relative z-10">
         {/* Temp Display */}
         <div className="flex flex-col">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1.5 select-none">
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1 select-none">
             Temp in Shade
           </span>
           <div className="flex items-center">
-            <span className="text-[54px] font-black text-textIceWhite tracking-tighter leading-none">
+            <span className="text-[46px] font-black text-textIceWhite tracking-tighter leading-none">
               {temp !== undefined ? temp.toFixed(1) : '--.-'}
             </span>
-            <span className="text-3xl font-bold text-edgeOrange ml-0.5 leading-none">°C</span>
+            <span className="text-2xl font-bold text-edgeOrange ml-0.5 leading-none">°C</span>
             {tempTrend.arrow && (
               <span className={`text-[10px] ml-3 flex items-center space-x-0.5 ${tempTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1.5 py-0.5 rounded`}>
                 <span>{tempTrend.arrow}</span>
@@ -100,14 +108,14 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
           )}
         </div>
 
-        {/* Large Condition Emoji */}
-        <div className="text-5xl select-none filter drop-shadow-lg leading-none animate-bounce-slow">
+        {/* Condition Emoji */}
+        <div className="text-4xl select-none filter drop-shadow-md leading-none animate-bounce-slow mr-1 flex-shrink-0">
           {condition.emoji}
         </div>
       </div>
 
       {/* Bottom Section: Sub-metrics & Feels Like */}
-      <div className="grid grid-cols-3 gap-2 border-t border-slate-700/30 pt-3 mt-1 relative z-10">
+      <div className="grid grid-cols-3 gap-2 border-t border-slate-700/30 pt-2.5 relative z-10">
         <div>
           <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1 select-none">
             FEELS LIKE
@@ -144,12 +152,6 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
             )}
           </p>
         </div>
-      </div>
-
-      {/* Condition Text */}
-      <div className="mt-3 text-xs font-bold text-slate-200 uppercase tracking-wider relative z-10 flex items-center space-x-2">
-        <span className={`w-2.5 h-2.5 rounded-full ${condition.iconColor} bg-current`} />
-        <span>{condition.label}</span>
       </div>
     </div>
   );

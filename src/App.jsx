@@ -809,7 +809,7 @@ export default function App() {
             
              {/* Left Sidebar (Col-span-2): Current, Heat Stress, Hydration, Wind Safety */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
-               <div className="h-[24%]">
+               <div className="h-[26%]">
                  <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} currentTime={activeTime} />
                </div>
                <div className="h-[18%]">
@@ -818,7 +818,7 @@ export default function App() {
                <div className="h-[16%]">
                  <HydrationWidget data={activeDisplayData} />
                </div>
-               <div className="h-[38%]">
+               <div className="h-[37%]">
                  <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
                </div>
              </div>
@@ -864,16 +864,16 @@ export default function App() {
 
             {/* Right Sidebar (Col-span-2): UV, Visibility, AQI, Sunrise/Sunset (Light/Curfew) */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
-               <div className="h-[47%]">
+               <div className="h-[34%]">
                  <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
                </div>
-               <div className="h-[16%]">
+               <div className="h-[17%]">
                  <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
                </div>
-               <div className="h-[15.5%]">
+               <div className="h-[17%]">
                  <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
                </div>
-               <div className="h-[16%]">
+               <div className="h-[30%]">
                  <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
                </div>
              </div>

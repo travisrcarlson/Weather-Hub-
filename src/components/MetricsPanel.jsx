@@ -445,124 +445,118 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   const dynamicIntervals = calculateSunscreenIntervals(uv);
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-          Z6 • UV RADIATION
-        </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">Skin Safety Monitor</h2>
+      <div className="relative z-10 flex justify-between items-start">
+        <div>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
+            Z6 • UV RADIATION
+          </p>
+          <h2 className="text-xs font-bold text-slate-200 leading-none">Skin Safety Monitor</h2>
+        </div>
+        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
+          {details.label}
+        </span>
       </div>
 
       {/* Main Content with Progressive Sparkline Stacked */}
-      <div className="flex flex-col space-y-2.5 my-1.5 relative z-10 flex-grow justify-around">
+      <div className="flex flex-col my-1 relative z-10 flex-grow justify-between">
         {/* Top Metric Stats */}
-        <div className="flex justify-between items-center w-full">
+        <div className="flex justify-between items-end w-full mb-1">
           {/* Current Index */}
           <div className="flex flex-col">
-            <p className="text-[9px] text-slate-400 font-bold uppercase leading-none mb-1">Current Index</p>
-            <div className="flex items-center leading-none">
-              <span className={`text-5xl font-black tracking-tight ${details.textColor}`}>
+            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">Current Index</p>
+            <div className="flex items-baseline leading-none">
+              <span className={`text-4xl font-black tracking-tight ${details.textColor}`}>
                 {uv.toFixed(1)}
               </span>
               {uvTrend.arrow && uvTrend.arrow !== '→' && (
-                <span className={`text-[10px] ml-2 flex items-center space-x-0.5 ${uvTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1.5 py-0.5 rounded`}>
+                <span className={`text-[9px] ml-1.5 flex items-center space-x-0.5 ${uvTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1 py-0.5 rounded`}>
                   <span>{uvTrend.arrow}</span>
-                  <span className="text-[8px] font-black uppercase tracking-wider">{uvTrend.text}</span>
+                  <span className="text-[7.5px] font-black uppercase">{uvTrend.text}</span>
                 </span>
               )}
             </div>
           </div>
           {/* Projected Peak */}
           <div className="text-right">
-            <p className="text-[9px] text-slate-400 font-bold uppercase leading-none mb-1">PROG PEAK</p>
+            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">Today's Peak</p>
             <div className="flex items-baseline justify-end leading-none">
               <span className="text-2xl font-black text-amber-400">
                 {maxUv.toFixed(1)}
               </span>
             </div>
-            <p className="text-[8px] font-bold text-slate-400 mt-1 uppercase">Today's Peak</p>
           </div>
         </div>
 
-        {/* Extended Progressive Chart (Stretches to fill container with Y-axis & X-axis labels) */}
-        <div className="w-full h-[120px] flex flex-col justify-end mt-1 select-none">
+        {/* Refined Progressive Chart with Non-Scaling Stroke */}
+        <div className="w-full h-[80px] flex flex-col justify-end relative select-none">
           <div className="w-full flex-grow relative flex items-end">
             <div className="flex-1 h-full relative overflow-visible">
               <svg className="w-full h-full overflow-visible" viewBox="0 0 100 70" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="uvChartFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#E87722" stopOpacity="0.35" />
-                    <stop offset="100%" stopColor="#E87722" stopOpacity="0.0" />
+                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.22" />
+                    <stop offset="85%" stopColor="#f97316" stopOpacity="0.02" />
+                    <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
-                {/* Guidelines representing Moderate (3), Very High (8), Extreme (11) */}
-                <line x1="0" y1="62" x2="100" y2="62" stroke="#eab308" strokeWidth="0.2" strokeDasharray="1.5,1.5" opacity="0.5" />
-                <text x="1" y="60.5" fill="#eab308" fontSize="2.8" fontWeight="bold">MOD (3)</text>
+                {/* Subtle Reference Thresholds */}
+                <line x1="0" y1="62" x2="100" y2="62" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="60" fill="#eab308" fontSize="2.5" fontWeight="bold" opacity="0.6">MOD (3)</text>
 
-                <line x1="0" y1="52" x2="100" y2="52" stroke="#ef4444" strokeWidth="0.2" strokeDasharray="1.5,1.5" opacity="0.5" />
-                <text x="1" y="50.5" fill="#ef4444" fontSize="2.8" fontWeight="bold">V.HIGH (8)</text>
+                <line x1="0" y1="52" x2="100" y2="52" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="50" fill="#ef4444" fontSize="2.5" fontWeight="bold" opacity="0.6">V.HIGH (8)</text>
 
-                <line x1="0" y1="46" x2="100" y2="46" stroke="#a855f7" strokeWidth="0.2" strokeDasharray="1.5,1.5" opacity="0.5" />
-                <text x="1" y="44.5" fill="#a855f7" fontSize="2.8" fontWeight="bold">EXTREME (11)</text>
+                <line x1="0" y1="46" x2="100" y2="46" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="44" fill="#c084fc" fontSize="2.5" fontWeight="bold" opacity="0.6">EXT (11)</text>
 
                 <path d={areaD} fill="url(#uvChartFill)" />
-                <path d={pathD} fill="none" stroke="#E87722" strokeWidth="1.8" strokeLinecap="round" />
-                {isDaylight && (
-                  <>
-                    <circle 
-                      cx={dotCx} 
-                      cy={dotCy} 
-                      r="2.5" 
-                      fill="#E87722" 
-                      stroke="#F8FAFC" 
-                      strokeWidth="0.6" 
-                      className="animate-ping" 
-                      style={{ transformOrigin: `${dotCx}% ${dotCy}%`, animationDuration: '3s' }} 
-                    />
-                    <circle 
-                      cx={dotCx} 
-                      cy={dotCy} 
-                      r="1.8" 
-                      fill="#E87722" 
-                      stroke="#F8FAFC" 
-                      strokeWidth="0.5" 
-                    />
-                  </>
-                )}
+                {/* Soft ambient glow line underneath */}
+                <path d={pathD} fill="none" stroke="#ea580c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                {/* Crisp refined foreground line */}
+                <path d={pathD} fill="none" stroke="#f97316" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
               </svg>
+
+              {/* HTML Position Marker to guarantee a perfectly round circle on any aspect ratio */}
+              {isDaylight && (
+                <div 
+                  className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${Math.max(2, Math.min(98, dotCx))}%`, top: `${Math.max(5, Math.min(95, (dotCy / 70) * 100))}%` }}
+                >
+                  <div className="w-3.5 h-3.5 rounded-full bg-orange-500/30 animate-ping absolute inset-0 -m-0.5" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500 border border-white shadow-sm relative" />
+                </div>
+              )}
             </div>
           </div>
           
           {/* X-Axis Labels */}
-          <div className="w-full flex flex-row items-center pt-1 text-[8px] font-bold text-slate-400 relative border-t border-slate-800/40 mt-1">
-            <div className="flex-1 h-6 relative">
+          <div className="w-full flex flex-row items-center pt-0.5 text-[7.5px] font-bold text-slate-400 relative border-t border-slate-800/60 mt-0.5">
+            <div className="flex-1 h-4 relative">
               {/* Sunrise label */}
               {dotCx >= 15 && (
-                <span className="absolute left-0 top-1 text-slate-500 flex flex-col items-start leading-tight">
-                  <span className="text-[6.5px] uppercase text-slate-600">Sunrise</span>
-                  <span className="font-mono">{sunriseLabel}</span>
+                <span className="absolute left-0 top-0 text-slate-500 font-mono">
+                  {sunriseLabel}
                 </span>
               )}
               
               {/* Dynamic NOW tracker label */}
               <span 
-                className="absolute top-1 text-edgeOrange flex flex-col items-center leading-tight whitespace-nowrap" 
+                className="absolute top-0 text-edgeOrange font-mono font-black text-[8px] whitespace-nowrap" 
                 style={{ left: `${dotCx}%`, transform: 'translateX(-50%)' }}
               >
-                <span className="text-[6.5px] uppercase text-edgeOrange/70">{isDaylight ? 'Current' : 'Night'}</span>
-                <span className="font-mono font-black">{isDaylight ? `NOW (${nowLabel})` : 'SHUTDOWN'}</span>
+                {isDaylight ? nowLabel : 'NIGHT'}
               </span>
               
               {/* Sunset label */}
               {dotCx <= 85 && (
-                <span className="absolute right-0 top-1 text-slate-500 flex flex-col items-end leading-tight">
-                  <span className="text-[6.5px] uppercase text-slate-600">Sunset</span>
-                  <span className="font-mono">{sunsetLabel}</span>
+                <span className="absolute right-0 top-0 text-slate-500 font-mono">
+                  {sunsetLabel}
                 </span>
               )}
             </div>
@@ -570,47 +564,35 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         </div>
       </div>
 
-      {/* SPF Application Guidelines */}
-      <div className="bg-bgDeepSpace/40 border border-slate-800/60 rounded p-2 text-[10px] font-bold text-slate-400 space-y-1 select-none z-10 leading-tight">
-        <div className="flex justify-between items-center mb-1.5 border-b border-slate-800/30 pb-1">
-          <p className="text-[9px] text-edgeOrange uppercase tracking-wide leading-none font-black">SPF REAPPLICATION PROTOCOL:</p>
+      {/* Structured SPF Application Guidelines (3-Column Tactical Badges) */}
+      <div className="bg-bgDeepSpace/50 border border-slate-800/80 rounded-lg p-2 text-[9px] select-none z-10 space-y-1 mt-1">
+        <div className="flex justify-between items-center border-b border-slate-800/40 pb-1">
+          <span className="text-[8px] text-edgeOrange font-black uppercase tracking-wider">SPF Reapplication Interval</span>
           {uv >= 3 && (
-            <span className="text-[8.5px] text-amberAlert uppercase font-black tracking-wider animate-pulse">
-              ({Math.round((1 - (dynamicIntervals.spf50 / 120)) * 100)}% shorter)
+            <span className="text-[7.5px] text-amber-400 bg-amber-950/40 border border-amber-500/30 px-1 py-0.2 rounded font-black tracking-wide uppercase">
+              Heavy Solar Load
             </span>
           )}
         </div>
-        <div className="flex justify-between border-b border-slate-800/20 pb-0.5">
-          <span>SPF 10 (Light Gear)</span>
-          <span className="text-textIceWhite font-mono font-black">Every {dynamicIntervals.spf10}m</span>
-        </div>
-        <div className="flex justify-between border-b border-slate-800/20 pb-0.5">
-          <span>SPF 30 (Field Ops)</span>
-          <span className="text-textIceWhite font-mono font-black">Every {dynamicIntervals.spf30}m</span>
-        </div>
-        <div className="flex justify-between">
-          <span>SPF 50 (Max Cover)</span>
-          <span className="text-textIceWhite font-mono font-black">Every {dynamicIntervals.spf50}m</span>
+        <div className="grid grid-cols-3 gap-1.5 text-center">
+          <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
+            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 10</span>
+            <span className="text-[11px] font-mono font-black text-slate-200">{dynamicIntervals.spf10}m</span>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
+            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 30</span>
+            <span className="text-[11px] font-mono font-black text-amber-400">{dynamicIntervals.spf30}m</span>
+          </div>
+          <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
+            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 50+</span>
+            <span className="text-[11px] font-mono font-black text-orange-400">{dynamicIntervals.spf50}m</span>
+          </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <div className="border-t border-slate-700/30 pt-2 flex flex-col space-y-1 relative z-10">
-        <div className="flex justify-between items-center">
-          <span className="text-[10px] text-slate-400 font-bold uppercase flex items-center space-x-0.5">
-            <Sun className="w-3.5 h-3.5 text-slate-400" />
-            <span>RISK LEVEL</span>
-          </span>
-          <span className={`text-[10px] font-black uppercase tracking-wider ${details.textColor}`}>
-            {details.label}
-          </span>
-        </div>
-        <p className="text-[9px] text-slate-400 leading-tight font-semibold italic text-right">
-          {details.warning}
-        </p>
-        <p className="text-[7.5px] text-slate-500 font-medium normal-case tracking-normal border-t border-slate-800/40 pt-1 mt-1 leading-normal text-right">
-          * Calibrated for high-reflection desert sand albedo (1.3x scaling applied).
-        </p>
+      {/* Compact Advisory Footer */}
+      <div className="border-t border-slate-800/50 pt-1 flex justify-between items-center text-[8px] text-slate-500 font-medium select-none z-10">
+        <span>* 1.3x desert albedo calibration</span>
+        <span className="text-slate-400 italic font-semibold truncate max-w-[60%] text-right">{details.warning}</span>
       </div>
     </div>
   );

@@ -139,13 +139,13 @@ export default function Header({
       </div>
 
       {/* Clock & Date */}
-      <div className="flex items-center space-x-6">
-        <div className="flex items-center space-x-3 text-textIceWhite bg-bgDeepSpace/40 px-5 py-2 rounded-lg border border-slate-700/35 font-sans">
-          <Clock className="w-5 h-5 text-edgeOrange" />
+      <div className="flex items-center space-x-4 flex-shrink-0 whitespace-nowrap">
+        <div className="flex items-center space-x-2.5 text-textIceWhite bg-bgDeepSpace/40 px-4 py-2 rounded-lg border border-slate-700/35 font-sans">
+          <Clock className="w-5 h-5 text-edgeOrange flex-shrink-0" />
           <span className="text-2xl font-mono font-black tracking-wider">{formatTime(time)}</span>
           <span className="text-xs text-slate-400 font-bold uppercase pl-1">GST (UTC+4)</span>
         </div>
-        <div className="text-lg font-black text-slate-300 hidden md:block">
+        <div className="text-base font-black text-slate-300 hidden md:block whitespace-nowrap flex-shrink-0">
           {formatDate(time)}
         </div>
       </div>
