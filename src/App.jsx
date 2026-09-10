@@ -7,7 +7,7 @@ import HourlyForecast from './components/HourlyForecast';
 import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
-import { fetchDashboardData } from './services/weatherService';
+import { fetchDashboardData, getActiveProvider } from './services/weatherService';
 import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
@@ -122,6 +122,7 @@ export default function App() {
   const [activeStation, setActiveStation] = useState('hq');
   const [viewMode, setViewMode] = useState('ops');
   const [systemTime, setSystemTime] = useState(new Date());
+  const [activeProvider, setActiveProviderState] = useState(getActiveProvider());
 
   const [isMobile, setIsMobile] = useState(false);
   const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
@@ -283,6 +284,15 @@ export default function App() {
     loadData();
     const interval = setInterval(loadData, 10 * 60 * 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleProviderChange = (e) => {
+      setActiveProviderState(e.detail);
+      loadData();
+    };
+    window.addEventListener('xrange-provider-changed', handleProviderChange);
+    return () => window.removeEventListener('xrange-provider-changed', handleProviderChange);
   }, []);
 
   const handleToggleSim = () => {
@@ -518,11 +528,15 @@ export default function App() {
           isSimulated={isSimulated}
           onToggleSim={handleToggleSim}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={(mode) => {
+            setViewMode(mode);
+            setMobileTab(mode);
+          }}
           time={activeTime}
           isMobile={true}
           onOpenAlerts={() => setIsAlertCenterOpen(true)}
           activeAlertsCount={activeAlertsCount}
+          activeProvider={activeProvider}
         />
 
         {/* Main Scrollable Content */}
@@ -637,6 +651,20 @@ export default function App() {
               <CustomerPortal />
             </div>
           )}
+
+          {mobileTab === 'backend' && (
+            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden p-2">
+              <BackendFeeds 
+                isSimulated={isSimulated} 
+                apiMeta={apiMeta} 
+                isOffline={isOffline} 
+                apiData={data}
+                activeStation={activeStation}
+                setActiveStation={setActiveStation}
+                onRefreshFeeds={loadData}
+              />
+            </div>
+          )}
         </main>
 
         {/* Mobile Navigation Bar */}
@@ -690,6 +718,13 @@ export default function App() {
             <span className="text-base">💼</span>
             <span className="text-[9px] uppercase tracking-wider">Portal</span>
           </button>
+          <button 
+            onClick={() => setMobileTab('backend')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'backend' ? 'text-cyan-400 font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+          >
+            <span className="text-base">⚡</span>
+            <span className="text-[9px] uppercase tracking-wider">Feeds</span>
+          </button>
         </nav>
       </div>
     );
@@ -708,6 +743,7 @@ export default function App() {
         time={activeTime}
         onOpenAlerts={() => setIsAlertCenterOpen(true)}
         activeAlertsCount={activeAlertsCount}
+        activeProvider={activeProvider}
       />
 
       {/* Main Container */}
@@ -886,6 +922,7 @@ export default function App() {
               apiData={data}
               activeStation={activeStation}
               setActiveStation={setActiveStation}
+              onRefreshFeeds={loadData}
             />
           </div>
         )}

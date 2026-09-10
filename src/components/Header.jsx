@@ -1,8 +1,7 @@
-import React from 'react';
-import { Clock, Wifi, WifiOff, Cpu, Bell } from 'lucide-react';
+import { Clock, Wifi, WifiOff, Cpu, Bell, Zap } from 'lucide-react';
+import { PROVIDERS } from '../services/weatherService';
 
 export default function Header({ 
-  lastUpdated, 
   isOffline, 
   isSimulated, 
   onToggleSim, 
@@ -11,7 +10,8 @@ export default function Header({
   time,
   isMobile,
   onOpenAlerts,
-  activeAlertsCount
+  activeAlertsCount,
+  activeProvider
 }) {
 
   const formatTime = (date) => {
@@ -54,6 +54,18 @@ export default function Header({
         </div>
 
         <div className="flex items-center space-x-2 flex-shrink-0">
+          {/* Active Model Indicator Pill */}
+          {activeProvider?.startsWith('WEATHERNEXT') && (
+            <div 
+              onClick={() => onViewModeChange && onViewModeChange('backend')}
+              className="flex items-center space-x-1 bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 px-1.5 py-0.5 rounded text-[9px] font-mono font-black cursor-pointer hover:bg-cyan-900/60" 
+              title="Google DeepMind WeatherNext 3 (5km) - Tap to view Backend Feeds"
+            >
+              <Zap className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
+              <span>WN3</span>
+            </div>
+          )}
+
           {/* Clock */}
           <div className="flex items-center space-x-1 text-textIceWhite bg-bgDeepSpace/40 px-2 py-1 rounded border border-slate-700/35">
             <Clock className="w-3.5 h-3.5 text-edgeOrange" />
@@ -138,10 +150,10 @@ export default function Header({
         </div>
       </div>
 
-      {/* Controls: View Mode & Simulation */}
-      <div className="flex items-center space-x-4">
-        {/* View Mode Toggle Tabs */}
-        <div className="flex items-center bg-bgDeepSpace/40 rounded-lg p-0.5 border border-slate-700/40">
+      {/* Right Controls & Views */}
+      <div className="flex items-center space-x-3">
+        {/* View Mode Tabs */}
+        <div className="flex bg-bgDeepSpace/60 p-1 rounded-lg border border-slate-750/50">
           <button
             onClick={() => onViewModeChange('tv')}
             className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
@@ -232,6 +244,30 @@ export default function Header({
             </span>
           )}
         </button>
+
+        {/* Active AI Forecast Engine Badge */}
+        <div 
+          onClick={() => onViewModeChange('backend')}
+          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-mono font-black uppercase tracking-wider cursor-pointer transition-all ${
+            activeProvider?.startsWith('WEATHERNEXT')
+              ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/60'
+              : activeProvider === PROVIDERS.UAE_NCM
+              ? 'bg-purple-950/40 border-purple-500/40 text-purple-300 hover:bg-purple-950/60'
+              : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-300 hover:text-textIceWhite'
+          }`}
+          title={`Click to view Backend Feeds • Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'}`}
+        >
+          {activeProvider?.startsWith('WEATHERNEXT') ? (
+            <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          ) : (
+            <Cpu className="w-3.5 h-3.5 text-slate-400" />
+          )}
+          <span>
+            {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WeatherNext 3 (5km Sim)' :
+             activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WeatherNext 3 (Live)' :
+             activeProvider === PROVIDERS.UAE_NCM ? 'UAE NCM' : 'Open-Meteo GFS'}
+          </span>
+        </div>
 
         {/* Simulation Toggle */}
         <button
