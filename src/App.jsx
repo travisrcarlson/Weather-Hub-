@@ -553,7 +553,7 @@ export default function App() {
                 <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
               <div className="h-auto">
-                <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
+                <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} currentTime={activeTime} />
               </div>
               <div className="grid grid-cols-2 gap-3 h-auto">
                 <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
@@ -583,6 +583,7 @@ export default function App() {
                   ncmWarnings={combinedNcmWarnings}
                   simulatedLightning={simulatedLightning}
                   onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
+                  currentTime={activeTime}
                 />
               </div>
               <div className="w-full">
@@ -790,6 +791,7 @@ export default function App() {
                   ncmWarnings={combinedNcmWarnings}
                   simulatedLightning={simulatedLightning}
                   onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
+                  currentTime={activeTime}
                 />
               </div>
 
@@ -808,7 +810,7 @@ export default function App() {
              {/* Left Sidebar (Col-span-2): Current, Heat Stress, Hydration, Wind Safety */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
                <div className="h-[24%]">
-                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} />
+                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} currentTime={activeTime} />
                </div>
                <div className="h-[18%]">
                  <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
@@ -841,6 +843,7 @@ export default function App() {
                   ncmWarnings={combinedNcmWarnings}
                   simulatedLightning={simulatedLightning}
                   onToggleSimulatedLightning={() => setSimulatedLightning(prev => !prev)}
+                  currentTime={activeTime}
                 />
               </div>
 

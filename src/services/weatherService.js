@@ -4,6 +4,47 @@ export const LAT = 24.20;
 export const LON = 52.78;
 export const TIMEZONE = 'Asia/Dubai';
 
+// GST (Asia/Dubai, UTC+4) formatting helpers
+export function getGstParts(dateInput) {
+  const date = typeof dateInput === 'string' || typeof dateInput === 'number' ? new Date(dateInput) : dateInput;
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23'
+  });
+  const parts = formatter.formatToParts(date);
+  const get = (type) => parts.find(p => p.type === type)?.value || '00';
+  return {
+    year: get('year'),
+    month: get('month'),
+    day: get('day'),
+    hour: parseInt(get('hour'), 10),
+    hourStr: get('hour'),
+    minute: parseInt(get('minute'), 10),
+    minuteStr: get('minute')
+  };
+}
+
+export function formatGstDateTime(dateInput) {
+  const p = getGstParts(dateInput);
+  return `${p.year}-${p.month}-${p.day}T${p.hourStr}:${p.minuteStr}`;
+}
+
+export function formatGstHour(dateInput) {
+  const p = getGstParts(dateInput);
+  return `${p.year}-${p.month}-${p.day}T${p.hourStr}:00`;
+}
+
+export function formatGstDate(dateInput) {
+  const p = getGstParts(dateInput);
+  return `${p.year}-${p.month}-${p.day}`;
+}
+
 // Provider identifiers
 export const PROVIDERS = {
   WEATHERNEXT_SIM: 'WEATHERNEXT_SIM',
@@ -227,8 +268,13 @@ export async function fetchWeatherNextSimData() {
   const start = performance.now();
   const now = new Date();
 
-  // Generate hourly data for 9 days (216 hours) starting from 2 days ago
-  const baseDate = new Date(now.getTime() - 48 * 3600 * 1000);
+  // Generate hourly data for 9 days (216 hours) starting from 2 days ago in GST
+  const nowMs = now.getTime();
+  const currentGst = getGstParts(now);
+  const minuteMs = (currentGst.minute * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+  const currentHourStartMs = nowMs - minuteMs;
+  const baseDateMs = currentHourStartMs - 48 * 3600 * 1000;
+
   const time = [];
   const temperature_2m = [];
   const apparent_temperature = [];
@@ -246,14 +292,12 @@ export async function fetchWeatherNextSimData() {
   const precipitation_probability = [];
   const weathercode = [];
 
-  const pad = (num) => String(num).padStart(2, '0');
-
   for (let i = 0; i < 216; i++) {
-    const d = new Date(baseDate.getTime() + i * 3600000);
-    const timeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+    const d = new Date(baseDateMs + i * 3600000);
+    const timeStr = formatGstHour(d);
     time.push(timeStr);
 
-    const hour = d.getHours();
+    const hour = getGstParts(d).hour;
     // Diurnal temperature curve calibrated to 5km grid point on Abu Al Abyad:
     // Peak temperature at 14:00 GST, minimum at 05:30 GST
     const solarFactor = Math.sin((hour - 8) * Math.PI / 12);
@@ -307,10 +351,10 @@ export async function fetchWeatherNextSimData() {
     european_aqi.push(Math.round(pm10Val * 0.95));
   }
 
-  // Match current hour index
-  const currentHourIdx = 48 + now.getHours();
+  // Index 48 corresponds precisely to the current hour (since baseDate is currentHourStart - 48h)
+  const currentHourIdx = 48;
   const current = {
-    time: now.toISOString().slice(0, 16),
+    time: formatGstDateTime(now),
     temperature_2m: temperature_2m[currentHourIdx] || 41.8,
     apparent_temperature: apparent_temperature[currentHourIdx] || 44.2,
     relative_humidity_2m: relative_humidity_2m[currentHourIdx] || 22,
@@ -330,9 +374,8 @@ export async function fetchWeatherNextSimData() {
 
   const daily = {
     time: Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return d.toISOString().slice(0, 10);
+      const d = new Date(now.getTime() + i * 86400000);
+      return formatGstDate(d);
     }),
     weathercode: [0, 0, 1, 1, 0, 0, 0],
     temperature_2m_max: [42.5, 43.1, 41.8, 40.9, 42.0, 43.4, 44.0],
@@ -341,14 +384,12 @@ export async function fetchWeatherNextSimData() {
     wind_gusts_10m_max: [38.0, 42.5, 35.0, 32.0, 36.5, 44.0, 48.0],
     precipitation_sum: [0, 0, 0, 0, 0, 0, 0],
     sunrise: Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return `${d.toISOString().slice(0, 10)}T05:32`;
+      const d = new Date(now.getTime() + i * 86400000);
+      return `${formatGstDate(d)}T05:32`;
     }),
     sunset: Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      return `${d.toISOString().slice(0, 10)}T19:06`;
+      const d = new Date(now.getTime() + i * 86400000);
+      return `${formatGstDate(d)}T19:06`;
     })
   };
 
@@ -529,8 +570,9 @@ export async function fetchWeatherNextLiveData() {
 
     const pad = (num) => String(num).padStart(2, '0');
 
+    const now = new Date();
     googleHourly.forEach((item) => {
-      time.push(item.forecastTime ? item.forecastTime.slice(0, 16) : new Date().toISOString().slice(0, 16));
+      time.push(item.forecastTime ? formatGstHour(item.forecastTime) : formatGstHour(now));
       
       const temp = item.temperature?.degrees ?? item.temperature ?? 38;
       temperature_2m.push(Number(temp.toFixed(1)));
@@ -568,7 +610,7 @@ export async function fetchWeatherNextLiveData() {
     const curWind = currentItem.wind?.speed?.value ?? 24;
 
     const current = {
-      time: currentItem.forecastTime ? currentItem.forecastTime.slice(0, 16) : new Date().toISOString().slice(0, 16),
+      time: formatGstDateTime(now),
       temperature_2m: Number(curTemp.toFixed(1)),
       apparent_temperature: Number((currentItem.feelsLikeTemperature?.degrees ?? curTemp + 2.5).toFixed(1)),
       relative_humidity_2m: currentItem.relativeHumidity ?? 22,
@@ -587,7 +629,7 @@ export async function fetchWeatherNextLiveData() {
     };
 
     const daily = {
-      time: googleDaily.map((d) => d.displayDate ? `${d.displayDate.year}-${pad(d.displayDate.month)}-${pad(d.displayDate.day)}` : new Date().toISOString().slice(0, 10)),
+      time: googleDaily.map((d, i) => d.displayDate ? `${d.displayDate.year}-${pad(d.displayDate.month)}-${pad(d.displayDate.day)}` : formatGstDate(new Date(now.getTime() + i * 86400000))),
       weathercode: googleDaily.map(() => 0),
       temperature_2m_max: googleDaily.map(d => d.maxTemperature?.degrees ?? 42),
       temperature_2m_min: googleDaily.map(d => d.minTemperature?.degrees ?? 28),
@@ -595,14 +637,12 @@ export async function fetchWeatherNextLiveData() {
       wind_gusts_10m_max: googleDaily.map(d => d.maxWind?.gust?.value ?? 40),
       precipitation_sum: googleDaily.map(() => 0),
       sunrise: googleDaily.map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return `${d.toISOString().slice(0, 10)}T05:32`;
+        const d = new Date(now.getTime() + i * 86400000);
+        return `${formatGstDate(d)}T05:32`;
       }),
       sunset: googleDaily.map((_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return `${d.toISOString().slice(0, 10)}T19:06`;
+        const d = new Date(now.getTime() + i * 86400000);
+        return `${formatGstDate(d)}T19:06`;
       })
     };
 
@@ -849,7 +889,7 @@ export async function fetchNCMData() {
     longitude: LON,
     timezone: TIMEZONE,
     current: {
-      time: new Date().toISOString().slice(0, 16),
+      time: formatGstDateTime(new Date()),
       temperature_2m: 42.0,
       apparent_temperature: 44.5,
       relative_humidity_2m: 18,
@@ -881,8 +921,7 @@ export async function fetchNCMData() {
       const baseDate = new Date('2026-06-13T00:00:00');
       for (let i = 0; i < 216; i++) {
         const d = new Date(baseDate.getTime() + i * 3600000);
-        const pad = (num) => String(num).padStart(2, '0');
-        const timeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+        const timeStr = formatGstHour(d);
         time.push(timeStr);
         
         const hour = d.getHours();
@@ -926,23 +965,20 @@ export async function fetchNCMData() {
     })(),
     daily: {
       time: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return d.toISOString().slice(0, 10);
+        const d = new Date(Date.now() + i * 86400000);
+        return formatGstDate(d);
       }),
       weathercode: [0, 0, 1, 2, 1, 0, 0],
       temperature_2m_max: [42, 43, 41, 40, 42, 43, 44],
       temperature_2m_min: [29, 28, 27, 26, 28, 29, 30],
       wind_gusts_10m_max: [30, 32, 28, 25, 28, 35, 40],
       sunrise: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return `${d.toISOString().slice(0, 10)}T05:30`;
+        const d = new Date(Date.now() + i * 86400000);
+        return `${formatGstDate(d)}T05:30`;
       }),
       sunset: Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i);
-        return `${d.toISOString().slice(0, 10)}T19:05`;
+        const d = new Date(Date.now() + i * 86400000);
+        return `${formatGstDate(d)}T19:05`;
       })
     },
     ncmWarnings: []

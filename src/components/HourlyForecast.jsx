@@ -1,5 +1,5 @@
 import React from 'react';
-import { getWeatherCondition } from '../utils/weatherCodeMap';
+import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { evaluateSafety } from '../utils/safetyEngine';
 import { Compass, Droplets } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList, ReferenceArea, ReferenceDot, ReferenceLine } from 'recharts';
@@ -11,26 +11,7 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
   const now = currentTime ? new Date(currentTime) : new Date();
   
   const isNightTime = (timeStr) => {
-    if (!dailyData || !dailyData.time || !dailyData.sunrise || !dailyData.sunset) {
-      const date = new Date(timeStr);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    const dateStr = timeStr.slice(0, 10);
-    const idx = dailyData.time.findIndex(t => t.startsWith(dateStr));
-    if (idx === -1) {
-      const date = new Date(timeStr);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    const sunriseStr = dailyData.sunrise[idx];
-    const sunsetStr = dailyData.sunset[idx];
-    
-    const timeMs = new Date(timeStr).getTime();
-    const sunriseMs = new Date(sunriseStr).getTime();
-    const sunsetMs = new Date(sunsetStr).getTime();
-    
-    return timeMs < sunriseMs || timeMs > sunsetMs;
+    return getIsNightTime(timeStr, dailyData);
   };
 
   const getDubaiHourString = (date) => {

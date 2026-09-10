@@ -301,7 +301,8 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   // Helper to parse "2026-06-15T05:30", "12:30:00" or Date object
   const parseTimeStr = (str) => {
     if (!str) return { hour: 12, minute: 0, totalMinutes: 720 };
-    if (str instanceof Date) {
+    if (str instanceof Date || (typeof str === 'string' && (str.includes('Z') || /[+-]\d{2}:\d{2}$/.test(str)))) {
+      const d = str instanceof Date ? str : new Date(str);
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Dubai',
         hour: '2-digit',
@@ -309,9 +310,9 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         hour12: false,
         hourCycle: 'h23'
       });
-      const parts = formatter.formatToParts(str);
-      const h = parseInt(parts.find(p => p.type === 'hour').value, 10);
-      const m = parseInt(parts.find(p => p.type === 'minute').value, 10);
+      const parts = formatter.formatToParts(d);
+      const h = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+      const m = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
       return { hour: h, minute: m, totalMinutes: h * 60 + m };
     }
     const timePart = str.includes('T') ? str.split('T')[1] : str;

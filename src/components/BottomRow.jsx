@@ -225,12 +225,19 @@ export function getMoonDetails(dateString) {
   };
 }
 
+export function parseGstDate(str) {
+  if (!str) return new Date();
+  if (str instanceof Date) return str;
+  if (typeof str === 'string' && (str.includes('+') || str.endsWith('Z'))) return new Date(str);
+  return new Date(`${str}+04:00`);
+}
+
 // Helper for Moonrise/Moonset times approximation
 export function getMoonTimes(sunriseTimeStr, sunsetTimeStr, agePct) {
   if (!sunriseTimeStr || !sunsetTimeStr) return { rise: '--:--', set: '--:--' };
   
-  const riseDate = new Date(sunriseTimeStr);
-  const setDate = new Date(sunsetTimeStr);
+  const riseDate = parseGstDate(sunriseTimeStr);
+  const setDate = parseGstDate(sunsetTimeStr);
   const offsetMs = agePct * 24 * 60 * 60 * 1000;
   
   const moonriseDate = new Date(riseDate.getTime() + offsetMs);
@@ -285,7 +292,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
 
   const formatTime = (timeStr) => {
     if (!timeStr) return '--:--';
-    const d = new Date(timeStr);
+    const d = parseGstDate(timeStr);
     return d.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -300,10 +307,12 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const moonDetails = getMoonDetails(dailyData.time[0]);
   const moonTimes = getMoonTimes(sunriseStr, sunsetStr, moonDetails.phase);
 
-  const nowDate = currentTime ? new Date(currentTime) : new Date();
+  const nowDate = currentTime ? (currentTime instanceof Date ? currentTime : parseGstDate(currentTime)) : new Date();
+  const sunriseDate = parseGstDate(sunriseStr);
+  const sunsetDate = parseGstDate(sunsetStr);
 
   // Calculate Sun position
-  const sunTransit = checkTransitPosition(nowDate, new Date(sunriseStr), new Date(sunsetStr));
+  const sunTransit = checkTransitPosition(nowDate, sunriseDate, sunsetDate);
   let sunX = 7.5;
   let sunY = 0;
   if (sunTransit.visible) {
@@ -311,14 +320,14 @@ export function SunTransitWidget({ dailyData, currentTime }) {
     sunX = 50 + 42.5 * Math.cos(theta);
     sunY = 75 * Math.sin(theta);
   } else {
-    const sunRiseMs = new Date(sunriseStr).getTime();
+    const sunRiseMs = sunriseDate.getTime();
     sunX = nowDate.getTime() < sunRiseMs ? 7.5 : 92.5;
     sunY = 0;
   }
 
   // Calculate Moon position
-  const moonriseDate = new Date(new Date(sunriseStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
-  const moonsetDate = new Date(new Date(sunsetStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+  const moonriseDate = new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+  const moonsetDate = new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
   const moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
   
   let moonX = 7.5;

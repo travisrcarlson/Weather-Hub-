@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
 import { ShieldAlert, Compass, Sun, Droplets, Map } from 'lucide-react';
 import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow';
+import { getIsNightTime } from '../utils/weatherCodeMap';
 
 // Stations definition matching geographical landmarks
 export const stationsList = [
@@ -91,7 +92,7 @@ export const stationsList = [
   }
 ];
 
-export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning }) {
+export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning, currentTime }) {
   const [activeLayer, setActiveLayer] = useState('none'); // 'none', 'thermal', 'wind', 'vis'
 
   const getInterpolatedWind = (x, y) => {
@@ -197,36 +198,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
     ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) 
     : null;
   
-  const getIsNight = () => {
-    if (!apiData || !apiData.current || !apiData.daily) return false;
-    const timeStr = apiData.current.time;
-    const dailyData = apiData.daily;
-    
-    if (!dailyData.time || !dailyData.sunrise || !dailyData.sunset) {
-      const date = new Date(timeStr);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    
-    const dateStr = timeStr.slice(0, 10);
-    const idx = dailyData.time.findIndex(t => t.startsWith(dateStr));
-    if (idx === -1) {
-      const date = new Date(timeStr);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    
-    const sunriseStr = dailyData.sunrise[idx];
-    const sunsetStr = dailyData.sunset[idx];
-    
-    const timeMs = new Date(timeStr).getTime();
-    const sunriseMs = new Date(sunriseStr).getTime();
-    const sunsetMs = new Date(sunsetStr).getTime();
-    
-    return timeMs < sunriseMs || timeMs > sunsetMs;
-  };
-
-  const isNight = getIsNight();
+  const isNight = getIsNightTime(currentTime || apiData?.current?.time, apiData?.daily);
 
   const getMoonIllumination = () => {
     if (!apiData || !apiData.daily || !apiData.daily.time) return 0.5;
@@ -253,8 +225,8 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   // Sun & Moon Transit Calculations
   const dailyData = apiData?.daily;
-  const currentTime = apiData?.current?.time;
-  const hasTransitData = dailyData?.sunrise?.[0] && dailyData?.sunset?.[0] && currentTime;
+  const activeTimeVal = currentTime || apiData?.current?.time;
+  const hasTransitData = dailyData?.sunrise?.[0] && dailyData?.sunset?.[0] && activeTimeVal;
 
   let sunTransit = { visible: false, progress: 0 };
   let sunX = 0;
@@ -271,13 +243,37 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   if (hasTransitData) {
     try {
       // Find the index of the active day in the daily arrays
-      const dateStr = currentTime.slice(0, 10);
-      const idx = dailyData.time.findIndex(t => t.startsWith(dateStr));
+      let dateStr = '';
+      if (typeof activeTimeVal === 'string') {
+        dateStr = activeTimeVal.slice(0, 10);
+      } else if (activeTimeVal instanceof Date && !isNaN(activeTimeVal.getTime())) {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Dubai',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit'
+        });
+        const parts = formatter.formatToParts(activeTimeVal);
+        const get = (type) => parts.find(p => p.type === type)?.value || '00';
+        dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+      }
+
+      const idx = dailyData.time ? dailyData.time.findIndex(t => t && t.startsWith(dateStr)) : 0;
       const targetIdx = idx >= 0 ? idx : 0;
 
       const sunriseStr = dailyData.sunrise[targetIdx];
       const sunsetStr = dailyData.sunset[targetIdx];
-      const nowDate = new Date(currentTime);
+
+      const parseGstDate = (str) => {
+        if (!str) return new Date();
+        if (str instanceof Date) return str;
+        if (typeof str === 'string' && (str.includes('+') || str.endsWith('Z'))) return new Date(str);
+        return new Date(`${str}+04:00`);
+      };
+
+      const nowDate = activeTimeVal instanceof Date ? activeTimeVal : parseGstDate(activeTimeVal);
+      const sunriseDate = parseGstDate(sunriseStr);
+      const sunsetDate = parseGstDate(sunsetStr);
 
       // Calculate Day of Year to determine Solar Declination
       const start = new Date(nowDate.getFullYear(), 0, 0);
@@ -297,7 +293,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       dynamicMoonRy = dynamicSunRy - 15;
 
       // 1. Sun Transit
-      sunTransit = checkTransitPosition(nowDate, new Date(sunriseStr), new Date(sunsetStr));
+      sunTransit = checkTransitPosition(nowDate, sunriseDate, sunsetDate);
       if (sunTransit.visible) {
         const theta = sunTransit.progress * Math.PI;
         sunX = 250 + 180 * Math.cos(theta);
@@ -306,8 +302,8 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
       // 2. Moon Transit
       moonDetails = getMoonDetails(dailyData.time[targetIdx]);
-      const moonriseDate = new Date(new Date(sunriseStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
-      const moonsetDate = new Date(new Date(sunsetStr).getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+      const moonriseDate = new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+      const moonsetDate = new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
 
       moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
       if (moonTransit.visible) {

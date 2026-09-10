@@ -1,9 +1,9 @@
 import React from 'react';
-import { getWeatherCondition } from '../utils/weatherCodeMap';
+import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { Cloud, Droplets } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';
 
-export default function CurrentConditions({ data, dailyData, hourlyData }) {
+export default function CurrentConditions({ data, dailyData, hourlyData, currentTime }) {
   if (!data) return null;
 
   const temp = data.temperature_2m;
@@ -29,31 +29,8 @@ export default function CurrentConditions({ data, dailyData, hourlyData }) {
   const tempMax = dailyData && dailyData.temperature_2m_max ? dailyData.temperature_2m_max[0] : null;
   const tempMin = dailyData && dailyData.temperature_2m_min ? dailyData.temperature_2m_min[0] : null;
 
-  const isNightTime = () => {
-    if (!data || !data.time) return false;
-    if (!dailyData || !dailyData.time) {
-      const date = new Date(data.time);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    const dateStr = data.time.slice(0, 10);
-    const idx = dailyData.time.findIndex(t => t.startsWith(dateStr));
-    if (idx === -1) {
-      const date = new Date(data.time);
-      const hour = date.getHours();
-      return hour < 6 || hour >= 19;
-    }
-    const sunriseStr = dailyData.sunrise[idx];
-    const sunsetStr = dailyData.sunset[idx];
-    
-    const timeMs = new Date(data.time).getTime();
-    const sunriseMs = new Date(sunriseStr).getTime();
-    const sunsetMs = new Date(sunsetStr).getTime();
-    
-    return timeMs < sunriseMs || timeMs > sunsetMs;
-  };
-
-  const condition = getWeatherCondition(weathercode, isNightTime());
+  const isNight = getIsNightTime(currentTime || data?.time, dailyData);
+  const condition = getWeatherCondition(weathercode, isNight);
 
   // Calculate indices for previous hour trend evaluations
   const getPrevHourIdx = () => {

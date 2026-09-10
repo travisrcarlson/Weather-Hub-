@@ -60,3 +60,106 @@ export function getWeatherCondition(code, isNight = false) {
   
   return cond;
 }
+
+/**
+ * Safely extracts the minute-of-day (0 - 1439) in Asia/Dubai timezone (GST, UTC+4).
+ * Handles Date objects, ISO UTC strings ("...Z"), and local GST strings ("YYYY-MM-DDTHH:mm").
+ */
+export function getDubaiMinutesOfDay(input) {
+  if (!input) return null;
+
+  // Handle strings
+  if (typeof input === 'string') {
+    // If it has 'Z' or explicit timezone offset, parse as standard Date then format in Asia/Dubai
+    if (input.includes('Z') || /[+-]\d{2}:\d{2}$/.test(input)) {
+      const d = new Date(input);
+      if (!isNaN(d.getTime())) {
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'Asia/Dubai',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false,
+          hourCycle: 'h23'
+        });
+        const parts = formatter.formatToParts(d);
+        const h = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+        const m = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+        return h * 60 + m;
+      }
+    } else {
+      // Local GST time string like "2026-09-10T09:25" or "09:25"
+      const match = input.match(/T?(\d{1,2}):(\d{2})/);
+      if (match) {
+        const h = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        return h * 60 + m;
+      }
+    }
+  }
+
+  // Handle Date objects or numeric epoch timestamps
+  const d = typeof input === 'number' ? new Date(input) : (input instanceof Date ? input : new Date(input));
+  if (!isNaN(d.getTime())) {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dubai',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: false,
+      hourCycle: 'h23'
+    });
+    const parts = formatter.formatToParts(d);
+    const h = parseInt(parts.find(p => p.type === 'hour')?.value || '0', 10);
+    const m = parseInt(parts.find(p => p.type === 'minute')?.value || '0', 10);
+    return h * 60 + m;
+  }
+
+  return null;
+}
+
+/**
+ * Robust Day/Night evaluator for X-Range (Asia/Dubai).
+ * Compares current minute of day against local sunrise and sunset.
+ * Default sunrise: 05:32 (332 min), sunset: 19:06 (1146 min).
+ */
+export function getIsNightTime(timeInput, dailyData) {
+  const currentMinutes = getDubaiMinutesOfDay(timeInput);
+  if (currentMinutes === null) return false;
+
+  let sunriseMinutes = 5 * 60 + 32; // Default 05:32 GST
+  let sunsetMinutes = 19 * 60 + 6;  // Default 19:06 GST
+
+  if (dailyData && Array.isArray(dailyData.sunrise) && Array.isArray(dailyData.sunset)) {
+    let dateStr = '';
+    if (typeof timeInput === 'string') {
+      const match = timeInput.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (match) dateStr = match[1];
+    } else if (timeInput instanceof Date && !isNaN(timeInput.getTime())) {
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Dubai',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      const parts = formatter.formatToParts(timeInput);
+      const get = (type) => parts.find(p => p.type === type)?.value || '00';
+      dateStr = `${get('year')}-${get('month')}-${get('day')}`;
+    }
+
+    let idx = -1;
+    if (dateStr && Array.isArray(dailyData.time)) {
+      idx = dailyData.time.findIndex(t => t && t.startsWith(dateStr));
+    }
+    if (idx === -1) idx = 0; // Fallback to today's entry (first element)
+
+    if (dailyData.sunrise[idx]) {
+      const parsedSunrise = getDubaiMinutesOfDay(dailyData.sunrise[idx]);
+      if (parsedSunrise !== null) sunriseMinutes = parsedSunrise;
+    }
+    if (dailyData.sunset[idx]) {
+      const parsedSunset = getDubaiMinutesOfDay(dailyData.sunset[idx]);
+      if (parsedSunset !== null) sunsetMinutes = parsedSunset;
+    }
+  }
+
+  return currentMinutes < sunriseMinutes || currentMinutes > sunsetMinutes;
+}
