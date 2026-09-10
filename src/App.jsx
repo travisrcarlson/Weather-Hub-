@@ -18,6 +18,7 @@ import HseDashboard from './components/HseDashboard';
 import PlanningDashboard from './components/PlanningDashboard';
 import CustomerPortal from './components/CustomerPortal';
 import AlertCenter from './components/AlertCenter';
+import { checkAndDispatchAutoAlerts } from './services/hseBroadcastService';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -465,6 +466,19 @@ export default function App() {
 
   const activeDisplayData = getHQDisplayData();
 
+  // Automated HSE WhatsApp & Directive Dispatcher
+  useEffect(() => {
+    if (globalSafety && activeDisplayData) {
+      checkAndDispatchAutoAlerts(globalSafety, activeDisplayData, simulatedLightning);
+    }
+  }, [
+    globalSafety?.status, 
+    globalSafety?.reasons?.length, 
+    simulatedLightning, 
+    activeDisplayData?.temperature_2m, 
+    activeDisplayData?.wind_speed_10m
+  ]);
+
   // Calculate projected extremes for the next 12 hours
   const getTvProjectedExtremes = () => {
     if (!data || !data.hourly || !data.hourly.time) {
@@ -897,6 +911,7 @@ export default function App() {
               currentTime={activeTime} 
               activeStation={activeStation} 
               isSimulated={isSimulated} 
+              onViewModeChange={setViewMode}
             />
           </div>
         )}

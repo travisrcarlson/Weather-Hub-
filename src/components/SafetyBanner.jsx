@@ -1,8 +1,23 @@
-import React from 'react';
-import { CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle, AlertTriangle, AlertOctagon, Radio } from 'lucide-react';
 import { getProjectedAdvisories } from '../utils/safetyEngine';
+import { getActiveHseDirective } from '../services/hseBroadcastService';
 
 export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime, isMobile, ncmWarnings }) {
+  const [activeDirective, setActiveDirective] = useState(getActiveHseDirective());
+
+  useEffect(() => {
+    const handleDirective = () => {
+      setActiveDirective(getActiveHseDirective());
+    };
+    window.addEventListener('xrange-hse-directive', handleDirective);
+    window.addEventListener('storage', handleDirective);
+    return () => {
+      window.removeEventListener('xrange-hse-directive', handleDirective);
+      window.removeEventListener('storage', handleDirective);
+    };
+  }, []);
+
   if (!safetyEvaluation) return null;
 
   const { status, reasons, colors } = safetyEvaluation;
@@ -56,8 +71,21 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
           </div>
         </div>
 
+        {/* Active Directive Strip (if active) */}
+        {activeDirective && (
+          <div className="bg-black/40 border border-white/40 rounded-lg p-2 flex items-start space-x-2 text-white">
+            <span className="text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded bg-white/20 font-mono tracking-wider flex-shrink-0">
+              📢 RSO {activeDirective.severity}
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] font-extrabold uppercase leading-tight text-amber-200 truncate">{activeDirective.title}</p>
+              <p className="text-[8px] text-white/90 leading-tight mt-0.5 line-clamp-2">{activeDirective.details}</p>
+            </div>
+          </div>
+        )}
+
         {/* Alerts Stack */}
-        {((reasons && reasons.length > 0) || (projected && projected.length > 0)) && (
+        {((reasons && reasons.length > 0) || (projected && projected.length > 0) || activeDirective) && (
           <div className="border-t border-white/10 pt-2 flex flex-col space-y-2">
             {reasons && reasons.length > 0 && (
               <div>
@@ -124,6 +152,29 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
             Current Alerts
           </p>
           <div className="flex-grow overflow-y-auto no-scrollbar py-0.5">
+            {/* Active Directive Notice on TV Console */}
+            {activeDirective && (
+              <div className="mb-1.5 p-1.5 rounded bg-black/50 border border-amber-300/40 flex items-start space-x-2 text-white">
+                <span className="bg-amber-500/30 border border-amber-300/60 text-amber-200 px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase font-mono tracking-wider flex-shrink-0">
+                  📢 RSO {activeDirective.severity || 'DIRECTIVE'}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[9.5px] font-black uppercase tracking-wide text-amber-200 leading-snug">
+                    {activeDirective.title}
+                  </p>
+                  {activeDirective.details && (
+                    <p className="text-[8px] text-white/90 leading-tight mt-0.5 line-clamp-1">
+                      {activeDirective.details}
+                    </p>
+                  )}
+                  <div className="flex items-center space-x-1.5 mt-0.5 text-[7px] font-mono text-white/70">
+                    <span className="truncate">BY: {activeDirective.author}</span>
+                    <span>•</span>
+                    <span>{new Date(activeDirective.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} GST</span>
+                  </div>
+                </div>
+              </div>
+            )}
             {reasons && reasons.length > 0 ? (
               <ul className="space-y-1 text-left text-white">
                 {reasons.map((reason, idx) => (
@@ -133,11 +184,11 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
                   </li>
                 ))}
               </ul>
-            ) : (
+            ) : !activeDirective ? (
               <p className="text-[10px] font-extrabold uppercase tracking-wider text-white/60 mt-1">
                 ✓ No active alerts. All sensors safe.
               </p>
-            )}
+            ) : null}
           </div>
         </div>
 

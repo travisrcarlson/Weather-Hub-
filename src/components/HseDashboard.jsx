@@ -1,18 +1,44 @@
-import React, { useState } from 'react';
-import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar, MessageSquare, Phone, Send, Radio, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
+import { getActiveHseDirective, getHseDirectiveHistory, getWhatsAppConfig } from '../services/hseBroadcastService';
 
-export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated }) {
+export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated, onViewModeChange }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
-  const [hseActiveTab, setHseActiveTab] = useState('table'); // 'table' or 'trends'
+  const [hseActiveTab, setHseActiveTab] = useState('table'); // 'table', 'trends', or 'directives'
   const [supervisorName, setSupervisorName] = useState('');
   const [incidentCategory, setIncidentCategory] = useState('heat');
   const [incidentNotes, setIncidentNotes] = useState('');
   const [showLogSuccess, setShowLogSuccess] = useState(false);
   const [lookbackHours, setLookbackHours] = useState(48); // default to 48H to capture yesterday
+
+  // Live HSE Directives & WhatsApp State
+  const [activeDirective, setActiveDirective] = useState(getActiveHseDirective());
+  const [directiveHistory, setDirectiveHistory] = useState(getHseDirectiveHistory());
+  const [waConfig, setWaConfig] = useState(getWhatsAppConfig());
+
+  useEffect(() => {
+    const handleDirectiveChange = () => {
+      setActiveDirective(getActiveHseDirective());
+      setDirectiveHistory(getHseDirectiveHistory());
+    };
+    const handleWaChange = () => {
+      setWaConfig(getWhatsAppConfig());
+    };
+
+    window.addEventListener('xrange-hse-directive', handleDirectiveChange);
+    window.addEventListener('xrange-whatsapp-config', handleWaChange);
+    window.addEventListener('storage', handleDirectiveChange);
+
+    return () => {
+      window.removeEventListener('xrange-hse-directive', handleDirectiveChange);
+      window.removeEventListener('xrange-whatsapp-config', handleWaChange);
+      window.removeEventListener('storage', handleDirectiveChange);
+    };
+  }, []);
 
   if (!data || !hourlyData || !hourlyData.time) {
     return (
@@ -834,6 +860,52 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
         </div>
       </div>
 
+      {/* Active HSE Directive Emergency Banner (if active) */}
+      {activeDirective && (
+        <div className={`mb-3 p-3 border rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-lg transition-all ${
+          activeDirective.severity === 'critical'
+            ? 'bg-red-950/80 border-red-500/80 text-red-100 shadow-red-950/40'
+            : activeDirective.severity === 'caution'
+            ? 'bg-amber-950/80 border-amber-500/80 text-amber-100 shadow-amber-950/40'
+            : 'bg-cyan-950/80 border-cyan-500/80 text-cyan-100 shadow-cyan-950/40'
+        }`}>
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className={`p-2 rounded-lg flex-shrink-0 ${
+              activeDirective.severity === 'critical' ? 'bg-red-600/30 text-red-300 animate-pulse' :
+              activeDirective.severity === 'caution' ? 'bg-amber-600/30 text-amber-300 animate-pulse' :
+              'bg-cyan-600/30 text-cyan-300'
+            }`}>
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded font-mono ${
+                  activeDirective.severity === 'critical' ? 'bg-red-600 text-white' :
+                  activeDirective.severity === 'caution' ? 'bg-amber-500 text-black' :
+                  'bg-cyan-600 text-white'
+                }`}>
+                  {activeDirective.severity.toUpperCase()} DIRECTIVE
+                </span>
+                <span className="text-xs font-black uppercase tracking-wide truncate text-white">{activeDirective.title}</span>
+                <span className="text-[10px] text-slate-300 font-mono">[{activeDirective.category?.toUpperCase()}]</span>
+              </div>
+              <p className="text-[11.5px] opacity-95 mt-1 font-medium leading-tight">{activeDirective.details}</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-3 text-[10px] opacity-90 self-end md:self-auto font-mono flex-shrink-0 bg-black/30 px-2.5 py-1 rounded border border-white/10">
+            <span>By: <strong className="text-white font-sans">{activeDirective.author}</strong></span>
+            <span>•</span>
+            <span>{new Date(activeDirective.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Dubai' })} GST</span>
+            <button 
+              onClick={() => setHseActiveTab('directives')}
+              className="text-edgeOrange hover:text-white underline cursor-pointer font-black text-[9px] uppercase tracking-wider ml-1"
+            >
+              Manage &rarr;
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Grid Content */}
       <div className="grid grid-cols-12 gap-4 flex-grow min-h-0 items-stretch">
         
@@ -889,6 +961,15 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
                   }`}
                 >
                   Visual Trends
+                </button>
+                <button
+                  onClick={() => setHseActiveTab('directives')}
+                  className={`px-3 py-1 rounded-none text-[8.5px] font-black uppercase cursor-pointer transition-all flex items-center space-x-1.5 ${
+                    hseActiveTab === 'directives' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                >
+                  <Radio className={`w-3 h-3 ${activeDirective ? 'text-red-400 animate-pulse' : ''}`} />
+                  <span>Directives {activeDirective ? '●' : ''}</span>
                 </button>
               </div>
             </div>
@@ -964,7 +1045,7 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
                 </tbody>
               </table>
             </div>
-          ) : (
+          ) : hseActiveTab === 'trends' ? (
             <div className="flex-grow flex flex-col space-y-4 pr-1 no-scrollbar min-h-0 overflow-y-auto">
               {/* Chart 1: Heat Stress Trends */}
               <div className="bg-bgDeepSpace/30 border border-slate-800/80 p-3 rounded-lg h-[185px] flex flex-col">
@@ -1042,6 +1123,185 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
                     </AreaChart>
                   </ResponsiveContainer>
                 </div>
+              </div>
+            </div>
+          ) : (
+            /* Directives & WhatsApp Broadcast Console */
+            <div className="flex-grow flex flex-col space-y-3 min-h-0 overflow-y-auto no-scrollbar pr-1">
+              {/* Active Directive Status Box */}
+              <div className="bg-bgDeepSpace/40 border border-slate-800/90 rounded-lg p-3">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2.5">
+                  <div className="flex items-center space-x-2">
+                    <Radio className="w-4 h-4 text-edgeOrange animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-textIceWhite">
+                      Range Directive Status
+                    </span>
+                  </div>
+                  {activeDirective ? (
+                    <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono ${
+                      activeDirective.severity === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/50' :
+                      activeDirective.severity === 'caution' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/50' :
+                      'bg-cyan-500/20 text-cyan-400 border border-cyan-500/50'
+                    }`}>
+                      {activeDirective.severity.toUpperCase()} ACTIVE
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono bg-green-500/20 text-green-400 border border-green-500/50">
+                      NORMAL RANGE OPS (ALL CLEAR)
+                    </span>
+                  )}
+                </div>
+
+                {activeDirective ? (
+                  <div className="space-y-2">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-black uppercase text-white tracking-wide">{activeDirective.title}</span>
+                        <span className="text-[9px] font-mono text-slate-400">
+                          {new Date(activeDirective.timestamp).toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST
+                        </span>
+                      </div>
+                      <div className="text-[9.5px] font-mono text-slate-400 mt-0.5">
+                        Issued by: <strong className="text-slate-200">{activeDirective.author}</strong> | Category: <strong className="text-slate-200">{activeDirective.category?.toUpperCase()}</strong>
+                      </div>
+                    </div>
+                    <div className="p-2.5 bg-black/40 border border-slate-800 rounded text-xs text-slate-200 leading-relaxed font-sans">
+                      {activeDirective.details}
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="flex items-center space-x-1 text-green-400">
+                          <span>✓</span>
+                          <span>Outdoor TV Console</span>
+                        </span>
+                        <span className="text-slate-600">•</span>
+                        <span className="flex items-center space-x-1 text-green-400">
+                          <span>✓</span>
+                          <span>WhatsApp Range Channel</span>
+                        </span>
+                      </div>
+                      {onViewModeChange && (
+                        <button
+                          onClick={() => onViewModeChange('backend')}
+                          className="text-edgeOrange hover:text-white underline cursor-pointer font-black uppercase text-[8.5px]"
+                        >
+                          Modify in Backend Dispatcher &rarr;
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 text-slate-400">
+                    <p className="text-xs font-bold text-slate-300">No active manual directives are currently enforced.</p>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Automated weather safety monitoring remains fully operational on outdoor screens.
+                    </p>
+                    {onViewModeChange && (
+                      <button
+                        onClick={() => onViewModeChange('backend')}
+                        className="mt-3 px-3 py-1.5 bg-edgeOrange/20 border border-edgeOrange/60 text-edgeOrange hover:bg-edgeOrange hover:text-white text-[9.5px] font-black uppercase tracking-wider rounded transition cursor-pointer"
+                      >
+                        + Issue Safety Directive via Backend
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* WhatsApp Live Channel Status Card */}
+              <div className="bg-bgDeepSpace/40 border border-slate-800/90 rounded-lg p-3">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2">
+                  <div className="flex items-center space-x-2">
+                    <MessageSquare className="w-4 h-4 text-emerald-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-textIceWhite">
+                      WhatsApp Live Range Broadcast Channel
+                    </span>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase font-mono ${
+                    waConfig.enabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/50' : 'bg-slate-700/30 text-slate-400 border border-slate-700'
+                  }`}>
+                    {waConfig.enabled ? 'GATEWAY ACTIVE' : 'GATEWAY STANDBY'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-[10px] mb-2.5 font-mono">
+                  <div className="bg-black/30 p-2 rounded border border-slate-800/80">
+                    <div className="text-slate-500 text-[8.5px] uppercase">Service Provider</div>
+                    <div className="text-slate-200 font-bold mt-0.5 truncate">
+                      {waConfig.provider === 'callmebot' ? 'CallMeBot (Free WhatsApp API)' : 'Custom Webhook URL'}
+                    </div>
+                  </div>
+                  <div className="bg-black/30 p-2 rounded border border-slate-800/80">
+                    <div className="text-slate-500 text-[8.5px] uppercase">Automated Alarms</div>
+                    <div className="text-slate-200 font-bold mt-0.5 truncate">
+                      {[
+                        waConfig.autoTriggers?.wbgt ? 'WBGT' : null,
+                        waConfig.autoTriggers?.lightning ? 'Lightning' : null,
+                        waConfig.autoTriggers?.wind ? 'Gale' : null
+                      ].filter(Boolean).join(', ') || 'Manual Only'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[9px]">
+                  <span className="text-slate-400 italic text-[8.5px]">
+                    {waConfig.enabled 
+                      ? 'Automated 15-minute anti-spam throttling active for critical weather events.'
+                      : 'Configure your free WhatsApp API key or webhook in Backend Feeds.'}
+                  </span>
+                  {onViewModeChange && (
+                    <button
+                      onClick={() => onViewModeChange('backend')}
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded text-[8.5px] font-black uppercase cursor-pointer transition flex items-center space-x-1 flex-shrink-0"
+                    >
+                      <span>Configure</span>
+                      <ExternalLink className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Directives Audit Trail / History */}
+              <div className="bg-bgDeepSpace/40 border border-slate-800/90 rounded-lg p-3 flex-grow min-h-0 flex flex-col">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 mb-2">
+                  <div className="flex items-center space-x-2">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">
+                      Directive Dispatch Audit Trail ({directiveHistory.length})
+                    </span>
+                  </div>
+                  <span className="text-[8.5px] text-slate-500 font-mono">Session log</span>
+                </div>
+
+                {directiveHistory.length === 0 ? (
+                  <div className="py-4 text-center text-slate-500 text-[10px] italic">
+                    No directives have been broadcast yet in this session.
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 overflow-y-auto max-h-[140px] no-scrollbar pr-1">
+                    {directiveHistory.map((d) => (
+                      <div key={d.id} className="p-2 rounded bg-black/30 border border-slate-800/80 flex items-start justify-between gap-2 text-[9.5px]">
+                        <div className="min-w-0">
+                          <div className="flex items-center space-x-1.5">
+                            <span className={`px-1.5 py-0.2 rounded text-[7.5px] font-black uppercase font-mono ${
+                              d.severity === 'critical' ? 'bg-red-500/20 text-red-400' :
+                              d.severity === 'caution' ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-cyan-500/20 text-cyan-400'
+                            }`}>
+                              {d.severity}
+                            </span>
+                            <span className="font-bold text-white truncate">{d.title}</span>
+                          </div>
+                          <p className="text-slate-400 truncate mt-0.5">{d.details}</p>
+                        </div>
+                        <div className="text-right flex-shrink-0 font-mono text-[8px] text-slate-500">
+                          <div>{new Date(d.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Dubai' })} GST</div>
+                          <div className="text-slate-400">{d.author}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

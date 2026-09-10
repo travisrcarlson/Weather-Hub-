@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Database, Network, Activity, Cpu, Code, Copy, Check, ShieldAlert, Wifi, Globe, MapPin, ExternalLink, Sliders, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 import XRangeMap from './XRangeMap';
+import HseWebhookDispatcher from './HseWebhookDispatcher';
 import { 
   PROVIDERS, 
   getActiveProvider, 
@@ -303,6 +304,17 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
             }`}
           >
             Simulated Local Stations
+          </button>
+          <button
+            onClick={() => setSubTab('hse-dispatch')}
+            className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center space-x-1.5 ${
+              subTab === 'hse-dispatch'
+                ? 'border-edgeOrange text-edgeOrange bg-edgeOrange/5'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5" />
+            <span>HSE & WhatsApp Dispatcher</span>
           </button>
         </div>
 
@@ -629,7 +641,7 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
 
           </div>
         </div>
-      ) : (
+      ) : subTab === 'stations' ? (
         <div className="flex-grow h-[88%] w-full">
           <XRangeMap 
             apiData={apiData} 
@@ -640,6 +652,10 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
             hideDetails={false}
             showSimulatedStations={true}
           />
+        </div>
+      ) : (
+        <div className="flex-grow h-[88%] w-full min-h-0 overflow-hidden">
+          <HseWebhookDispatcher />
         </div>
       )}
     </div>
