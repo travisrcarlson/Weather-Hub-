@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, Sun, Activity, Eye, FileText } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, Sun, Activity, Eye, FileText, Crosshair, Plane, Users, Anchor, CheckCircle2, XCircle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort, getClimaticAnomalyForYear } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
+import { evaluateTacticalMissionMatrix } from '../utils/tacticalBallisticsEngine';
 
 // Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
 const climateDb = [
@@ -21,7 +22,7 @@ const climateDb = [
   { name: 'December', minT: 16, maxT: 26, avgRH: 65, uv: 5, wind: 14, gustM: 1.3 }
 ];
 
-export default function PlanningDashboard({ isSimulated }) {
+export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }) {
   const getDubaiDateString = (dateVal) => {
     const date = dateVal instanceof Date ? dateVal : new Date(dateVal);
     const formatter = new Intl.DateTimeFormat('en-US', {
@@ -37,6 +38,9 @@ export default function PlanningDashboard({ isSimulated }) {
 
   const [selectedDate, setSelectedDate] = useState(getDubaiDateString(new Date()));
   const [planningSource, setPlanningSource] = useState('ARCHIVE'); // 'ARCHIVE' or 'CLIMATOLOGY'
+  const [planningMode, setPlanningMode] = useState('DIURNAL'); // 'DIURNAL' or 'TACTICAL_MATRIX'
+  const [selectedMatrixDay, setSelectedMatrixDay] = useState(0);
+  const [matrixFilter, setMatrixFilter] = useState('ALL'); // 'ALL' | 'liveFire' | 'uav' | 'infantry' | 'amphibious'
   
   // Dynamically derive the climatic anomaly based on the selected year
   const selectedYear = isNaN(new Date(selectedDate).getTime()) ? 2026 : new Date(selectedDate).getFullYear();
@@ -48,6 +52,11 @@ export default function PlanningDashboard({ isSimulated }) {
   const [dataSource, setDataSource] = useState('SIMULATED'); // 'API' or 'SIMULATED' or 'API_ANALOG'
   const [analogDateUsed, setAnalogDateUsed] = useState(null);
   const [fetchError, setFetchError] = useState(null);
+
+  // WeatherNext 3 7-day tactical mission operational windows matrix
+  const tacticalDays = useMemo(() => {
+    return evaluateTacticalMissionMatrix(hourlyData, dailyData, selectedDate);
+  }, [hourlyData, dailyData, selectedDate]);
 
   // Parse active month climate data
   const dateObjForMonth = new Date(selectedDate);
@@ -418,6 +427,64 @@ export default function PlanningDashboard({ isSimulated }) {
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
     link.setAttribute('download', `XRANGE_Planning_Brief_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // WeatherNext 3 7-Day Tactical Mission Operational Windows Briefing Generator
+  const handleExportTacticalBrief = () => {
+    if (!tacticalDays || tacticalDays.length === 0) return;
+
+    let brief = `======================================================================\n`;
+    brief += `       XRANGE WEATHERNEXT 3 - 7-DAY TACTICAL MISSION MATRIX BRIEF\n`;
+    brief += `======================================================================\n`;
+    brief += `GENERATED: ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST\n`;
+    brief += `START DATE: ${selectedDate} | TARGET: XRANGE HQ (24.20°N, 52.78°E)\n`;
+    brief += `MODEL: Google DeepMind WeatherNext 3 (5km Microclimate Resolution)\n`;
+    brief += `OPERATING STANDARDS: ADOSH CoP 11.0 / UAE MoHRE Midday Work Ban / MIL-STD-810H\n`;
+    brief += `======================================================================\n\n`;
+
+    tacticalDays.forEach((d, idx) => {
+      brief += `----------------------------------------------------------------------\n`;
+      brief += `DAY ${idx + 1}: ${d.dayLabel.toUpperCase()} (${d.dateStr})\n`;
+      brief += `----------------------------------------------------------------------\n`;
+      brief += `* Max Temperature:      ${d.maxTemp.toFixed(1)}°C\n`;
+      brief += `* Peak Heat Stress:     ${d.maxWbgt.toFixed(1)}°C WBGT\n`;
+      brief += `* Peak Surface Wind:    ${d.maxWind.toFixed(0)} km/h (Gusts: ${d.maxGust.toFixed(0)} km/h)\n`;
+      brief += `* 100m Boundary Wind:   ${d.maxWind100m.toFixed(0)} km/h\n`;
+      brief += `* MoHRE Midday Ban:     ${d.isMiddayBanDate ? 'MANDATORY HALT (12:30 - 15:00 GST)' : 'INACTIVE'}\n\n`;
+      brief += `OPERATIONAL STATUS RATINGS:\n`;
+      brief += `  1. [LIVE-FIRE EXERCISES]  Rating: ${d.summary.liveFire}\n`;
+      brief += `  2. [UAV & DRONE SORTIES]  Rating: ${d.summary.uav}\n`;
+      brief += `  3. [INFANTRY MANEUVERS]   Rating: ${d.summary.infantry}\n`;
+      brief += `  4. [AMPHIBIOUS SEA OPS]   Rating: ${d.summary.amphibious}\n\n`;
+      
+      const noGoHours = d.hours.filter(h => Object.values(h.ops).some(op => op.status === 'NO-GO'));
+      if (noGoHours.length > 0) {
+        brief += `CRITICAL RESTRICTION HOURS:\n`;
+        noGoHours.forEach(h => {
+          const reasons = Object.entries(h.ops)
+            .filter(([_, op]) => op.status === 'NO-GO')
+            .map(([k, op]) => `${k.toUpperCase()}: ${op.reason}`)
+            .join(' | ');
+          brief += `  - ${h.hour}:00 GST -> ${reasons}\n`;
+        });
+      } else {
+        brief += `CRITICAL RESTRICTION HOURS: None. Full operating clearance.\n`;
+      }
+      brief += `\n`;
+    });
+
+    brief += `======================================================================\n`;
+    brief += `Compiled automatically by XRANGE Tactical Weather & Safety System.\n`;
+    brief += `Range Control Officers (RCO) must continuously verify local sensor telemetry.\n`;
+    brief += `======================================================================\n`;
+
+    const blob = new Blob([brief], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `XRANGE_WeatherNext3_Tactical_Windows_${selectedDate}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -861,6 +928,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
   };
 
   const timelineIntervals = getTimelineIntervals();
+  const activeTacticalDay = tacticalDays[selectedMatrixDay] || tacticalDays[0];
 
   return (
     <div className="w-full h-full flex flex-col space-y-4 text-textIceWhite overflow-y-auto lg:overflow-hidden select-none px-4 py-3">
@@ -881,10 +949,37 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
           </p>
         </div>
 
-        {/* Date Selector input */}
+        {/* Planning Sub-Mode Switcher */}
+        <div className="flex bg-bgDeepSpace/80 p-1 rounded-lg border border-slate-700/60">
+          <button
+            onClick={() => setPlanningMode('DIURNAL')}
+            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              planningMode === 'DIURNAL'
+                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/20'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            📊 24H Diurnal Planner
+          </button>
+          <button
+            onClick={() => setPlanningMode('TACTICAL_MATRIX')}
+            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1.5 ${
+              planningMode === 'TACTICAL_MATRIX'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/20'
+                : 'text-cyan-400 hover:text-white'
+            }`}
+          >
+            <Crosshair className="w-3.5 h-3.5" />
+            <span>7-Day Mission Windows (WN3)</span>
+          </button>
+        </div>
+
+        {/* Date Selector input & actions */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center bg-bgDeepSpace border border-slate-700/80 px-3 py-1.5 gap-2">
-            <span className="text-[9.5px] font-black uppercase text-slate-400">SELECT DATE:</span>
+            <span className="text-[9.5px] font-black uppercase text-slate-400">
+              {planningMode === 'TACTICAL_MATRIX' ? 'START DATE:' : 'SELECT DATE:'}
+            </span>
             <input 
               type="date" 
               value={selectedDate}
@@ -893,56 +988,72 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
             />
           </div>
 
-          <div className="flex items-center bg-bgDeepSpace border border-slate-700/80 px-3 py-1.5 gap-2">
-            <span className="text-[9.5px] font-black uppercase text-slate-400">MODEL DATA:</span>
-            <select
-              value={planningSource}
-              onChange={(e) => setPlanningSource(e.target.value)}
-              className="bg-transparent text-white font-bold text-xs border-none outline-none cursor-pointer uppercase font-mono"
+          {planningMode === 'DIURNAL' && (
+            <div className="flex items-center bg-bgDeepSpace border border-slate-700/80 px-3 py-1.5 gap-2">
+              <span className="text-[9.5px] font-black uppercase text-slate-400">MODEL DATA:</span>
+              <select
+                value={planningSource}
+                onChange={(e) => setPlanningSource(e.target.value)}
+                className="bg-transparent text-white font-bold text-xs border-none outline-none cursor-pointer uppercase font-mono"
+              >
+                <option value="ARCHIVE" className="bg-cardDarkSlate text-white">Specific Date (Archive)</option>
+                <option value="CLIMATOLOGY" className="bg-cardDarkSlate text-white">Monthly Average (Climatology)</option>
+              </select>
+            </div>
+          )}
+
+          {planningMode === 'TACTICAL_MATRIX' ? (
+            <button
+              onClick={handleExportTacticalBrief}
+              disabled={!tacticalDays || tacticalDays.length === 0}
+              className="bg-cyan-600 hover:bg-cyan-500 border border-cyan-400 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-white cursor-pointer shadow-md shadow-cyan-600/20"
+              title="Export 7-Day WeatherNext 3 Tactical Operations Briefing"
             >
-              <option value="ARCHIVE" className="bg-cardDarkSlate text-white">Specific Date (Archive)</option>
-              <option value="CLIMATOLOGY" className="bg-cardDarkSlate text-white">Monthly Average (Climatology)</option>
-            </select>
-          </div>
+              <FileText className="w-4 h-4 animate-pulse" />
+              <span>EXPORT 7-DAY BRIEF</span>
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={handleGenerateRcoBrief}
+                disabled={hourlyLogs.length === 0 || isLoading}
+                className="bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-white cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-edgeOrange/15"
+                title="Draft Daily Weather Briefing for the Range Control Officer"
+              >
+                <FileText className="w-4 h-4 animate-pulse" />
+                <span>DRAFT RCO BRIEF</span>
+              </button>
 
-          <button
-            onClick={handleGenerateRcoBrief}
-            disabled={hourlyLogs.length === 0 || isLoading}
-            className="bg-edgeOrange hover:bg-orange-600 border border-orange-700 hover:border-orange-500 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-white cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md shadow-edgeOrange/15"
-            title="Draft Daily Weather Briefing for the Range Control Officer"
-          >
-            <FileText className="w-4 h-4 animate-pulse" />
-            <span>DRAFT RCO BRIEF</span>
-          </button>
+              <button
+                onClick={handleGenerateRcoPdfBrief}
+                disabled={hourlyLogs.length === 0 || isLoading}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-550 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md"
+                title="Draft Daily Weather Briefing PDF for the Range Control Officer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>DRAFT PDF BRIEF</span>
+              </button>
 
-          <button
-            onClick={handleGenerateRcoPdfBrief}
-            disabled={hourlyLogs.length === 0 || isLoading}
-            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-550 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md"
-            title="Draft Daily Weather Briefing PDF for the Range Control Officer"
-          >
-            <FileText className="w-4 h-4" />
-            <span>DRAFT PDF BRIEF</span>
-          </button>
+              <button
+                onClick={handleGenerateRcoWordBrief}
+                disabled={hourlyLogs.length === 0 || isLoading}
+                className="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-550 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md"
+                title="Draft Daily Weather Briefing Word Document for the Range Control Officer"
+              >
+                <FileText className="w-4 h-4" />
+                <span>DRAFT WORD BRIEF</span>
+              </button>
 
-          <button
-            onClick={handleGenerateRcoWordBrief}
-            disabled={hourlyLogs.length === 0 || isLoading}
-            className="bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-550 transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-200 cursor-pointer disabled:opacity-40 disabled:pointer-events-none shadow-md"
-            title="Draft Daily Weather Briefing Word Document for the Range Control Officer"
-          >
-            <FileText className="w-4 h-4" />
-            <span>DRAFT WORD BRIEF</span>
-          </button>
-
-          <button
-            onClick={handleExportCSV}
-            disabled={hourlyLogs.length === 0 || isLoading}
-            className="bg-bgDeepSpace/65 border border-slate-700/60 hover:border-slate-500 hover:text-white transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-350 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
-          >
-            <Download className="w-4 h-4" />
-            <span>EXPORT CSV LOG</span>
-          </button>
+              <button
+                onClick={handleExportCSV}
+                disabled={hourlyLogs.length === 0 || isLoading}
+                className="bg-bgDeepSpace/65 border border-slate-700/60 hover:border-slate-500 hover:text-white transition-all duration-300 px-3.5 py-1.5 text-xs font-black uppercase flex items-center space-x-2 text-slate-350 cursor-pointer disabled:opacity-40 disabled:pointer-events-none"
+              >
+                <Download className="w-4 h-4" />
+                <span>EXPORT CSV LOG</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1011,297 +1122,693 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       )}
 
       {/* Main Grid Content */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto lg:overflow-hidden min-h-0">
-        
-        {/* Left Side: KPIs and Charts (7 cols) */}
-        <div className="lg:col-span-7 flex flex-col space-y-4 min-h-0">
+      {planningMode === 'DIURNAL' ? (
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-4 overflow-y-auto lg:overflow-hidden min-h-0">
           
-          {/* KPI Statistics Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
-            {/* Safe Operational Window */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[9px] font-black uppercase tracking-wider">CLEAR WINDOW</span>
-                <Shield className="w-4 h-4 text-safetyGreen" />
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-mono font-black text-white">{stats ? stats.safeHoursCount : '--'}</span>
-                <span className="text-xs text-slate-400 font-bold"> / 24H</span>
-              </div>
-              <span className="text-[8px] text-slate-400 font-bold uppercase truncate">Hours with no flags</span>
-            </div>
-
-            {/* Peak Thermal load */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[9px] font-black uppercase tracking-wider">PEAK WBGT HEAT</span>
-                <Sun className="w-4 h-4 text-edgeOrange" />
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-mono font-black text-white">
-                  {stats ? stats.peakWbgt.toFixed(1) : '--'}
-                </span>
-                <span className="text-xs text-slate-400 font-bold">°C</span>
-              </div>
-              <span className="text-[8px] text-slate-400 font-bold uppercase block truncate">
-                At {stats ? stats.peakWbgtTime : '--'} • Peak Shade: {stats ? stats.peakTemp.toFixed(1) : '--'}°C
-              </span>
-              <span className="text-[8px] text-edgeOrange font-black uppercase block truncate mt-0.5">
-                {currentMonthAvg ? `${currentMonthAvg.name} Avg: H ${currentMonthAvg.maxT}°C / L ${currentMonthAvg.minT}°C` : ''}
-              </span>
-            </div>
-
-            {/* Total Hydration Planning */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[9px] font-black uppercase tracking-wider">HYDRATION NEED</span>
-                <Droplet className="w-4 h-4 text-blue-400" />
-              </div>
-              <div className="mt-1">
-                <span className="text-2xl font-mono font-black text-white">
-                  {stats ? stats.totalHydrationLiters.toFixed(2) : '--'}
-                </span>
-                <span className="text-xs text-slate-400 font-bold"> LITERS</span>
-              </div>
-              <span className="text-[8px] text-slate-400 font-bold uppercase">Per person (08:00 - 16:00 Shift)</span>
-            </div>
-
-            {/* Drone & Wind Assessment */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
-              <div className="flex items-center justify-between text-slate-400">
-                <span className="text-[9px] font-black uppercase tracking-wider">DRONE READINESS</span>
-                <Wind className="w-4 h-4 text-cyan-400" />
-              </div>
-              <div className="mt-1">
-                <span className="text-sm font-black text-white block truncate">
-                  {stats ? stats.droneRisk : '--'}
-                </span>
-                <span className={`text-[8.5px] font-black border px-1 inline-block mt-0.5 ${stats ? stats.droneColor : ''}`}>
-                  MAX GUST: {stats ? stats.maxGust.toFixed(0) : '--'} KM/H
-                </span>
-              </div>
-              <span className="text-[8px] text-slate-400 font-bold uppercase">Aerodynamic flight window</span>
-            </div>
-          </div>
-
-          {/* Recharts Area Curves (Scrollable on height restricted screens) */}
-          <div className="flex-1 flex flex-col space-y-4 min-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+          {/* Left Side: KPIs and Charts (7 cols) */}
+          <div className="lg:col-span-7 flex flex-col space-y-4 min-h-0">
             
-            {/* Chart 1: Heat Stress Profile */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-4 flex flex-col h-[200px]">
-              <span className="text-[10px] font-black tracking-wider text-slate-400 mb-2 uppercase block">
-                Thermal Load Profile (Shade Temp vs Wet Bulb Globe Temp)
-              </span>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={hourlyLogs} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="tempGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#FF4E02" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#FF4E02" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="wbgtGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                    <XAxis dataKey="hourLabel" stroke="#4B5563" fontSize={9} tickLine={false} />
-                    <YAxis domain={[10, 50]} stroke="#4B5563" fontSize={9} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 11 }}
-                      labelClassName="text-slate-400 font-mono font-bold"
-                    />
-                    {/* Safety reference zones for WBGT */}
-                    <ReferenceArea y1={30.0} y2={50} fill="#EF4444" fillOpacity={0.05} />
-                    <ReferenceArea y1={27.9} y2={30.0} fill="#D97706" fillOpacity={0.05} />
-                    <ReferenceLine y={30.0} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'HALT 30°C', fill: '#EF4444', fontSize: 8, position: 'insideRight' }} />
-                    <Area type="monotone" dataKey="temp" name="Shade Temp" stroke="#FF4E02" strokeWidth={2} fillOpacity={1} fill="url(#tempGlow)" />
-                    <Area type="monotone" dataKey="wbgt" name="WBGT Index" stroke="#8B5CF6" strokeWidth={2} fillOpacity={1} fill="url(#wbgtGlow)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+            {/* KPI Statistics Row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+              {/* Safe Operational Window */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider">CLEAR WINDOW</span>
+                  <Shield className="w-4 h-4 text-safetyGreen" />
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-mono font-black text-white">{stats ? stats.safeHoursCount : '--'}</span>
+                  <span className="text-xs text-slate-400 font-bold"> / 24H</span>
+                </div>
+                <span className="text-[8px] text-slate-400 font-bold uppercase truncate">Hours with no flags</span>
+              </div>
+
+              {/* Peak Thermal load */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider">PEAK WBGT HEAT</span>
+                  <Sun className="w-4 h-4 text-edgeOrange" />
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-mono font-black text-white">
+                    {stats ? stats.peakWbgt.toFixed(1) : '--'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-bold">°C</span>
+                </div>
+                <span className="text-[8px] text-slate-400 font-bold uppercase block truncate">
+                  At {stats ? stats.peakWbgtTime : '--'} • Peak Shade: {stats ? stats.peakTemp.toFixed(1) : '--'}°C
+                </span>
+                <span className="text-[8px] text-edgeOrange font-black uppercase block truncate mt-0.5">
+                  {currentMonthAvg ? `${currentMonthAvg.name} Avg: H ${currentMonthAvg.maxT}°C / L ${currentMonthAvg.minT}°C` : ''}
+                </span>
+              </div>
+
+              {/* Total Hydration Planning */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider">HYDRATION NEED</span>
+                  <Droplet className="w-4 h-4 text-blue-400" />
+                </div>
+                <div className="mt-1">
+                  <span className="text-2xl font-mono font-black text-white">
+                    {stats ? stats.totalHydrationLiters.toFixed(2) : '--'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-bold"> LITERS</span>
+                </div>
+                <span className="text-[8px] text-slate-400 font-bold uppercase">Per person (08:00 - 16:00 Shift)</span>
+              </div>
+
+              {/* Drone & Wind Assessment */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-3 flex flex-col justify-between h-[100px]">
+                <div className="flex items-center justify-between text-slate-400">
+                  <span className="text-[9px] font-black uppercase tracking-wider">DRONE READINESS</span>
+                  <Wind className="w-4 h-4 text-cyan-400" />
+                </div>
+                <div className="mt-1">
+                  <span className="text-sm font-black text-white block truncate">
+                    {stats ? stats.droneRisk : '--'}
+                  </span>
+                  <span className={`text-[8.5px] font-black border px-1 inline-block mt-0.5 ${stats ? stats.droneColor : ''}`}>
+                    MAX GUST: {stats ? stats.maxGust.toFixed(0) : '--'} KM/H
+                  </span>
+                </div>
+                <span className="text-[8px] text-slate-400 font-bold uppercase">Aerodynamic flight window</span>
               </div>
             </div>
 
-            {/* Chart 2: Aerodynamic Profile */}
-            <div className="border border-slate-800/80 bg-cardDarkSlate p-4 flex flex-col h-[200px]">
-              <span className="text-[10px] font-black tracking-wider text-slate-400 mb-2 uppercase block">
-                Aerodynamic Profile (Wind speed, Wind Gusts & UV radiation)
-              </span>
-              <div className="flex-1">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={hourlyLogs} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="windGlow" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.2} />
-                        <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
-                    <XAxis dataKey="hourLabel" stroke="#4B5563" fontSize={9} tickLine={false} />
-                    <YAxis domain={[0, 60]} stroke="#4B5563" fontSize={9} tickLine={false} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 11 }}
-                      labelClassName="text-slate-400 font-mono font-bold"
-                    />
-                    <ReferenceLine y={38} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'GALE 38 km/h', fill: '#EF4444', fontSize: 8, position: 'insideRight' }} />
-                    <Area type="monotone" dataKey="gusts" name="Wind Gusts" stroke="#EC4899" strokeWidth={1} strokeDasharray="2 2" fill="none" />
-                    <Area type="monotone" dataKey="wind" name="Wind Speed" stroke="#06B6D4" strokeWidth={2} fillOpacity={1} fill="url(#windGlow)" />
-                    <Area type="monotone" dataKey="uv" name="UV Index" stroke="#FBBF24" strokeWidth={1.5} fill="none" />
-                  </AreaChart>
-                </ResponsiveContainer>
+            {/* Recharts Area Curves (Scrollable on height restricted screens) */}
+            <div className="flex-1 flex flex-col space-y-4 min-h-[350px] overflow-y-auto pr-1 no-scrollbar">
+              
+              {/* Chart 1: Heat Stress Profile */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-4 flex flex-col h-[200px]">
+                <span className="text-[10px] font-black tracking-wider text-slate-400 mb-2 uppercase block">
+                  Thermal Load Profile (Shade Temp vs Wet Bulb Globe Temp)
+                </span>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hourlyLogs} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="tempGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#FF4E02" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#FF4E02" stopOpacity={0.0} />
+                        </linearGradient>
+                        <linearGradient id="wbgtGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                      <XAxis dataKey="hourLabel" stroke="#4B5563" fontSize={9} tickLine={false} />
+                      <YAxis domain={[10, 50]} stroke="#4B5563" fontSize={9} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 11 }}
+                        labelClassName="text-slate-400 font-mono font-bold"
+                      />
+                      {/* Safety reference zones for WBGT */}
+                      <ReferenceArea y1={30.0} y2={50} fill="#EF4444" fillOpacity={0.05} />
+                      <ReferenceArea y1={27.9} y2={30.0} fill="#D97706" fillOpacity={0.05} />
+                      <ReferenceLine y={30.0} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'HALT 30°C', fill: '#EF4444', fontSize: 8, position: 'insideRight' }} />
+                      <Area type="monotone" dataKey="temp" name="Shade Temp" stroke="#FF4E02" strokeWidth={2} fillOpacity={1} fill="url(#tempGlow)" />
+                      <Area type="monotone" dataKey="wbgt" name="WBGT Index" stroke="#8B5CF6" strokeWidth={2} fillOpacity={1} fill="url(#wbgtGlow)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Chart 2: Aerodynamic Profile */}
+              <div className="border border-slate-800/80 bg-cardDarkSlate p-4 flex flex-col h-[200px]">
+                <span className="text-[10px] font-black tracking-wider text-slate-400 mb-2 uppercase block">
+                  Aerodynamic Profile (Wind speed, Wind Gusts & UV radiation)
+                </span>
+                <div className="flex-1">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hourlyLogs} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="windGlow" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.2} />
+                          <stop offset="95%" stopColor="#06B6D4" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1F2937" vertical={false} />
+                      <XAxis dataKey="hourLabel" stroke="#4B5563" fontSize={9} tickLine={false} />
+                      <YAxis domain={[0, 60]} stroke="#4B5563" fontSize={9} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: '#121418', borderColor: '#374151', fontSize: 11 }}
+                        labelClassName="text-slate-400 font-mono font-bold"
+                      />
+                      <ReferenceLine y={38} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'GALE 38 km/h', fill: '#EF4444', fontSize: 8, position: 'insideRight' }} />
+                      <Area type="monotone" dataKey="gusts" name="Wind Gusts" stroke="#EC4899" strokeWidth={1} strokeDasharray="2 2" fill="none" />
+                      <Area type="monotone" dataKey="wind" name="Wind Speed" stroke="#06B6D4" strokeWidth={2} fillOpacity={1} fill="url(#windGlow)" />
+                      <Area type="monotone" dataKey="uv" name="UV Index" stroke="#FBBF24" strokeWidth={1.5} fill="none" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Right Side: Compliance and Detailed Table (5 cols) */}
-        <div className="lg:col-span-5 flex flex-col space-y-4 min-h-0">
+          {/* Right Side: Compliance and Detailed Table (5 cols) */}
+          <div className="lg:col-span-5 flex flex-col space-y-4 min-h-0">
+            
+            {/* Timeline Range Status Advisories */}
+            <div className="border border-slate-800 bg-cardDarkSlate p-4 shrink-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">
+                Range Safety Windows Briefing
+              </span>
+              <div className="space-y-2">
+                {timelineIntervals.map((interval, idx) => (
+                  <div 
+                    key={idx} 
+                    className={`flex items-center justify-between px-3 py-2 border ${
+                      interval.status === 'RED' 
+                        ? 'border-stopRed/20 bg-stopRed/5 text-stopRed' 
+                        : interval.status === 'AMBER' 
+                          ? 'border-amber-500/20 bg-amber-500/5 text-amber-400' 
+                          : 'border-safetyGreen/20 bg-safetyGreen/5 text-safetyGreen'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="font-mono text-xs font-black">{interval.start} - {interval.end}</span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-[10px] font-black uppercase">
+                      {interval.status === 'RED' && <ShieldAlert className="w-4 h-4" />}
+                      {interval.status === 'GREEN' && <ShieldCheck className="w-4 h-4" />}
+                      <span>{interval.status === 'RED' ? 'HALT OUTDOOR ACTIVITIES' : interval.status === 'AMBER' ? 'INCREASE REST CYCLES' : 'ALL CLEAR / NORMAL'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Compliance & Policy Alerts */}
+            <div className="border border-slate-800 bg-cardDarkSlate p-4 shrink-0">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2.5">
+                COMPLIANCE AUDIT
+              </span>
+              <div className="space-y-3">
+                {/* MoHRE midday ban */}
+                {stats?.isMiddayBanPresent ? (
+                  <div className="bg-stopRed/10 border border-stopRed/30 p-3 flex items-start space-x-2.5">
+                    <AlertTriangle className="w-5 h-5 text-stopRed mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="text-[10.5px] font-black text-stopRed">MOHRE MIDDAY BAN ACTIVE</h4>
+                      <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
+                        UAE Law: Outdoor operations suspended between 12:30 and 15:00 GST. Employers must provide shade/shelter areas.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-safetyGreen/5 border border-safetyGreen/20 p-3 flex items-start space-x-2.5">
+                    <ShieldCheck className="w-5 h-5 text-safetyGreen mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="text-[10.5px] font-black text-safetyGreen">MOHRE BAN INACTIVE</h4>
+                      <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
+                        No seasonal midday restriction in place for this calendar period. Proceed under standard ADOSH thermal guidelines.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Heat Acclimatization Alert */}
+                {stats && stats.peakWbgt >= 27.9 ? (
+                  <div className="bg-amber-500/10 border border-amber-500/25 p-3 flex items-start space-x-2.5">
+                    <Activity className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                    <div>
+                      <h4 className="text-[10.5px] font-black text-amber-500">ACCLIMATIZATION REQUIRED</h4>
+                      <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
+                        Peak WBGT exceeds 27.9°C. Planners must apply a 7-to-14 day incremental exposure program for new range operators.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Diurnal Hourly Schedule Table */}
+            <div className="flex-grow border border-slate-800 bg-cardDarkSlate overflow-hidden flex flex-col min-h-[220px]">
+              <div className="bg-bgDeepSpace/40 px-4 py-2 border-b border-slate-800 shrink-0">
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  24-HOUR DETAILED DIURNAL LOG
+                </span>
+              </div>
+              
+              <div className="flex-1 overflow-auto no-scrollbar">
+                <table className="w-full border-collapse text-left">
+                  <thead className="bg-bgDeepSpace/20 sticky top-0 z-10 border-b border-slate-800/80">
+                    <tr>
+                      <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">HOUR</th>
+                      <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">STATUS</th>
+                      <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">WBGT</th>
+                      <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">WIND</th>
+                      <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">PLAN (REST / FLUID)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] font-black">
+                    {hourlyLogs.map((log, idx) => {
+                      let textClass = 'text-safetyGreen';
+                      if (log.safetyStatus === 'RED') textClass = 'text-stopRed';
+                      else if (log.safetyStatus === 'AMBER') textClass = 'text-amber-400';
+
+                      // Rest cycle details
+                      let workRest = 'Continuous';
+                      let hydration = '0.50 L';
+                      if (log.wbgt >= 30.0) {
+                        workRest = '30m Work/Rest';
+                        hydration = '1.25 L';
+                      } else if (log.wbgt >= 27.9) {
+                        workRest = '40m / 20m';
+                        hydration = '1.00 L';
+                      } else if (log.wbgt >= 25.9) {
+                        workRest = '50m / 10m';
+                        hydration = '0.75 L';
+                      }
+
+                      if (log.isMiddayBanActive) {
+                        workRest = 'MOHRE HALT';
+                        hydration = '0.00 L';
+                      }
+
+                      return (
+                        <tr key={idx} className={log.isMiddayBanActive ? 'bg-stopRed/5' : ''}>
+                          <td className="py-2 px-3 text-slate-300 flex items-center space-x-1">
+                            <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                            <span>{log.hourLabel}</span>
+                          </td>
+                          <td className={`py-2 px-3 ${textClass}`}>
+                            {log.isMiddayBanActive ? '🚨 BAN ACTIVE' : log.safetyStatus}
+                          </td>
+                          <td className="py-2 px-3 text-slate-100">{log.wbgt.toFixed(1)}°C</td>
+                          <td className="py-2 px-3 text-slate-100">{log.wind.toFixed(0)} <span className="text-[9.5px] text-slate-500 font-bold">({log.gusts.toFixed(0)})</span></td>
+                          <td className="py-2 px-3 text-slate-400">
+                            {workRest} <span className="text-[9.5px] text-blue-400 font-bold">({hydration})</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      ) : (
+        /* 7-DAY TACTICAL MISSION OPERATIONAL WINDOWS MATRIX (WeatherNext 3) */
+        <div className="flex-1 flex flex-col space-y-4 overflow-y-auto min-h-0 no-scrollbar">
           
-          {/* Timeline Range Status Advisories */}
-          <div className="border border-slate-800 bg-cardDarkSlate p-4 shrink-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">
-              Range Safety Windows Briefing
+          {/* 1. Tactical Operation Pillars Overview for Active Day */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 shrink-0">
+            {/* Live-Fire */}
+            <div className={`p-3.5 border rounded-lg bg-cardDarkSlate flex flex-col justify-between ${
+              activeTacticalDay.summary.liveFire === 'OPTIMAL' ? 'border-safetyGreen/40 shadow-sm shadow-safetyGreen/5' :
+              activeTacticalDay.summary.liveFire === 'RESTRICTED' ? 'border-amberAlert/40 shadow-sm shadow-amberAlert/5' :
+              'border-stopRed/50 shadow-sm shadow-stopRed/5'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Crosshair className="w-4 h-4 text-edgeOrange" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">LIVE-FIRE EXERCISES</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase ${
+                  activeTacticalDay.summary.liveFire === 'OPTIMAL' ? 'bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40' :
+                  activeTacticalDay.summary.liveFire === 'RESTRICTED' ? 'bg-amberAlert/20 text-amberAlert border border-amberAlert/40' :
+                  'bg-stopRed/20 text-stopRed border border-stopRed/40 animate-pulse'
+                }`}>
+                  {activeTacticalDay.summary.liveFire}
+                </span>
+              </div>
+              <div className="my-2">
+                <p className="text-xl font-mono font-black text-white">
+                  Gusts: {activeTacticalDay.maxGust.toFixed(0)} <span className="text-xs text-slate-400">km/h</span>
+                </p>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  {activeTacticalDay.maxGust >= 30 ? 'High crosswind deflection. Scope MOA offset needed.' : 'Minimal crosswind deflection. Sub-MOA ballistic path.'}
+                </p>
+              </div>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">Ballistic Trajectory Status</span>
+            </div>
+
+            {/* UAV Drone Sorties */}
+            <div className={`p-3.5 border rounded-lg bg-cardDarkSlate flex flex-col justify-between ${
+              activeTacticalDay.summary.uav === 'OPTIMAL' ? 'border-safetyGreen/40 shadow-sm shadow-safetyGreen/5' :
+              activeTacticalDay.summary.uav === 'RESTRICTED' ? 'border-amberAlert/40 shadow-sm shadow-amberAlert/5' :
+              'border-stopRed/50 shadow-sm shadow-stopRed/5'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Plane className="w-4 h-4 text-cyan-400" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">UAV DRONE SORTIES</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase ${
+                  activeTacticalDay.summary.uav === 'OPTIMAL' ? 'bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40' :
+                  activeTacticalDay.summary.uav === 'RESTRICTED' ? 'bg-amberAlert/20 text-amberAlert border border-amberAlert/40' :
+                  'bg-stopRed/20 text-stopRed border border-stopRed/40 animate-pulse'
+                }`}>
+                  {activeTacticalDay.summary.uav}
+                </span>
+              </div>
+              <div className="my-2">
+                <p className="text-xl font-mono font-black text-white">
+                  100m Wind: {activeTacticalDay.maxWind100m.toFixed(0)} <span className="text-xs text-slate-400">km/h</span>
+                </p>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  {activeTacticalDay.maxWind100m >= 38 ? 'Ceiling breach. High rotorcraft loss risk.' : activeTacticalDay.maxWind100m >= 28 ? 'Elevated boundary shear. Experienced pilots only.' : 'Stable boundary layer flow. Full flight envelope.'}
+                </p>
+              </div>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">100m Boundary Ceiling</span>
+            </div>
+
+            {/* Infantry Maneuvers */}
+            <div className={`p-3.5 border rounded-lg bg-cardDarkSlate flex flex-col justify-between ${
+              activeTacticalDay.summary.infantry === 'OPTIMAL' ? 'border-safetyGreen/40 shadow-sm shadow-safetyGreen/5' :
+              activeTacticalDay.summary.infantry === 'RESTRICTED' ? 'border-amberAlert/40 shadow-sm shadow-amberAlert/5' :
+              'border-stopRed/50 shadow-sm shadow-stopRed/5'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Users className="w-4 h-4 text-yellow-400" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">INFANTRY MANEUVERS</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase ${
+                  activeTacticalDay.summary.infantry === 'OPTIMAL' ? 'bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40' :
+                  activeTacticalDay.summary.infantry === 'RESTRICTED' ? 'bg-amberAlert/20 text-amberAlert border border-amberAlert/40' :
+                  'bg-stopRed/20 text-stopRed border border-stopRed/40 animate-pulse'
+                }`}>
+                  {activeTacticalDay.summary.infantry}
+                </span>
+              </div>
+              <div className="my-2">
+                <p className="text-xl font-mono font-black text-white">
+                  Peak WBGT: {activeTacticalDay.maxWbgt.toFixed(1)} <span className="text-xs text-slate-400">°C</span>
+                </p>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  {activeTacticalDay.isMiddayBanDate ? '🚨 UAE MoHRE Midday Ban (12:30-15:00) active' : activeTacticalDay.maxWbgt >= 30 ? 'WBGT ≥ 30°C Red Halt in effect' : 'Standard ADOSH hydration protocols'}
+                </p>
+              </div>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">ADOSH Heat & Ban Audit</span>
+            </div>
+
+            {/* Amphibious Sea Ops */}
+            <div className={`p-3.5 border rounded-lg bg-cardDarkSlate flex flex-col justify-between ${
+              activeTacticalDay.summary.amphibious === 'OPTIMAL' ? 'border-safetyGreen/40 shadow-sm shadow-safetyGreen/5' :
+              activeTacticalDay.summary.amphibious === 'RESTRICTED' ? 'border-amberAlert/40 shadow-sm shadow-amberAlert/5' :
+              'border-stopRed/50 shadow-sm shadow-stopRed/5'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Anchor className="w-4 h-4 text-blue-400" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-200">AMPHIBIOUS SEA OPS</span>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase ${
+                  activeTacticalDay.summary.amphibious === 'OPTIMAL' ? 'bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40' :
+                  activeTacticalDay.summary.amphibious === 'RESTRICTED' ? 'bg-amberAlert/20 text-amberAlert border border-amberAlert/40' :
+                  'bg-stopRed/20 text-stopRed border border-stopRed/40 animate-pulse'
+                }`}>
+                  {activeTacticalDay.summary.amphibious}
+                </span>
+              </div>
+              <div className="my-2">
+                <p className="text-xl font-mono font-black text-white">
+                  Max Wind: {activeTacticalDay.maxWind.toFixed(0)} <span className="text-xs text-slate-400">km/h</span>
+                </p>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  {activeTacticalDay.maxWind >= 32 ? 'High coastal spit chop & tidal squalls' : activeTacticalDay.maxWind >= 22 ? 'Moderate swell on marine spit approach' : 'Calm sea state & secure marine corridor'}
+                </p>
+              </div>
+              <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">Coastal Spit & Maritime</span>
+            </div>
+          </div>
+
+          {/* 2. 7-Day Day Selector Bar */}
+          <div className="bg-cardDarkSlate border border-slate-800 p-3 rounded-xl flex items-center space-x-2 overflow-x-auto no-scrollbar shrink-0">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-1 pr-2 shrink-0">
+              7-DAY MATRIX:
             </span>
-            <div className="space-y-2">
-              {timelineIntervals.map((interval, idx) => (
-                <div 
-                  key={idx} 
-                  className={`flex items-center justify-between px-3 py-2 border ${
-                    interval.status === 'RED' 
-                      ? 'border-stopRed/20 bg-stopRed/5 text-stopRed' 
-                      : interval.status === 'AMBER' 
-                        ? 'border-amber-500/20 bg-amber-500/5 text-amber-400' 
-                        : 'border-safetyGreen/20 bg-safetyGreen/5 text-safetyGreen'
+            {tacticalDays.map((d, idx) => {
+              const isSelected = selectedMatrixDay === idx;
+              const hasRed = Object.values(d.summary).includes('NO-GO');
+              const hasAmber = Object.values(d.summary).includes('RESTRICTED');
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setSelectedMatrixDay(idx)}
+                  className={`flex-1 min-w-[130px] p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                    isSelected 
+                      ? 'bg-cyan-950/60 border-cyan-400 text-white shadow-lg shadow-cyan-500/10 ring-1 ring-cyan-400/40' 
+                      : 'bg-bgDeepSpace/40 border-slate-700/50 hover:border-slate-600 text-slate-300'
                   }`}
                 >
-                  <div className="flex items-center space-x-2">
-                    <Clock className="w-4 h-4" />
-                    <span className="font-mono text-xs font-black">{interval.start} - {interval.end}</span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] font-black uppercase">{d.dayLabel}</span>
+                    <span className={`w-2 h-2 rounded-full ${hasRed ? 'bg-stopRed animate-pulse' : hasAmber ? 'bg-amberAlert' : 'bg-safetyGreen'}`} />
                   </div>
-                  <div className="flex items-center space-x-2 text-[10px] font-black uppercase">
-                    {interval.status === 'RED' && <ShieldAlert className="w-4 h-4" />}
-                    {interval.status === 'GREEN' && <ShieldCheck className="w-4 h-4" />}
-                    <span>{interval.status === 'RED' ? 'HALT OUTDOOR ACTIVITIES' : interval.status === 'AMBER' ? 'INCREASE REST CYCLES' : 'ALL CLEAR / NORMAL'}</span>
+                  <div className="text-[9px] font-mono text-slate-400 flex items-center justify-between">
+                    <span>H: {d.maxTemp.toFixed(0)}°C</span>
+                    <span>WBGT: {d.maxWbgt.toFixed(0)}°</span>
+                    <span>{d.maxGust.toFixed(0)}k</span>
                   </div>
-                </div>
-              ))}
-            </div>
+                  <div className="flex items-center space-x-1 mt-1.5 pt-1 border-t border-slate-800/60">
+                    <span className={`w-1.5 h-1.5 rounded-full ${d.summary.liveFire === 'OPTIMAL' ? 'bg-safetyGreen' : d.summary.liveFire === 'RESTRICTED' ? 'bg-amberAlert' : 'bg-stopRed'}`} title="Live-Fire" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${d.summary.uav === 'OPTIMAL' ? 'bg-safetyGreen' : d.summary.uav === 'RESTRICTED' ? 'bg-amberAlert' : 'bg-stopRed'}`} title="UAV" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${d.summary.infantry === 'OPTIMAL' ? 'bg-safetyGreen' : d.summary.infantry === 'RESTRICTED' ? 'bg-amberAlert' : 'bg-stopRed'}`} title="Infantry" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${d.summary.amphibious === 'OPTIMAL' ? 'bg-safetyGreen' : d.summary.amphibious === 'RESTRICTED' ? 'bg-amberAlert' : 'bg-stopRed'}`} title="Amphibious" />
+                    <span className="text-[7.5px] text-slate-400 font-mono ml-auto">Day {idx + 1}</span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Compliance & Policy Alerts */}
-          <div className="border border-slate-800 bg-cardDarkSlate p-4 shrink-0">
-            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2.5">
-              COMPLIANCE AUDIT
-            </span>
-            <div className="space-y-3">
-              {/* MoHRE midday ban */}
-              {stats?.isMiddayBanPresent ? (
-                <div className="bg-stopRed/10 border border-stopRed/30 p-3 flex items-start space-x-2.5">
-                  <AlertTriangle className="w-5 h-5 text-stopRed mt-0.5 shrink-0" />
-                  <div>
-                    <h4 className="text-[10.5px] font-black text-stopRed">MOHRE MIDDAY BAN ACTIVE</h4>
-                    <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
-                      UAE Law: Outdoor operations suspended between 12:30 and 15:00 GST. Employers must provide shade/shelter areas.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-safetyGreen/5 border border-safetyGreen/20 p-3 flex items-start space-x-2.5">
-                  <ShieldCheck className="w-5 h-5 text-safetyGreen mt-0.5 shrink-0" />
-                  <div>
-                    <h4 className="text-[10.5px] font-black text-safetyGreen">MOHRE BAN INACTIVE</h4>
-                    <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
-                      No seasonal midday restriction in place for this calendar period. Proceed under standard ADOSH thermal guidelines.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Heat Acclimatization Alert */}
-              {stats && stats.peakWbgt >= 27.9 ? (
-                <div className="bg-amber-500/10 border border-amber-500/25 p-3 flex items-start space-x-2.5">
-                  <Activity className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
-                  <div>
-                    <h4 className="text-[10.5px] font-black text-amber-500">ACCLIMATIZATION REQUIRED</h4>
-                    <p className="text-[9.5px] text-slate-400 leading-normal mt-0.5">
-                      Peak WBGT exceeds 27.9°C. Planners must apply a 7-to-14 day incremental exposure program for new range operators.
-                    </p>
-                  </div>
-                </div>
-              ) : null}
+          {/* 3. 24-Hour Visual Operational Ribbons */}
+          <div className="bg-cardDarkSlate border border-slate-800 p-4 rounded-xl flex flex-col space-y-3 shrink-0">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-wider text-slate-100 flex items-center space-x-2">
+                  <span>DIURNAL MISSION WINDOWS: {activeTacticalDay.dayLabel.toUpperCase()} ({activeTacticalDay.dateStr})</span>
+                </h3>
+                <p className="text-[9px] text-slate-400 mt-0.5">
+                  Color-coded 24-hour Go / Caution / No-Go timelines based on WeatherNext 3 microclimate physics and ADOSH regulations.
+                </p>
+              </div>
+              <div className="flex items-center space-x-3 text-[9px] font-black uppercase">
+                <span className="flex items-center space-x-1 text-safetyGreen"><span className="w-2.5 h-2.5 rounded bg-safetyGreen/40 border border-safetyGreen inline-block" /><span>GO (OPTIMAL)</span></span>
+                <span className="flex items-center space-x-1 text-amberAlert"><span className="w-2.5 h-2.5 rounded bg-amberAlert/40 border border-amberAlert inline-block" /><span>CAUTION</span></span>
+                <span className="flex items-center space-x-1 text-stopRed"><span className="w-2.5 h-2.5 rounded bg-stopRed/40 border border-stopRed inline-block" /><span>NO-GO (HALT)</span></span>
+              </div>
             </div>
-          </div>
 
-          {/* Diurnal Hourly Schedule Table */}
-          <div className="flex-grow border border-slate-800 bg-cardDarkSlate overflow-hidden flex flex-col min-h-[220px]">
-            <div className="bg-bgDeepSpace/40 px-4 py-2 border-b border-slate-800 shrink-0">
-              <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                24-HOUR DETAILED DIURNAL LOG
-              </span>
-            </div>
-            
-            <div className="flex-1 overflow-auto no-scrollbar">
-              <table className="w-full border-collapse text-left">
-                <thead className="bg-bgDeepSpace/20 sticky top-0 z-10 border-b border-slate-800/80">
-                  <tr>
-                    <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">HOUR</th>
-                    <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">STATUS</th>
-                    <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">WBGT</th>
-                    <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">WIND</th>
-                    <th className="py-2.5 px-3 text-[9px] font-black text-slate-400 uppercase">PLAN (REST / FLUID)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 font-mono text-[11px] font-black">
-                  {hourlyLogs.map((log, idx) => {
-                    let textClass = 'text-safetyGreen';
-                    if (log.safetyStatus === 'RED') textClass = 'text-stopRed';
-                    else if (log.safetyStatus === 'AMBER') textClass = 'text-amber-400';
-
-                    // Rest cycle details
-                    let workRest = 'Continuous';
-                    let hydration = '0.50 L';
-                    if (log.wbgt >= 30.0) {
-                      workRest = '30m Work/Rest';
-                      hydration = '1.25 L';
-                    } else if (log.wbgt >= 27.9) {
-                      workRest = '40m / 20m';
-                      hydration = '1.00 L';
-                    } else if (log.wbgt >= 25.9) {
-                      workRest = '50m / 10m';
-                      hydration = '0.75 L';
-                    }
-
-                    if (log.isMiddayBanActive) {
-                      workRest = 'MOHRE HALT';
-                      hydration = '0.00 L';
-                    }
-
+            {/* Ribbons */}
+            <div className="space-y-2 pt-1">
+              {/* Ribbon 1: Live-Fire */}
+              <div className="flex items-center space-x-3">
+                <span className="w-24 text-[9.5px] font-black uppercase text-slate-300 flex items-center space-x-1.5 shrink-0">
+                  <Crosshair className="w-3.5 h-3.5 text-edgeOrange" />
+                  <span>Live-Fire</span>
+                </span>
+                <div className="flex-1 grid grid-cols-24 gap-1 h-6">
+                  {activeTacticalDay.hours.map((h, i) => {
+                    const status = h.ops.liveFire.status;
+                    const bg = status === 'GO' ? 'bg-safetyGreen/30 border-safetyGreen/50 text-safetyGreen' :
+                               status === 'CAUTION' ? 'bg-amberAlert/35 border-amberAlert/60 text-amberAlert' :
+                               'bg-stopRed/50 border-stopRed/80 text-stopRed';
                     return (
-                      <tr key={idx} className={log.isMiddayBanActive ? 'bg-stopRed/5' : ''}>
-                        <td className="py-2 px-3 text-slate-300 flex items-center space-x-1">
-                          <Clock className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                          <span>{log.hourLabel}</span>
-                        </td>
-                        <td className={`py-2 px-3 ${textClass}`}>
-                          {log.isMiddayBanActive ? '🚨 BAN ACTIVE' : log.safetyStatus}
-                        </td>
-                        <td className="py-2 px-3 text-slate-100">{log.wbgt.toFixed(1)}°C</td>
-                        <td className="py-2 px-3 text-slate-100">{log.wind.toFixed(0)} <span className="text-[9.5px] text-slate-500 font-bold">({log.gusts.toFixed(0)})</span></td>
-                        <td className="py-2 px-3 text-slate-400">
-                          {workRest} <span className="text-[9.5px] text-blue-400 font-bold">({hydration})</span>
-                        </td>
-                      </tr>
+                      <div key={i} className={`h-full border rounded flex items-center justify-center text-[7.5px] font-mono font-bold cursor-pointer hover:scale-105 transition-transform ${bg}`} title={`${h.hour}:00 GST - ${status}: ${h.ops.liveFire.reason}`}>
+                        {h.hour}
+                      </div>
                     );
                   })}
+                </div>
+              </div>
+
+              {/* Ribbon 2: UAV Flights */}
+              <div className="flex items-center space-x-3">
+                <span className="w-24 text-[9.5px] font-black uppercase text-slate-300 flex items-center space-x-1.5 shrink-0">
+                  <Plane className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>UAV Drones</span>
+                </span>
+                <div className="flex-1 grid grid-cols-24 gap-1 h-6">
+                  {activeTacticalDay.hours.map((h, i) => {
+                    const status = h.ops.uav.status;
+                    const bg = status === 'GO' ? 'bg-safetyGreen/30 border-safetyGreen/50 text-safetyGreen' :
+                               status === 'CAUTION' ? 'bg-amberAlert/35 border-amberAlert/60 text-amberAlert' :
+                               'bg-stopRed/50 border-stopRed/80 text-stopRed';
+                    return (
+                      <div key={i} className={`h-full border rounded flex items-center justify-center text-[7.5px] font-mono font-bold cursor-pointer hover:scale-105 transition-transform ${bg}`} title={`${h.hour}:00 GST - ${status}: ${h.ops.uav.reason}`}>
+                        {h.hour}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ribbon 3: Infantry Maneuvers */}
+              <div className="flex items-center space-x-3">
+                <span className="w-24 text-[9.5px] font-black uppercase text-slate-300 flex items-center space-x-1.5 shrink-0">
+                  <Users className="w-3.5 h-3.5 text-yellow-400" />
+                  <span>Infantry</span>
+                </span>
+                <div className="flex-1 grid grid-cols-24 gap-1 h-6">
+                  {activeTacticalDay.hours.map((h, i) => {
+                    const status = h.ops.infantry.status;
+                    const bg = status === 'GO' ? 'bg-safetyGreen/30 border-safetyGreen/50 text-safetyGreen' :
+                               status === 'CAUTION' ? 'bg-amberAlert/35 border-amberAlert/60 text-amberAlert' :
+                               'bg-stopRed/50 border-stopRed/80 text-stopRed';
+                    return (
+                      <div key={i} className={`h-full border rounded flex items-center justify-center text-[7.5px] font-mono font-bold cursor-pointer hover:scale-105 transition-transform ${bg}`} title={`${h.hour}:00 GST - ${status}: ${h.ops.infantry.reason}`}>
+                        {h.isMiddayBanHour ? 'BAN' : h.hour}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ribbon 4: Amphibious Sea Ops */}
+              <div className="flex items-center space-x-3">
+                <span className="w-24 text-[9.5px] font-black uppercase text-slate-300 flex items-center space-x-1.5 shrink-0">
+                  <Anchor className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Amphibious</span>
+                </span>
+                <div className="flex-1 grid grid-cols-24 gap-1 h-6">
+                  {activeTacticalDay.hours.map((h, i) => {
+                    const status = h.ops.amphibious.status;
+                    const bg = status === 'GO' ? 'bg-safetyGreen/30 border-safetyGreen/50 text-safetyGreen' :
+                               status === 'CAUTION' ? 'bg-amberAlert/35 border-amberAlert/60 text-amberAlert' :
+                               'bg-stopRed/50 border-stopRed/80 text-stopRed';
+                    return (
+                      <div key={i} className={`h-full border rounded flex items-center justify-center text-[7.5px] font-mono font-bold cursor-pointer hover:scale-105 transition-transform ${bg}`} title={`${h.hour}:00 GST - ${status}: ${h.ops.amphibious.reason}`}>
+                        {h.hour}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Detailed Hourly Breakdown Table */}
+          <div className="bg-cardDarkSlate border border-slate-800 rounded-xl overflow-hidden flex flex-col flex-1 min-h-[260px]">
+            <div className="bg-bgDeepSpace/40 px-4 py-2.5 border-b border-slate-800 flex justify-between items-center shrink-0">
+              <span className="text-[9.5px] font-black text-slate-300 uppercase tracking-widest">
+                24-HOUR DETAILED TACTICAL MISSION DIRECTIVES
+              </span>
+              <div className="flex items-center space-x-2">
+                {['ALL', 'liveFire', 'uav', 'infantry', 'amphibious'].map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setMatrixFilter(f)}
+                    className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider cursor-pointer border ${
+                      matrixFilter === f ? 'bg-edgeOrange text-white border-edgeOrange' : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-white'
+                    }`}
+                  >
+                    {f === 'ALL' ? 'ALL MISSIONS' : f.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-auto no-scrollbar">
+              <table className="w-full border-collapse text-left font-mono text-[10.5px]">
+                <thead className="bg-bgDeepSpace/20 sticky top-0 z-10 border-b border-slate-800/80">
+                  <tr>
+                    <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">HOUR</th>
+                    <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">TEMP / WBGT</th>
+                    <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">WIND (10M / 100M)</th>
+                    <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">SOLAR (W/M²)</th>
+                    {(matrixFilter === 'ALL' || matrixFilter === 'liveFire') && (
+                      <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">🎯 LIVE-FIRE</th>
+                    )}
+                    {(matrixFilter === 'ALL' || matrixFilter === 'uav') && (
+                      <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">🚁 UAV DRONES</th>
+                    )}
+                    {(matrixFilter === 'ALL' || matrixFilter === 'infantry') && (
+                      <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">🪖 INFANTRY</th>
+                    )}
+                    {(matrixFilter === 'ALL' || matrixFilter === 'amphibious') && (
+                      <th className="py-2 px-3 text-[9px] font-black text-slate-400 uppercase">⚓ AMPHIBIOUS</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 font-bold">
+                  {activeTacticalDay.hours.map((h, idx) => (
+                    <tr key={idx} className={h.isMiddayBanHour ? 'bg-stopRed/5' : ''}>
+                      <td className="py-2 px-3 text-slate-300 font-black">{h.hour}:00 GST</td>
+                      <td className="py-2 px-3 text-white">
+                        {h.temp.toFixed(1)}°C <span className="text-slate-400 text-[9px]">({h.wbgt.toFixed(1)}° WBGT)</span>
+                      </td>
+                      <td className="py-2 px-3 text-slate-200">
+                        {h.wind.toFixed(0)}k <span className="text-slate-400 text-[9px]">/ 100m: {h.wind100m.toFixed(0)}k</span>
+                      </td>
+                      <td className="py-2 px-3 text-amber-400">{h.solar}</td>
+
+                      {(matrixFilter === 'ALL' || matrixFilter === 'liveFire') && (
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                            h.ops.liveFire.status === 'GO' ? 'bg-safetyGreen/20 text-safetyGreen' :
+                            h.ops.liveFire.status === 'CAUTION' ? 'bg-amberAlert/20 text-amberAlert' :
+                            'bg-stopRed/20 text-stopRed'
+                          }`}>
+                            {h.ops.liveFire.status}
+                          </span>
+                          <span className="text-[8.5px] text-slate-400 ml-1.5 block md:inline font-normal truncate max-w-[200px]" title={h.ops.liveFire.reason}>
+                            {h.ops.liveFire.reason}
+                          </span>
+                        </td>
+                      )}
+
+                      {(matrixFilter === 'ALL' || matrixFilter === 'uav') && (
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                            h.ops.uav.status === 'GO' ? 'bg-safetyGreen/20 text-safetyGreen' :
+                            h.ops.uav.status === 'CAUTION' ? 'bg-amberAlert/20 text-amberAlert' :
+                            'bg-stopRed/20 text-stopRed'
+                          }`}>
+                            {h.ops.uav.status}
+                          </span>
+                          <span className="text-[8.5px] text-slate-400 ml-1.5 block md:inline font-normal truncate max-w-[200px]" title={h.ops.uav.reason}>
+                            {h.ops.uav.reason}
+                          </span>
+                        </td>
+                      )}
+
+                      {(matrixFilter === 'ALL' || matrixFilter === 'infantry') && (
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                            h.ops.infantry.status === 'GO' ? 'bg-safetyGreen/20 text-safetyGreen' :
+                            h.ops.infantry.status === 'CAUTION' ? 'bg-amberAlert/20 text-amberAlert' :
+                            'bg-stopRed/20 text-stopRed'
+                          }`}>
+                            {h.ops.infantry.status}
+                          </span>
+                          <span className="text-[8.5px] text-slate-400 ml-1.5 block md:inline font-normal truncate max-w-[200px]" title={h.ops.infantry.reason}>
+                            {h.ops.infantry.reason}
+                          </span>
+                        </td>
+                      )}
+
+                      {(matrixFilter === 'ALL' || matrixFilter === 'amphibious') && (
+                        <td className="py-2 px-3">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black ${
+                            h.ops.amphibious.status === 'GO' ? 'bg-safetyGreen/20 text-safetyGreen' :
+                            h.ops.amphibious.status === 'CAUTION' ? 'bg-amberAlert/20 text-amberAlert' :
+                            'bg-stopRed/20 text-stopRed'
+                          }`}>
+                            {h.ops.amphibious.status}
+                          </span>
+                          <span className="text-[8.5px] text-slate-400 ml-1.5 block md:inline font-normal truncate max-w-[200px]" title={h.ops.amphibious.reason}>
+                            {h.ops.amphibious.reason}
+                          </span>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
-
         </div>
-
-      </div>
+      )}
     </div>
   );
 }

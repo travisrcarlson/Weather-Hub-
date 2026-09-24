@@ -553,12 +553,12 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         )}
       </g>
 
-      {/* Interactive Station Pins */}
+      {/* Interactive Station Pins - WeatherNext 3 5km Multi-Station Microclimate Grid */}
       {stationsList
-        .filter(s => showSimulatedStations ? true : s.id === 'hq')
         .map(s => {
           const isSelected = currentActive === s.id;
-          const readings = apiData ? (isSimulated ? s.getReadings(apiData.current) : apiData.current) : null;
+          const readings = apiData?.stations?.[s.id]?.current 
+            || (apiData ? (isSimulated ? s.getReadings(apiData.current) : apiData.current) : null);
           const safety = readings ? evaluateSafety(readings) : null;
           
           let statusColor = '#22c55e'; // Green
@@ -569,8 +569,8 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
             <g 
               key={s.id} 
               transform={`translate(${s.x}, ${s.y})`} 
-              className={showSimulatedStations ? "cursor-pointer pointer-events-auto" : "pointer-events-none"}
-              onClick={() => showSimulatedStations && setActiveStation && setActiveStation(s.id)}
+              className="cursor-pointer pointer-events-auto"
+              onClick={() => setActiveStation && setActiveStation(s.id)}
             >
               {/* Pulsing halo for selected station */}
               {isSelected && (
@@ -608,7 +608,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                 className="uppercase font-sans tracking-wider"
                 style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.95)' }}
               >
-                {s.id === 'hq' ? 'X-Range HQ' : s.id}
+                {s.id === 'hq' ? 'X-Range HQ' : s.name.replace('Range ', '')}
               </text>
             </g>
           );
@@ -756,6 +756,30 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           </span>
         </div>
         <div className="flex items-center space-x-2">
+          {/* WeatherNext 3 5km Microclimate Station Quick Switcher */}
+          <div className="hidden sm:flex items-center space-x-1 bg-bgDeepSpace/80 p-0.5 rounded border border-slate-700/60">
+            {stationsList.map(st => {
+              const isStActive = currentActive === st.id;
+              const stData = apiData?.stations?.[st.id]?.current;
+              const tempVal = stData ? `${stData.temperature_2m.toFixed(0)}°` : '';
+              return (
+                <button
+                  key={st.id}
+                  onClick={() => setActiveStation && setActiveStation(st.id)}
+                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1 ${
+                    isStActive
+                      ? 'bg-edgeOrange text-white shadow-sm shadow-edgeOrange/20'
+                      : 'text-slate-400 hover:text-textIceWhite'
+                  }`}
+                  title={`Switch active telemetry to ${st.name} (5km Sector Node)`}
+                >
+                  <span>{st.id.toUpperCase()}</span>
+                  {tempVal && <span className="text-[7.5px] opacity-80">{tempVal}</span>}
+                </button>
+              );
+            })}
+          </div>
+
           {isSimulated && onToggleSimulatedLightning && (
             <button
               onClick={onToggleSimulatedLightning}
@@ -890,9 +914,8 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 // Named export for the station details panel
 export function StationDetailsWidget({ apiData, isSimulated, activeStation, setActiveStation, warnings = [] }) {
   const currentStationInfo = stationsList.find(s => s.id === activeStation) || stationsList[0];
-  const stationReadings = apiData 
-    ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) 
-    : null;
+  const stationReadings = apiData?.stations?.[currentStationInfo.id]?.current
+    || (apiData ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) : null);
   let safety = stationReadings ? evaluateSafety(stationReadings) : null;
 
   const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');

@@ -63,6 +63,7 @@ export default function Header({
             >
               <Zap className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
               <span>WN3</span>
+              <span className="text-[7.5px] text-sky-300 border-l border-cyan-700/60 pl-1">{60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
             </div>
           )}
 
@@ -244,6 +245,18 @@ export default function Header({
             </span>
           )}
         </button>
+
+        {/* Satellite Assimilation Ingestion Countdown Badge */}
+        {activeProvider?.startsWith('WEATHERNEXT') && (
+          <div 
+            onClick={() => onViewModeChange && onViewModeChange('backend')}
+            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-sky-500/30 bg-sky-950/40 text-sky-300 text-[10px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-sky-950/60 transition-all shadow-sm"
+            title="Google DeepMind WeatherNext 3 assimilates real-time Meteosat-11 IODC (41.5°E) satellite radiance every 60 minutes for rapid convective detection. Click to view Backend Diagnostics."
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
+            <span>🛰️ SAT INGEST: {60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
+          </div>
+        )}
 
         {/* Active AI Forecast Engine Badge */}
         <div 

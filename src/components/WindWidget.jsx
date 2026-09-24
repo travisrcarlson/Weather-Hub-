@@ -22,12 +22,13 @@ export function getCardinalDirection(degrees) {
   return sectors[index];
 }
 
-export default function WindWidget({ data, hourlyData, currentTime }) {
+export default function WindWidget({ data, hourlyData, currentTime, onOpenBallistics }) {
   if (!data) return null;
 
   const windSpeed = data.wind_speed_10m || 0;
   const gusts = data.wind_gusts_10m || 0;
   const directionDegrees = data.wind_direction_10m || 0;
+  const wind100m = data.wind_speed_100m || null;
 
   const cardinal = getCardinalDirection(directionDegrees);
   const beaufort = getBeaufortScale(windSpeed);
@@ -163,18 +164,29 @@ export default function WindWidget({ data, hourlyData, currentTime }) {
   return (
     <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden select-none">
       {/* Header */}
-      <div>
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-          Z3 • WIND & GUSTS
-        </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">ADOSH Safety Limits</h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
+            Z3 • WIND & GUSTS
+          </p>
+          <h2 className="text-sm font-bold text-slate-200 leading-none">ADOSH Safety Limits</h2>
+        </div>
+        {onOpenBallistics && (
+          <button
+            onClick={onOpenBallistics}
+            className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/30 text-cyan-400 text-[9px] font-mono font-bold transition-colors cursor-pointer"
+            title="Open WeatherNext 3 Ballistics & 100m Wind Shear Console"
+          >
+            <span>🎯 100M SHEAR</span>
+          </button>
+        )}
       </div>
 
       {/* Main Content */}
       <div className="grid grid-cols-12 gap-2 items-center my-0.5 relative z-10">
         
         {/* Column 1 (Col-span-4): Readings */}
-        <div className="col-span-4 flex flex-col justify-around h-full space-y-2 pr-1 border-r border-slate-800/40">
+        <div className="col-span-4 flex flex-col justify-around h-full space-y-1.5 pr-1 border-r border-slate-800/40">
           <div>
             <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-1">Sustained</p>
             <div className="flex items-center leading-none">
@@ -199,6 +211,14 @@ export default function WindWidget({ data, hourlyData, currentTime }) {
               )}
             </div>
           </div>
+          {wind100m && (
+            <div className="pt-1 border-t border-slate-800/40">
+              <div className="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase leading-none">
+                <span>100m:</span>
+                <span className="text-cyan-300 font-mono font-black">{wind100m} km/h</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Column 2 (Col-span-4): Current Compass */}

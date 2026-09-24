@@ -25,7 +25,7 @@ export function getHumidexComfort(humidex) {
   return { label: "Extreme Danger (Stroke Risk)", color: "text-purple-400 font-bold animate-pulse" };
 }
 
-export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex) {
+export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex, solarRadiationWm2) {
   if (temp === undefined || rh === undefined) return temp || 0;
   
   // 1. Calculate Stull's Wet Bulb Temperature (Tw)
@@ -35,9 +35,9 @@ export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex) {
              + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) 
              - 4.686035;
 
-  // 2. Estimate solar radiation from UV index (S in W/m^2)
+  // 2. Solar radiation: use direct solar flux (W/m^2) from WeatherNext 3 if provided, or fallback to UV * 90
   const uv = uvIndex !== undefined ? uvIndex : 0;
-  const S = uv * 90;
+  const S = solarRadiationWm2 !== undefined && solarRadiationWm2 !== null ? solarRadiationWm2 : uv * 90;
 
   // 3. Convert wind speed from km/h to m/s
   const u = (windSpeedKmh || 0) / 3.6;

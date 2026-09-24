@@ -19,6 +19,9 @@ import PlanningDashboard from './components/PlanningDashboard';
 import CustomerPortal from './components/CustomerPortal';
 import AlertCenter from './components/AlertCenter';
 import { checkAndDispatchAutoAlerts } from './services/hseBroadcastService';
+import TacticalBallisticsModal from './components/TacticalBallisticsModal';
+import MunitionsThermalModal from './components/MunitionsThermalModal';
+import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -129,6 +132,8 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
 
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  const [isBallisticsModalOpen, setIsBallisticsModalOpen] = useState(false);
+  const [isMunitionsThermalModalOpen, setIsMunitionsThermalModalOpen] = useState(false);
   
   const [recipientDirectory, setRecipientDirectory] = useState({
     officers: [
@@ -432,6 +437,31 @@ export default function App() {
       }
     }
 
+    // WeatherNext 3 Convective Squall & Haboob Rapid Early-Warning
+    if (data?.current && data?.hourly) {
+      const prevHourIdx = Math.max(0, (data.hourly.time?.findIndex(t => t.startsWith(data.current?.time?.slice(0, 13))) || 1) - 1);
+      const prevP = data.hourly.pressure_msl ? data.hourly.pressure_msl[prevHourIdx] : data.current.pressure_msl;
+      const prevW = data.hourly.wind_speed_10m ? data.hourly.wind_speed_10m[prevHourIdx] : data.current.wind_speed_10m;
+      const prevDir = data.hourly.wind_direction_10m ? data.hourly.wind_direction_10m[prevHourIdx] : data.current.wind_direction_10m;
+      const haboob = detectHaboobConvectiveRisk(
+        data.current.pressure_msl,
+        prevP,
+        data.current.wind_speed_10m,
+        prevW,
+        data.current.wind_direction_10m,
+        prevDir,
+        data.current.relative_humidity_2m
+      );
+      if (haboob.detected) {
+        if (haboob.riskLevel === 'CRITICAL') {
+          globalStatus = 'RED';
+        } else if (globalStatus !== 'RED') {
+          globalStatus = 'AMBER';
+        }
+        globalReasons.unshift(`🌪️ [WEATHERNEXT 3 AI] ${haboob.title}: ${haboob.description}`);
+      }
+    }
+
     let bannerColor = "bg-safetyGreen border-green-500 text-white";
     let pulse = false;
     if (globalStatus === "AMBER") {
@@ -450,7 +480,15 @@ export default function App() {
 
   const globalSafety = getCombinedSafety();
 
-  const getHQDisplayData = () => {
+  const getActiveStationDisplayData = () => {
+    // WeatherNext 3 5km multi-station microclimate grid resolution
+    if (data?.stations && data.stations[activeStation]?.current) {
+      return {
+        ...data.stations[activeStation].current,
+        sectorTitle: data.stations[activeStation].name,
+        name: data.stations[activeStation].name
+      };
+    }
     if (!isSimulated) return data.current;
     return {
       ...data.current,
@@ -464,7 +502,7 @@ export default function App() {
     };
   };
 
-  const activeDisplayData = getHQDisplayData();
+  const activeDisplayData = getActiveStationDisplayData();
 
   // Automated HSE WhatsApp & Directive Dispatcher
   useEffect(() => {
@@ -567,7 +605,13 @@ export default function App() {
                 <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
               <div className="h-auto">
-                <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} currentTime={activeTime} />
+                <CurrentConditions 
+                  data={activeDisplayData} 
+                  dailyData={data.daily} 
+                  hourlyData={data.hourly} 
+                  currentTime={activeTime} 
+                  onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
+                />
               </div>
               <div className="grid grid-cols-2 gap-3 h-auto">
                 <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
@@ -614,7 +658,12 @@ export default function App() {
           {mobileTab === 'forecast' && (
             <div className="space-y-4">
               <div className="h-[200px]">
-                <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
+                <WindWidget 
+                  data={activeDisplayData} 
+                  hourlyData={data.hourly} 
+                  currentTime={activeTime} 
+                  onOpenBallistics={() => setIsBallisticsModalOpen(true)}
+                />
               </div>
               <div className="h-[120px]">
                 <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
@@ -657,7 +706,11 @@ export default function App() {
 
           {mobileTab === 'planning' && (
             <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
-              <PlanningDashboard isSimulated={isSimulated} />
+              <PlanningDashboard 
+                isSimulated={isSimulated} 
+                hourlyData={data.hourly}
+                dailyData={data.daily}
+              />
             </div>
           )}
 
@@ -824,7 +877,13 @@ export default function App() {
              {/* Left Sidebar (Col-span-2): Current, Heat Stress, Hydration, Wind Safety */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
                <div className="h-[26%]">
-                 <CurrentConditions data={activeDisplayData} dailyData={data.daily} hourlyData={data.hourly} currentTime={activeTime} />
+                 <CurrentConditions 
+                   data={activeDisplayData} 
+                   dailyData={data.daily} 
+                   hourlyData={data.hourly} 
+                   currentTime={activeTime} 
+                   onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
+                 />
                </div>
                <div className="h-[18%]">
                  <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
@@ -833,7 +892,12 @@ export default function App() {
                  <HydrationWidget data={activeDisplayData} />
                </div>
                <div className="h-[37%]">
-                 <WindWidget data={activeDisplayData} hourlyData={data.hourly} currentTime={activeTime} />
+                 <WindWidget 
+                   data={activeDisplayData} 
+                   hourlyData={data.hourly} 
+                   currentTime={activeTime} 
+                   onOpenBallistics={() => setIsBallisticsModalOpen(true)}
+                 />
                </div>
              </div>
 
@@ -917,9 +981,13 @@ export default function App() {
         )}
 
         {viewMode === 'planning' && (
-          /* Range Planning (Historical & Climatological Modeling) */
+          /* Range Planning (Historical & Climatological Modeling & Tactical Mission Windows) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <PlanningDashboard isSimulated={isSimulated} />
+            <PlanningDashboard 
+              isSimulated={isSimulated} 
+              hourlyData={data.hourly}
+              dailyData={data.daily}
+            />
           </div>
         )}
 
@@ -965,6 +1033,22 @@ export default function App() {
         onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
         recipientDirectory={recipientDirectory}
         onUpdateRecipientDirectory={setRecipientDirectory}
+      />
+
+      {/* WeatherNext 3 Tactical Ballistics & 100m Wind Shear Modal */}
+      <TacticalBallisticsModal
+        isOpen={isBallisticsModalOpen}
+        onClose={() => setIsBallisticsModalOpen(false)}
+        currentData={activeDisplayData}
+        hourlyData={data.hourly}
+      />
+
+      {/* WeatherNext 3 Munitions & Equipment Thermal Cook-off Modal */}
+      <MunitionsThermalModal
+        isOpen={isMunitionsThermalModalOpen}
+        onClose={() => setIsMunitionsThermalModalOpen(false)}
+        currentData={activeDisplayData}
+        hourlyData={data.hourly}
       />
     </div>
   );

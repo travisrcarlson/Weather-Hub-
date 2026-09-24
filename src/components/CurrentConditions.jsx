@@ -3,7 +3,7 @@ import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { Cloud, Droplets } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';
 
-export default function CurrentConditions({ data, dailyData, hourlyData, currentTime }) {
+export default function CurrentConditions({ data, dailyData, hourlyData, currentTime, onOpenMunitionsThermal }) {
   if (!data) return null;
 
   const temp = data.temperature_2m;
@@ -13,13 +13,14 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
   const precipitation = data.precipitation;
   const windSpeed = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
+  const solarRad = data.solar_radiation;
 
   // Black Globe temperature estimation in direct sunlight
   const getSunTemp = () => {
     if (temp === undefined) return 0;
     const windMps = windSpeed / 3.6;
-    const solarRad = uv * 90; // Approx 90 W/m2 per UV index point
-    const globeTemp = temp + (0.01 * solarRad) - (0.12 * windMps);
+    const solarFlux = solarRad !== undefined ? solarRad : uv * 90;
+    const globeTemp = temp + (0.01 * solarFlux) - (0.12 * windMps);
     return Math.max(temp, globeTemp);
   };
 
@@ -69,14 +70,27 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
               </span>
             </span>
           </div>
-          <h2 className="text-sm font-bold text-slate-200 leading-none">HQ Observation Sector</h2>
+          <h2 className="text-sm font-bold text-slate-200 leading-none">
+            {data.sectorTitle || data.name || 'HQ Observation Sector'}
+          </h2>
         </div>
-        {precipitation > 0 && (
-          <span className="bg-blue-600/30 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded text-[9px] font-bold flex items-center space-x-1 animate-pulse">
-            <Droplets className="w-3 h-3" />
-            <span>RAIN: {precipitation} mm/h</span>
-          </span>
-        )}
+        <div className="flex items-center space-x-1.5">
+          {onOpenMunitionsThermal && (
+            <button
+              onClick={onOpenMunitionsThermal}
+              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[9px] font-mono font-bold transition-colors cursor-pointer"
+              title="Open WeatherNext 3 Munitions & Equipment Thermal Cook-off Monitor"
+            >
+              <span>🔥 {solarRad ? `${solarRad} W/m²` : 'THERMAL SOAK'}</span>
+            </button>
+          )}
+          {precipitation > 0 && (
+            <span className="bg-blue-600/30 text-blue-300 border border-blue-500/40 px-2 py-0.5 rounded text-[9px] font-bold flex items-center space-x-1 animate-pulse">
+              <Droplets className="w-3 h-3" />
+              <span>RAIN: {precipitation} mm/h</span>
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Middle Section: Temp & Emoji */}
