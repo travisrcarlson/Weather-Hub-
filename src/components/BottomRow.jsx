@@ -1,7 +1,8 @@
 import React from 'react';
 import { getWeatherCondition } from '../utils/weatherCodeMap';
-import { Wind, Sunrise, Sunset } from 'lucide-react';
+import { Wind, Sunrise, Sunset, Waves, Anchor } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';
+import { calculateAbuAlAbyadTides } from '../utils/tideEngine';
 
 // Z9: 5-Day Forecast Tiles (Fits 35% width of bottom row, horizontal tiles)
 export function DailyForecastWidget({ dailyData }) {
@@ -310,6 +311,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const nowDate = currentTime ? (currentTime instanceof Date ? currentTime : parseGstDate(currentTime)) : new Date();
   const sunriseDate = parseGstDate(sunriseStr);
   const sunsetDate = parseGstDate(sunsetStr);
+  const tides = calculateAbuAlAbyadTides(nowDate);
 
   // Calculate Sun position
   const sunTransit = checkTransitPosition(nowDate, sunriseDate, sunsetDate);
@@ -345,29 +347,29 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const moonlightPct = Math.round(50 * (1 - Math.cos(2 * Math.PI * moonDetails.phase)));
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3 flex flex-col justify-between select-none relative overflow-hidden">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10 flex justify-between items-center">
+      <div className="relative z-10 flex justify-between items-center mb-0.5">
         <div>
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-            Z11 • CELESTIAL TRANSIT
+            Z11 • CELESTIAL & TIDAL TRANSIT
           </p>
-          <h2 className="text-xs font-bold text-slate-200 leading-none">Sun & Moon Position</h2>
+          <h2 className="text-xs font-bold text-slate-200 leading-none">Sun, Moon & Tide Cycles</h2>
         </div>
         <span className="text-[8.5px] font-mono font-bold text-slate-400 bg-slate-900/60 border border-slate-800 px-1.5 py-0.5 rounded">
           {moonDetails.name} • {moonlightPct}%
         </span>
       </div>
 
-      {/* Columns: Sun and Moon Side-by-Side with expanded arc height */}
-      <div className="grid grid-cols-2 gap-3 flex-grow items-stretch my-1.5 relative z-10">
+      {/* Columns: Sun and Moon Side-by-Side */}
+      <div className="grid grid-cols-2 gap-3 flex-grow items-stretch my-1 relative z-10">
         {/* Sun Column */}
         <div className="flex flex-col justify-between border-r border-slate-800/60 pr-1.5">
           {/* Sun Arc Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-16 w-full mb-1">
+          <div className="flex flex-col items-center justify-center relative h-13 w-full mb-0.5">
             <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
             <div className="w-[90%] h-[80%] border-t-2 border-t-edgeOrange/60 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
             <div 
@@ -379,25 +381,51 @@ export function SunTransitWidget({ dailyData, currentTime }) {
             >
               ☀️
             </div>
-            <span className="absolute bottom-1 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+            <span className="absolute bottom-0.5 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
               {sunTransit.visible ? `${Math.round(sunTransit.progress * 100)}% Day Arc` : 'Below Horizon'}
             </span>
           </div>
+
           {/* Sunrise/Sunset times */}
-          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1.5">
+          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunrise className="w-2.5 h-2.5 text-amber-400" />
                 <span>RISE</span>
               </span>
-              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{sunrise}</span>
+              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{sunrise}</span>
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunset className="w-2.5 h-2.5 text-edgeOrange" />
                 <span>SET</span>
               </span>
-              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{sunset}</span>
+              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{sunset}</span>
+            </div>
+          </div>
+
+          {/* Underneath Sunrise & Sunset: Tide Cycles (High & Low Tide Times) */}
+          <div className="border-t border-slate-800/50 pt-1 mt-1">
+            <div className="flex items-center justify-between mb-1 px-0.5">
+              <span className="text-[7.5px] font-black text-cyan-400 uppercase flex items-center space-x-1">
+                <Waves className="w-2.5 h-2.5 text-cyan-400" />
+                <span>TIDE CYCLE</span>
+              </span>
+              <span className="text-[7px] font-mono text-cyan-300 font-bold uppercase">
+                {tides.currentFlow} {tides.flowArrow}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-center">
+              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-cyan-500/25">
+                <span className="text-[7px] font-black text-cyan-300 uppercase leading-none mb-0.5">HIGH TIDE</span>
+                <span className="text-xs font-mono font-black text-white leading-none">{tides.high1}</span>
+                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">{tides.high2}</span>
+              </div>
+              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-slate-800/70">
+                <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-0.5">LOW TIDE</span>
+                <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.low1}</span>
+                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">{tides.low2}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -405,7 +433,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
         {/* Moon Column */}
         <div className="flex flex-col justify-between pl-1.5">
           {/* Moon Arc/Phase Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-16 w-full mb-1">
+          <div className="flex flex-col items-center justify-center relative h-13 w-full mb-0.5">
             <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
             <div className="w-[90%] h-[80%] border-t-2 border-t-indigo-400/40 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
             <div 
@@ -417,25 +445,53 @@ export function SunTransitWidget({ dailyData, currentTime }) {
             >
               {moonDetails.emoji}
             </div>
-            <span className="absolute bottom-1 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+            <span className="absolute bottom-0.5 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
               {moonTransit.visible ? `${Math.round(moonTransit.progress * 100)}% Night Arc` : 'Below Horizon'}
             </span>
           </div>
+
           {/* Moonrise/Moonset times */}
-          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1.5">
+          <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1">
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunrise className="w-2.5 h-2.5 text-slate-400" />
                 <span>RISE</span>
               </span>
-              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.rise}</span>
+              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.rise}</span>
             </div>
             <div className="flex flex-col items-center">
               <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
                 <Sunset className="w-2.5 h-2.5 text-slate-400" />
                 <span>SET</span>
               </span>
-              <span className="text-sm font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.set}</span>
+              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.set}</span>
+            </div>
+          </div>
+
+          {/* Underneath Moonrise & Moonset: Marine Status & Next Tide */}
+          <div className="border-t border-slate-800/50 pt-1 mt-1">
+            <div className="flex items-center justify-between mb-1 px-0.5">
+              <span className="text-[7.5px] font-black text-indigo-300 uppercase flex items-center space-x-1">
+                <Anchor className="w-2.5 h-2.5 text-indigo-400" />
+                <span>MARINE TIDE</span>
+              </span>
+              <span className="text-[7px] font-mono text-slate-400 font-bold uppercase">
+                {tides.springNeap}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1 text-center">
+              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-indigo-500/25">
+                <span className="text-[7px] font-black text-indigo-300 uppercase leading-none mb-0.5">NEXT EVENT</span>
+                <span className="text-xs font-mono font-black text-white leading-none">{tides.nextTide.time}</span>
+                <span className="text-[7.5px] font-mono text-indigo-300/80 mt-0.5 leading-none">
+                  {tides.nextTide.type} ({tides.nextTide.eta})
+                </span>
+              </div>
+              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-slate-800/70">
+                <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-0.5">TIDAL RANGE</span>
+                <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.range}</span>
+                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">ABU AL ABYAD</span>
+              </div>
             </div>
           </div>
         </div>

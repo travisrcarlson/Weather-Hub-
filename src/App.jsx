@@ -665,7 +665,7 @@ export default function App() {
                   onOpenBallistics={() => setIsBallisticsModalOpen(true)}
                 />
               </div>
-              <div className="h-[120px]">
+              <div className="h-[185px]">
                 <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
               </div>
               <div className="h-[220px]">
@@ -830,13 +830,13 @@ export default function App() {
             <div className="h-[84%] grid grid-cols-10 gap-5 pointer-events-none items-stretch">
               {/* Left Column (Col-span-3): Daily Outlook extremes, Sunrise/Sunset & Hourly Forecast */}
               <div className="col-span-3 h-full pointer-events-auto flex flex-col justify-between space-y-3.5">
-                <div className="h-[18%]">
+                <div className="h-[17%]">
                   <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={data.hourly} />
                 </div>
-                <div className="h-[24%]">
+                <div className="h-[28%]">
                   <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
                 </div>
-                <div className="h-[54%]">
+                <div className="h-[52%]">
                   <HourlyForecast 
                     hourlyData={data.hourly} 
                     currentTime={activeTime} 

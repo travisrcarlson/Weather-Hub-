@@ -3,13 +3,18 @@ import {
   Sliders, Calendar, Clock, Download, Compass, Droplet, 
   Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, 
   Sun, Activity, Eye, FileText, Target, Crosshair, HelpCircle, 
-  Layers, Settings, Info, Award
+  Layers, Settings, Info, Award, Table, Copy, Check, X, Sparkles, Zap, ChevronRight, Gauge
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
   Legend, ResponsiveContainer, ReferenceLine, ReferenceArea 
 } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort, getClimaticAnomalyForYear } from '../utils/safetyEngine';
+import { 
+  BALLISTIC_CALIBERS, 
+  calculateAtmosphericDensity, 
+  calculateComprehensiveTrajectory 
+} from '../utils/tacticalBallisticsEngine';
 
 // Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
 const climateDb = [
@@ -43,6 +48,14 @@ export default function CustomerPortal() {
   const [shiftStart, setShiftStart] = useState(8); // 08:00
   const [shiftEnd, setShiftEnd] = useState(16); // 16:00
   const [targetDistance, setTargetDistance] = useState(500); // meters (for ballistics)
+  
+  // Advanced Ballistics & Range Card states
+  const [selectedCaliberId, setSelectedCaliberId] = useState('338_lapua');
+  const [zeroDistance, setZeroDistance] = useState(100); // 100m, 200m, 300m
+  const [dragModel, setDragModel] = useState('G7'); // 'G7' or 'G1'
+  const [crosswindAngle, setCrosswindAngle] = useState(90); // 90 deg full crosswind
+  const [showDopeModal, setShowDopeModal] = useState(false);
+  const [copiedDope, setCopiedDope] = useState(false);
   
   // Display states
   const [chartProfile, setChartProfile] = useState('THERMAL'); // 'THERMAL', 'WIND'
@@ -148,6 +161,38 @@ export default function CustomerPortal() {
   const simTimeline = getSimulatedTimeline();
   const shiftLogs = simTimeline.filter(log => log.isWithinShift);
 
+  // Environmental shift averages for ballistic & atmospheric calculations
+  const avgTemp = shiftLogs.length > 0 ? (shiftLogs.reduce((acc, l) => acc + l.temp, 0) / shiftLogs.length) : 38;
+  const avgRh = shiftLogs.length > 0 ? (shiftLogs.reduce((acc, l) => acc + l.rh, 0) / shiftLogs.length) : 35;
+  const avgWind = shiftLogs.length > 0 ? (shiftLogs.reduce((acc, l) => acc + l.wind, 0) / shiftLogs.length) : 16;
+
+  // Atmospheric density & density altitude for Abu Al Abyad Island
+  const atmData = calculateAtmosphericDensity({
+    temperatureC: avgTemp,
+    relativeHumidity: avgRh,
+    stationPressureHpa: 1011.5,
+    altitudeM: 5
+  });
+
+  // Comprehensive trajectory & DOPE calculation
+  const trajectoryResult = calculateComprehensiveTrajectory({
+    distanceM: targetDistance,
+    caliberId: selectedCaliberId,
+    temperatureC: avgTemp,
+    relativeHumidity: avgRh,
+    stationPressureHpa: 1011.5,
+    zeroDistanceM: zeroDistance,
+    crosswindKmh: avgWind,
+    crosswindAngleDeg: crosswindAngle,
+    dragModel: dragModel,
+    sightHeightCm: 4.5
+  });
+
+  const targetSolution = trajectoryResult.targetSolution;
+  const activeCaliber = trajectoryResult.caliber;
+  const dopeTable = trajectoryResult.cardTable;
+  const bulletDrift = targetSolution.driftCm;
+
   // Compute aggregated stats during the custom shift
   const getShiftStats = () => {
     if (shiftLogs.length === 0) return null;
@@ -202,8 +247,6 @@ export default function CustomerPortal() {
   const getRDDiagnostics = () => {
     if (!stats || shiftLogs.length === 0) return null;
     
-    const avgWind = shiftLogs.reduce((acc, l) => acc + l.wind, 0) / shiftLogs.length;
-    
     let rating = 'OPTIMAL';
     let ratingColor = 'text-safetyGreen border-safetyGreen/20 bg-safetyGreen/5';
     let remarks = '';
@@ -229,26 +272,28 @@ export default function CustomerPortal() {
       }
       
     } else if (targetActivity === 'BALLISTICS') {
-      metricLabel = 'AVG CROSSWIND SPEED';
-      metricValue = `${avgWind.toFixed(1)} km/h`;
-      
-      // Calculate deviation at shooting range
-      // Simplified ballistics drift formula: Drift = Distance (m) * WindSpeed (km/h) * CB_factor
-      const crosswindSpeed = avgWind; // assuming full 90 deg crosswind for drift model
-      const cbFactor = 0.045; // average projectile drag coefficient
-      const driftCm = Number(((targetDistance / 100) * crosswindSpeed * cbFactor).toFixed(1));
+      metricLabel = 'CROSSWIND DEFLECTION';
+      metricValue = `${Math.abs(targetSolution.driftCm).toFixed(1)} cm (${targetSolution.windMil} MIL)`;
       
       if (stats.maxGust >= 50 || stats.maxWind >= 38) {
         rating = 'SUSPENDED';
         ratingColor = 'text-stopRed border-stopRed/20 bg-stopRed/5';
-        remarks = `Drift exceeds compensation tables (${driftCm} cm). Hazardous firing conditions.`;
-      } else if (crosswindSpeed >= 20 || stats.maxGust >= 35) {
+        remarks = `Wind shear & peak gusts (${stats.maxGust} km/h) exceed safety envelopes. High risk of off-target dispersion.`;
+      } else if (targetSolution.flightRegime.startsWith('Subsonic')) {
+        rating = 'UNSTABLE / SUBSONIC';
+        ratingColor = 'text-stopRed border-stopRed/20 bg-stopRed/5';
+        remarks = `Projectile transitions subsonic (${targetSolution.velocityMps} m/s) before target distance (${targetDistance}m). Severe aerodynamic tumble & dispersal.`;
+      } else if (targetSolution.flightRegime.startsWith('Transonic')) {
+        rating = 'TRANSONIC BUFFET';
+        ratingColor = 'text-amber-500 border-amber-500/20 bg-amber-500/5';
+        remarks = `Transonic boundary crossed (${targetSolution.mach} Mach). Yaw angle dispersion elevated; compensation required.`;
+      } else if (avgWind >= 20 || stats.maxGust >= 35) {
         rating = 'AMBER / COMPENSATE';
         ratingColor = 'text-amber-500 border-amber-500/20 bg-amber-500/5';
-        remarks = `Significant projectile drift predicted (${driftCm} cm). Fire control computers must apply manual trim.`;
+        remarks = `Crosswind requires ${targetSolution.windClicks01Mil} clicks windage trim (${targetSolution.windMoa} MOA). Density altitude: ${atmData.densityAltitudeFt.toLocaleString()} ft.`;
       } else {
-        rating = 'CLEAR / STABLE';
-        remarks = `Negligible drift (${driftCm} cm). Optimal weather for high-precision ballistics calibration.`;
+        rating = 'CLEAR / MATCH GRADE';
+        remarks = `Optimal ballistics window. Retained velocity ${targetSolution.velocityMps} m/s (${targetSolution.mach}M), ${targetSolution.energyJ.toLocaleString()}J energy.`;
       }
       
     } else if (targetActivity === 'LASER') {
@@ -300,22 +345,44 @@ export default function CustomerPortal() {
 
   const rdDiagnostics = getRDDiagnostics();
 
-  // Bullet wind drift calculator
-  const getBulletDrift = () => {
-    if (shiftLogs.length === 0) return 0;
-    const avgWind = shiftLogs.reduce((acc, l) => acc + l.wind, 0) / shiftLogs.length;
-    const cbFactor = 0.045; 
-    return ((targetDistance / 100) * avgWind * cbFactor);
+  // Copy DOPE Table to clipboard
+  const handleCopyDope = () => {
+    let text = `======================================================================\n`;
+    text += `       X-RANGE TACTICAL BALLISTICS DOPE CARD - ${activeCaliber.name.toUpperCase()}\n`;
+    text += `======================================================================\n`;
+    text += `AMMUNITION:    ${activeCaliber.bulletWeightGrains}gr | Muzzle Vel: ${activeCaliber.muzzleVelocityMps} m/s\n`;
+    text += `ZERO RANGE:    ${zeroDistance}m | Drag Model: ${dragModel} (Effective BC: ${trajectoryResult.effectiveBC})\n`;
+    text += `AIR DENSITY:   ${atmData.airDensity} kg/m3 (${atmData.airDensityDeltaPct}% vs Std) | DA: ${atmData.densityAltitudeFt.toLocaleString()} ft\n`;
+    text += `CROSSWIND:     ${avgWind.toFixed(1)} km/h @ ${crosswindAngle}° (Full Value)\n`;
+    text += `----------------------------------------------------------------------\n`;
+    text += `Range(m)\tDrop(cm)\tElev(MIL)\tElev(MOA)\tClicks(0.1M)\tDrift(cm)\tWind(MIL)\tVel(m/s)\tMach\tEnergy(J)\tToF(s)\n`;
+    dopeTable.forEach(row => {
+      text += `${row.rangeM}\t${row.dropCm}\t${row.elevMil}\t${row.elevMoa}\t${row.elevClicks01Mil}\t${row.driftCm}\t${row.windMil}\t${row.velocityMps}\t${row.mach}\t${row.energyJ}\t${row.timeOfFlightSec}\n`;
+    });
+    navigator.clipboard.writeText(text);
+    setCopiedDope(true);
+    setTimeout(() => setCopiedDope(false), 2000);
   };
 
-  const bulletDrift = getBulletDrift();
+  // Export DOPE Range Card as dedicated CSV
+  const handleExportDopeCSV = () => {
+    let csvContent = 'data:text/csv;charset=utf-8,';
+    csvContent += `Range (m),Drop (cm),Elev (MIL),Elev (MOA),Elev Clicks (0.1 MIL),Drift (cm),Wind (MIL),Wind (MOA),Wind Clicks (0.1 MIL),Velocity (m/s),Mach,Energy (J),ToF (s),Flight Regime\r\n`;
+    dopeTable.forEach(row => {
+      csvContent += `${row.rangeM},${row.dropCm},${row.elevMil},${row.elevMoa},${row.elevClicks01Mil},${row.driftCm},${row.windMil},${row.windMoa},${row.windClicks01Mil},${row.velocityMps},${row.mach},${row.energyJ},${row.timeOfFlightSec},${row.flightRegime}\r\n`;
+    });
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `XRANGE_DOPE_${activeCaliber.id}_${targetDistance}m.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Export report to txt format
   const handleExportTextReport = () => {
     const c = climateDb[selectedMonthIdx];
-    const avgWind = shiftLogs.reduce((acc, l) => acc + l.wind, 0) / shiftLogs.length;
-    const avgRh = shiftLogs.reduce((acc, l) => acc + l.rh, 0) / shiftLogs.length;
-    const avgTemp = shiftLogs.reduce((acc, l) => acc + l.temp, 0) / shiftLogs.length;
     
     // Hydration calculation: 0.5L/hr base, increases in heat
     let hydrationPerHour = 0.5;
@@ -327,8 +394,19 @@ export default function CustomerPortal() {
 
     let targetReport = '';
     if (targetActivity === 'BALLISTICS') {
-      targetReport = `* Ballistics Target Distance:  ${targetDistance} meters
-* Projectile Wind Drift:      ${bulletDrift.toFixed(1)} cm (Direction: Right to Left)
+      targetReport = `* Ballistics Caliber:          ${activeCaliber.name} (${activeCaliber.bulletWeightGrains}gr / V0: ${activeCaliber.muzzleVelocityMps}m/s)
+* Drag Function / BC:          ${dragModel} (Effective BC: ${trajectoryResult.effectiveBC})
+* Zero Distance:               ${zeroDistance} meters
+* Target Calibration Range:    ${targetDistance} meters
+* Air Density:                 ${atmData.airDensity} kg/m3 (${atmData.airDensityDeltaPct}% vs ICAO Std)
+* Density Altitude:            ${atmData.densityAltitudeFt.toLocaleString()} ft (${atmData.densityAltitudeM.toLocaleString()} m)
+* Retained Velocity:           ${targetSolution.velocityMps} m/s (Mach ${targetSolution.mach} - ${targetSolution.flightRegime})
+* Kinetic Energy at Target:    ${targetSolution.energyJ.toLocaleString()} Joules
+* Time of Flight:              ${targetSolution.timeOfFlightSec} seconds
+* Bullet Drop:                 ${targetSolution.dropCm} cm
+* Elevation Holdover:          +${targetSolution.elevMil} MIL / +${targetSolution.elevMoa} MOA (${targetSolution.elevClicks01Mil} clicks UP)
+* Crosswind Deflection:        ${Math.abs(targetSolution.driftCm).toFixed(1)} cm (${targetSolution.driftCm >= 0 ? 'Right' : 'Left'})
+* Windage Correction:          ${targetSolution.windMil} MIL / ${targetSolution.windMoa} MOA (${targetSolution.windClicks01Mil} clicks)
 * Firing Decision:             ${rdDiagnostics.rating}`;
     } else if (targetActivity === 'DRONES') {
       targetReport = `* Drone Flight Rating:        ${rdDiagnostics.rating}
@@ -390,6 +468,12 @@ Guidance Remarks:
 * Hydration Rate Per Person: ${hydrationPerHour.toFixed(2)} L/hr
 * Projected Total Water:     ${totalWaterPerPerson.toFixed(2)} Liters / shift
 
+${targetActivity === 'BALLISTICS' ? `----------------------------------------------------------------------
+5. RANGE CARD / DOPE TABLE (${activeCaliber.name.toUpperCase()})
+----------------------------------------------------------------------
+Range(m)  Drop(cm)   Elev(MIL)  Elev(MOA)  Clicks  Drift(cm)  Wind(MIL)  Vel(m/s)   Mach   Energy(J)  ToF(s)
+${dopeTable.map(r => `${r.rangeM.toString().padEnd(8)}  ${r.dropCm.toString().padEnd(9)}  ${r.elevMil.toString().padEnd(9)}  ${r.elevMoa.toString().padEnd(9)}  ${r.elevClicks01Mil.toString().padEnd(6)}  ${r.driftCm.toString().padEnd(9)}  ${r.windMil.toString().padEnd(9)}  ${r.velocityMps.toString().padEnd(9)}  ${r.mach.toString().padEnd(5)}  ${r.energyJ.toString().padEnd(9)}  ${r.timeOfFlightSec}`).join('\n')}
+` : ''}
 ======================================================================
 This report is generated for X-Range customers to project and design range
 trials under projected atmospheric abnormalities. For operational live fires,
@@ -888,93 +972,265 @@ verify local telemetry feeds before final range officer approval.
             </p>
           </div>
 
-          {/* Ballistics Target Visualizer (Premium R&D Graphics Widget) */}
+          {/* Advanced Ballistics & Range Card Engine (Military R&D Precision Fire Widget) */}
           <div className="bg-cardDarkSlate p-4 border border-slate-800 flex flex-col space-y-3 shrink-0">
+            {/* Header with Title and Range Card button */}
             <div className="flex items-center space-x-2 border-b border-slate-800 pb-2 text-slate-350 justify-between">
               <div className="flex items-center space-x-1.5">
-                <Target className="w-4 h-4 text-edgeOrange" />
-                <span className="text-[10px] font-black uppercase tracking-wider">PROJECTED PROJECTILE DEVIATION</span>
+                <Crosshair className="w-4 h-4 text-edgeOrange" />
+                <span className="text-[10px] font-black uppercase tracking-wider">TACTICAL BALLISTICS & DOPE</span>
               </div>
-              <span className="text-[9px] text-slate-500 font-mono font-bold">RANGE: {targetDistance}m</span>
+              <button
+                type="button"
+                onClick={() => setShowDopeModal(true)}
+                className="bg-edgeOrange/20 hover:bg-edgeOrange/30 text-edgeOrange border border-edgeOrange/40 hover:border-edgeOrange transition px-2 py-0.5 text-[8.5px] font-black uppercase flex items-center space-x-1 cursor-pointer"
+                title="View full Data On Previous Engagements (DOPE) range card table"
+              >
+                <Table className="w-3 h-3" />
+                <span>DOPE CARD</span>
+              </button>
+            </div>
+
+            {/* Caliber Selector */}
+            <div className="flex flex-col space-y-1">
+              <div className="flex justify-between items-center text-[8.5px] font-black uppercase text-slate-400">
+                <span>SELECT CARTRIDGE / CALIBER:</span>
+                <span className="text-edgeOrange font-mono">{activeCaliber.caliber}</span>
+              </div>
+              <select
+                value={selectedCaliberId}
+                onChange={(e) => setSelectedCaliberId(e.target.value)}
+                className="bg-bgDeepSpace border border-slate-700/80 text-white text-[9.5px] font-bold p-1.5 focus:border-edgeOrange outline-none cursor-pointer"
+              >
+                {BALLISTIC_CALIBERS.filter(c => c.id !== '120_mortar').map(c => (
+                  <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                    {c.name} ({c.bulletWeightGrains}gr)
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Drag Function & Zero Distance Selector Row */}
+            <div className="grid grid-cols-2 gap-2 text-[8.5px]">
+              <div className="bg-bgDeepSpace/60 border border-slate-850 p-1.5 flex flex-col justify-between">
+                <span className="text-slate-500 font-black uppercase">DRAG MODEL:</span>
+                <div className="flex space-x-1 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setDragModel('G7')}
+                    className={`flex-1 py-0.5 font-black uppercase text-center cursor-pointer transition ${dragModel === 'G7' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-white bg-slate-850'}`}
+                  >
+                    G7
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDragModel('G1')}
+                    className={`flex-1 py-0.5 font-black uppercase text-center cursor-pointer transition ${dragModel === 'G1' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-white bg-slate-850'}`}
+                  >
+                    G1
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-bgDeepSpace/60 border border-slate-850 p-1.5 flex flex-col justify-between">
+                <span className="text-slate-500 font-black uppercase">ZERO RANGE:</span>
+                <div className="flex space-x-1 mt-1">
+                  {[100, 200, 300].map(z => (
+                    <button
+                      key={z}
+                      type="button"
+                      onClick={() => setZeroDistance(z)}
+                      className={`flex-1 py-0.5 font-black uppercase text-center cursor-pointer transition ${zeroDistance === z ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-white bg-slate-850'}`}
+                    >
+                      {z}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Atmospheric Density Strip (Abu Al Abyad Island Environmental Correction) */}
+            <div className="bg-bgDeepSpace/80 border border-slate-800 p-2 flex flex-col space-y-1">
+              <div className="flex justify-between items-center text-[8px] font-black uppercase text-slate-400">
+                <div className="flex items-center space-x-1">
+                  <Gauge className="w-3 h-3 text-cyan-400" />
+                  <span>ATMOSPHERIC CORRECTION (ISLAND MET):</span>
+                </div>
+                <span className="text-cyan-400 font-mono">{atmData.airDensity} kg/m³</span>
+              </div>
+              <div className="grid grid-cols-3 gap-1 text-[8px] text-center pt-0.5">
+                <div className="bg-slate-900/60 p-1 border border-slate-800">
+                  <span className="text-slate-500 block">DENSITY ALT</span>
+                  <span className="font-mono text-white font-bold">{atmData.densityAltitudeFt.toLocaleString()} ft</span>
+                </div>
+                <div className="bg-slate-900/60 p-1 border border-slate-800">
+                  <span className="text-slate-500 block">AIR DRAG DELTA</span>
+                  <span className={`font-mono font-bold ${atmData.airDensityDeltaPct <= 0 ? 'text-safetyGreen' : 'text-stopRed'}`}>
+                    {atmData.airDensityDeltaPct > 0 ? '+' : ''}{atmData.airDensityDeltaPct}%
+                  </span>
+                </div>
+                <div className="bg-slate-900/60 p-1 border border-slate-800">
+                  <span className="text-slate-500 block">SPEED OF SOUND</span>
+                  <span className="font-mono text-white font-bold">{atmData.speedOfSoundMps} m/s</span>
+                </div>
+              </div>
             </div>
 
             {/* Target Distance input */}
             <div className="flex flex-col space-y-1.5">
               <div className="flex justify-between items-center text-[9px] font-bold">
-                <span className="text-slate-500 uppercase">TARGET CALIBRATION RANGE:</span>
+                <span className="text-slate-500 uppercase">ENGAGEMENT DISTANCE:</span>
                 <span className="font-mono text-white text-xs font-black">{targetDistance}m</span>
               </div>
               <input
                 type="range"
                 min="100"
-                max="1500"
-                step="50"
+                max={Math.min(activeCaliber.maxEffectiveRangeM || 1500, 2000)}
+                step="25"
                 value={targetDistance}
                 onChange={(e) => setTargetDistance(parseInt(e.target.value))}
                 className="w-full accent-edgeOrange h-1 bg-bgDeepSpace cursor-pointer border-none outline-none"
               />
+              <div className="flex justify-between text-[7.5px] text-slate-500 font-mono">
+                <span>100m</span>
+                <span>500m</span>
+                <span>1000m</span>
+                <span>{Math.min(activeCaliber.maxEffectiveRangeM || 1500, 2000)}m max</span>
+              </div>
             </div>
 
-            {/* SVG Target illustration */}
-            <div className="flex justify-center py-2 bg-bgDeepSpace/40 border border-slate-850">
-              <svg width="130" height="130" viewBox="0 0 130 130" className="bg-slate-950/20">
-                {/* Crosshairs & Rings */}
-                <circle cx="65" cy="65" r="55" fill="none" stroke="#334155" strokeWidth="1" />
-                <circle cx="65" cy="65" r="40" fill="none" stroke="#475569" strokeWidth="1.5" />
-                <circle cx="65" cy="65" r="25" fill="none" stroke="#64748B" strokeWidth="1.5" />
-                <circle cx="65" cy="65" r="10" fill="none" stroke="#94A3B8" strokeWidth="2" />
-                
-                {/* Axis lines */}
-                <line x1="65" y1="5" x2="65" y2="125" stroke="#475569" strokeWidth="1" strokeDasharray="2,2" />
-                <line x1="5" y1="65" x2="125" y2="65" stroke="#475569" strokeWidth="1" strokeDasharray="2,2" />
+            {/* High-Fidelity Tactical Mil-Dot Reticle Graphic */}
+            <div className="relative flex justify-center py-2 bg-slate-950/70 border border-slate-850 overflow-hidden">
+              <svg width="180" height="150" viewBox="0 0 180 150" className="select-none">
+                <defs>
+                  <radialGradient id="reticleVignette" cx="50%" cy="50%" r="50%">
+                    <stop offset="70%" stopColor="#030712" stopOpacity="0" />
+                    <stop offset="100%" stopColor="#030712" stopOpacity="0.85" />
+                  </radialGradient>
+                </defs>
 
-                {/* Hit indicator (shifted by calculated wind drift). 
-                    Limit visually to circle frame (max drift 50px). 
-                    Scale: 1cm = 0.5px */}
+                {/* Outer Scope Rim */}
+                <circle cx="90" cy="75" r="70" fill="#090d16" stroke="#1e293b" strokeWidth="2" />
+                <circle cx="90" cy="75" r="69" fill="url(#reticleVignette)" />
+
+                {/* Optical Center Crosshairs */}
+                <line x1="90" y1="10" x2="90" y2="140" stroke="#475569" strokeWidth="1" strokeDasharray="2 1" />
+                <line x1="25" y1="75" x2="155" y2="75" stroke="#475569" strokeWidth="1" strokeDasharray="2 1" />
+
+                {/* Mil-Dot Hash Graduations */}
+                {[-4, -3, -2, -1, 1, 2, 3, 4].map(mil => (
+                  <g key={`x-mil-${mil}`}>
+                    <line x1={90 + mil * 12} y1="72" x2={90 + mil * 12} y2="78" stroke="#64748b" strokeWidth="1" />
+                    {Math.abs(mil) % 2 === 0 && (
+                      <text x={90 + mil * 12} y="85" fontSize="5" fill="#64748b" textAnchor="middle">{Math.abs(mil)}</text>
+                    )}
+                  </g>
+                ))}
+
+                {[1, 2, 3, 4, 5].map(mil => (
+                  <g key={`y-mil-${mil}`}>
+                    <line x1="86" y1={75 + mil * 11} x2="94" y2={75 + mil * 11} stroke="#64748b" strokeWidth="1" />
+                    <text x="83" y={75 + mil * 11 + 2} fontSize="5" fill="#64748b" textAnchor="end">{mil}</text>
+                  </g>
+                ))}
+
+                {/* Center Aiming Dot */}
+                <circle cx="90" cy="75" r="1.5" fill="#f8fafc" opacity="0.9" />
+
+                {/* Dynamic Impact Point: Elevation Drop + Windage Drift */}
                 {(() => {
-                  const maxVisualDrift = 50; 
-                  // Bullet drifts left or right depending on wind multiplier. 
-                  // If windMultiplier >= 1.0, drifts left-to-right (positive shift). Let's simulate drift value:
-                  const driftPx = Math.max(-maxVisualDrift, Math.min(maxVisualDrift, bulletDrift * 0.45));
+                  const maxPx = 55;
+                  const dropPx = Math.min(maxPx, Math.max(0, targetSolution.elevMil * 3.8));
+                  const driftPx = Math.max(-maxPx, Math.min(maxPx, (targetSolution.driftCm / (targetDistance * 0.1)) * 3.8));
+                  const hitX = 90 + driftPx;
+                  const hitY = 75 + dropPx;
+
                   return (
-                    <>
-                      {/* Shot Dot */}
-                      <circle 
-                        cx={65 + driftPx} 
-                        cy="65" 
-                        r="3.5" 
-                        fill="#EF4444" 
-                        className="animate-pulse" 
-                      />
-                      {/* Tracer circle */}
-                      <circle 
-                        cx={65 + driftPx} 
-                        cy="65" 
-                        r="8" 
-                        fill="none" 
-                        stroke="#EF4444" 
-                        strokeWidth="1" 
-                        className="animate-ping opacity-60" 
-                      />
-                    </>
+                    <g>
+                      {/* Holdover Line from optical center */}
+                      <line x1="90" y1="75" x2={hitX} y2={hitY} stroke="#f97316" strokeWidth="0.75" strokeDasharray="2,2" opacity="0.6" />
+
+                      {/* Impact Point */}
+                      <circle cx={hitX} cy={hitY} r="3" fill="#ef4444" className="animate-pulse" />
+                      <circle cx={hitX} cy={hitY} r="6.5" fill="none" stroke="#ef4444" strokeWidth="1" className="animate-ping opacity-50" />
+                      
+                      {/* Holdover coordinate label */}
+                      <text x={hitX > 90 ? hitX - 8 : hitX + 8} y={hitY + 4} fontSize="5" fill="#f97316" fontWeight="bold" textAnchor={hitX > 90 ? "end" : "start"}>
+                        {targetSolution.elevMil}M ↓ {targetSolution.windMil}M
+                      </text>
+                    </g>
                   );
                 })()}
+
+                {/* Wind Vector Direction Indicator */}
+                <g transform="translate(150, 25)">
+                  <circle cx="0" cy="0" r="11" fill="#0b0f19" stroke="#334155" strokeWidth="0.8" />
+                  <path d="M 0 6 L 0 -6 M -3 -2 L 0 -6 L 3 -2" stroke="#38bdf8" strokeWidth="1.2" strokeLinecap="round" />
+                  <text x="0" y="15" fontSize="4.5" fill="#94a3b8" textAnchor="middle" fontWeight="bold">WIND</text>
+                </g>
               </svg>
             </div>
 
-            {/* Ballistics data read-out */}
-            <div className="bg-bgDeepSpace/40 p-2 font-mono text-[9px] flex flex-col space-y-1 text-slate-400">
-              <div className="flex justify-between">
-                <span>WIND DEVIATION:</span>
-                <span className="text-white font-bold">{bulletDrift.toFixed(1)} cm</span>
+            {/* Tactical Fire Control Solutions Grid */}
+            <div className="bg-bgDeepSpace/70 p-2 border border-slate-800 flex flex-col space-y-2 text-[8.5px] font-mono">
+              <div className="grid grid-cols-2 gap-2">
+                {/* Elevation Adjustment */}
+                <div className="bg-slate-900/60 p-1.5 border border-slate-850 flex flex-col justify-between">
+                  <span className="text-slate-400 font-sans font-black uppercase text-[8px]">ELEVATION HOLDOVER:</span>
+                  <div className="flex items-baseline space-x-1 my-0.5">
+                    <span className="text-sm font-black text-white">+{targetSolution.elevMil}</span>
+                    <span className="text-edgeOrange font-bold">MIL</span>
+                    <span className="text-slate-400 text-[8px]">(+{targetSolution.elevMoa} MOA)</span>
+                  </div>
+                  <span className="text-slate-400 text-[8px]">Turret: <strong className="text-white">+{targetSolution.elevClicks01Mil} Clicks UP</strong></span>
+                </div>
+
+                {/* Windage Adjustment */}
+                <div className="bg-slate-900/60 p-1.5 border border-slate-850 flex flex-col justify-between">
+                  <span className="text-slate-400 font-sans font-black uppercase text-[8px]">WINDAGE DEFLECTION:</span>
+                  <div className="flex items-baseline space-x-1 my-0.5">
+                    <span className="text-sm font-black text-white">{targetSolution.windMil}</span>
+                    <span className="text-cyan-400 font-bold">MIL</span>
+                    <span className="text-slate-400 text-[8px]">({targetSolution.windMoa} MOA)</span>
+                  </div>
+                  <span className="text-slate-400 text-[8px]">
+                    Offset: <strong className="text-white">{Math.abs(targetSolution.driftCm).toFixed(1)} cm</strong> ({targetSolution.windClicks01Mil} Clicks)
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>CORRECTION ANGLE:</span>
-                <span className="text-white font-bold">
-                  {bulletDrift > 0 ? `${Number((bulletDrift / (targetDistance * 0.029)).toFixed(2))} MOA Left` : '0 MOA'}
-                </span>
+
+              {/* Kinetic & Aerodynamic Telemetry */}
+              <div className="grid grid-cols-3 gap-1 pt-1 border-t border-slate-800/80 text-center">
+                <div>
+                  <span className="text-slate-500 block text-[7.5px] uppercase">VELOCITY</span>
+                  <span className="font-bold text-white">{targetSolution.velocityMps} m/s</span>
+                  <span className={`block text-[7.5px] font-bold ${targetSolution.regimeColor}`}>
+                    {targetSolution.flightRegime} ({targetSolution.mach}M)
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[7.5px] uppercase">TIME OF FLIGHT</span>
+                  <span className="font-bold text-white">{targetSolution.timeOfFlightSec}s</span>
+                  <span className="text-slate-500 block text-[7.5px]">To Target</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[7.5px] uppercase">RETAINED ENERGY</span>
+                  <span className="font-bold text-white">{targetSolution.energyJ.toLocaleString()} J</span>
+                  <span className="text-slate-500 block text-[7.5px]">Kinetic Energy</span>
+                </div>
               </div>
             </div>
+
+            {/* Quick Action Button for DOPE Table */}
+            <button
+              type="button"
+              onClick={() => setShowDopeModal(true)}
+              className="w-full bg-slate-900 hover:bg-slate-850 text-slate-200 border border-slate-700/80 hover:border-edgeOrange transition py-1.5 px-3 text-[9px] font-black uppercase flex items-center justify-center space-x-1.5 cursor-pointer"
+            >
+              <Table className="w-3.5 h-3.5 text-edgeOrange" />
+              <span>EXPAND FULL DOPE RANGE CARD TABLE</span>
+              <ChevronRight className="w-3 h-3 text-slate-400" />
+            </button>
           </div>
 
           {/* R&D Impact Metrics Panel */}
@@ -1040,6 +1296,155 @@ verify local telemetry feeds before final range officer approval.
         </div>
 
       </div>
+
+      {/* 5. Full DOPE Range Card Modal */}
+      {showDopeModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 md:p-6 animate-fade-in">
+          <div className="bg-cardDarkSlate border border-slate-700/80 rounded-xl shadow-2xl max-w-5xl w-full max-h-[92vh] flex flex-col overflow-hidden text-textIceWhite">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-bgDeepSpace/80 shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <div className="p-2 bg-edgeOrange/20 border border-edgeOrange/40 rounded-lg">
+                  <Crosshair className="w-5 h-5 text-edgeOrange" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black tracking-wider uppercase flex items-center space-x-2">
+                    <span>X-RANGE TACTICAL DOPE CARD</span>
+                    <span className="text-edgeOrange font-mono">• {activeCaliber.name}</span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                    Zero: {zeroDistance}m • Drag Model: {dragModel} (Eff. BC: {trajectoryResult.effectiveBC}) • Density Alt: {atmData.densityAltitudeFt.toLocaleString()} ft • Air Density: {atmData.airDensity} kg/m³
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  type="button"
+                  onClick={handleCopyDope}
+                  className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-[9px] font-black uppercase flex items-center space-x-1.5 cursor-pointer transition rounded"
+                  title="Copy DOPE table to clipboard"
+                >
+                  {copiedDope ? <Check className="w-3.5 h-3.5 text-safetyGreen" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedDope ? 'COPIED!' : 'COPY TABLE'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportDopeCSV}
+                  className="bg-edgeOrange hover:bg-orange-600 border border-orange-700 px-3 py-1.5 text-[9px] font-black uppercase flex items-center space-x-1.5 cursor-pointer text-white transition rounded shadow"
+                  title="Export DOPE table to CSV"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>EXPORT CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowDopeModal(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800 cursor-pointer transition ml-2"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Environmental Summary Bar */}
+            <div className="bg-slate-950/90 px-4 py-2 border-b border-slate-800 flex items-center justify-between text-[9px] font-mono text-slate-300 shrink-0 flex-wrap gap-2">
+              <span className="flex items-center space-x-1">
+                <span className="text-slate-500">TEMP:</span>
+                <strong className="text-white">{avgTemp.toFixed(1)}°C</strong>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="text-slate-500">RH:</span>
+                <strong className="text-white">{avgRh}%</strong>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="text-slate-500">CROSSWIND:</span>
+                <strong className="text-white">{avgWind.toFixed(1)} km/h @ {crosswindAngle}°</strong>
+              </span>
+              <span className="flex items-center space-x-1">
+                <span className="text-slate-500">SOUND SPEED:</span>
+                <strong className="text-white">{atmData.speedOfSoundMps} m/s</strong>
+              </span>
+              <span className="flex items-center space-x-1 bg-edgeOrange/15 px-2 py-0.5 rounded border border-edgeOrange/30">
+                <span className="text-edgeOrange font-black uppercase">TARGET:</span>
+                <strong className="text-white">{targetDistance}m</strong>
+              </span>
+            </div>
+
+            {/* Table Area */}
+            <div className="flex-grow overflow-auto p-4 no-scrollbar">
+              <table className="w-full text-left border-collapse text-[10px] font-mono">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[9px] font-black text-slate-400 uppercase bg-slate-900/80 sticky top-0 z-10">
+                    <th className="p-2.5">Range</th>
+                    <th className="p-2.5">Drop (cm)</th>
+                    <th className="p-2.5 text-edgeOrange">Elev (MIL)</th>
+                    <th className="p-2.5">Elev (MOA)</th>
+                    <th className="p-2.5">Clicks (0.1M)</th>
+                    <th className="p-2.5">Drift (cm)</th>
+                    <th className="p-2.5 text-cyan-400">Wind (MIL)</th>
+                    <th className="p-2.5">Velocity</th>
+                    <th className="p-2.5">Mach</th>
+                    <th className="p-2.5">Energy (J)</th>
+                    <th className="p-2.5">ToF (s)</th>
+                    <th className="p-2.5">Flight Regime</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {dopeTable.map((row) => {
+                    const isSelectedRange = Math.abs(row.rangeM - targetDistance) < 25;
+                    return (
+                      <tr 
+                        key={row.rangeM}
+                        className={`transition ${
+                          isSelectedRange 
+                            ? 'bg-edgeOrange/20 font-black border-l-4 border-edgeOrange text-white' 
+                            : 'hover:bg-slate-900/40 text-slate-300'
+                        }`}
+                      >
+                        <td className="p-2.5 font-bold">{row.rangeM}m</td>
+                        <td className="p-2.5">{row.dropCm}</td>
+                        <td className="p-2.5 text-edgeOrange font-black">+{row.elevMil}</td>
+                        <td className="p-2.5 text-slate-400">+{row.elevMoa}</td>
+                        <td className="p-2.5 font-bold text-white">+{row.elevClicks01Mil}</td>
+                        <td className="p-2.5">{Math.abs(row.driftCm).toFixed(1)}</td>
+                        <td className="p-2.5 text-cyan-400 font-bold">{row.windMil}</td>
+                        <td className="p-2.5">{row.velocityMps} m/s</td>
+                        <td className="p-2.5 font-bold">{row.mach}M</td>
+                        <td className="p-2.5 text-slate-300">{row.energyJ.toLocaleString()}</td>
+                        <td className="p-2.5 text-slate-400">{row.timeOfFlightSec}</td>
+                        <td className="p-2.5">
+                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${
+                            row.flightRegime === 'Supersonic' ? 'bg-safetyGreen/20 text-safetyGreen' :
+                            row.flightRegime.startsWith('Transonic') ? 'bg-amber-500/20 text-amber-400' :
+                            'bg-stopRed/20 text-stopRed'
+                          }`}>
+                            {row.flightRegime}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-800 bg-bgDeepSpace/80 flex items-center justify-between text-[9px] text-slate-400 shrink-0">
+              <span className="flex items-center space-x-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-edgeOrange inline-block animate-pulse"></span>
+                <span>Active calibration target highlighted at <strong>{targetDistance}m</strong>. Scope click values calculated for standard 0.1 MIL / 1cm @ 100m turrets.</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDopeModal(false)}
+                className="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-black uppercase text-[9px] rounded cursor-pointer transition border border-slate-700"
+              >
+                Close DOPE Card
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

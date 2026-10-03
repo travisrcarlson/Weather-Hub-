@@ -4,13 +4,32 @@
 // 1. STANDARD BALLISTIC CARTRIDGE PROFILES
 export const BALLISTIC_CALIBERS = [
   {
+    id: '556_nato',
+    name: '5.56x45mm NATO (M855A1 EPR)',
+    shortName: '5.56 NATO',
+    caliber: '5.56mm',
+    bulletWeightGrains: 62,
+    muzzleVelocityMps: 940, // 3084 fps
+    ballisticCoefficientG1: 0.307,
+    ballisticCoefficientG7: 0.152,
+    maxEffectiveRangeM: 800,
+    mradPerKmh: {
+      300: 0.038,
+      500: 0.076,
+      800: 0.165,
+      1000: 0.245
+    }
+  },
+  {
     id: '762_nato',
     name: '7.62x51mm NATO (M118LR / DMR)',
+    shortName: '7.62 NATO',
     caliber: '7.62mm',
     bulletWeightGrains: 175,
     muzzleVelocityMps: 790, // ~2590 fps
     ballisticCoefficientG1: 0.505,
-    maxEffectiveRangeM: 800,
+    ballisticCoefficientG7: 0.243,
+    maxEffectiveRangeM: 1000,
     // Crosswind sensitivity factor (mrad per km/h pure 90° crosswind at given distances)
     mradPerKmh: {
       500: 0.042,
@@ -19,13 +38,31 @@ export const BALLISTIC_CALIBERS = [
     }
   },
   {
+    id: '300_winmag',
+    name: '.300 Winchester Magnum (Mk 248 Mod 1)',
+    shortName: '.300 WinMag',
+    caliber: '7.62mm',
+    bulletWeightGrains: 220,
+    muzzleVelocityMps: 869, // ~2850 fps
+    ballisticCoefficientG1: 0.620,
+    ballisticCoefficientG7: 0.310,
+    maxEffectiveRangeM: 1300,
+    mradPerKmh: {
+      500: 0.031,
+      1000: 0.084,
+      1500: 0.160
+    }
+  },
+  {
     id: '338_lapua',
     name: '.338 Lapua Magnum (250gr Scenar)',
+    shortName: '.338 Lapua',
     caliber: '8.6mm',
     bulletWeightGrains: 250,
     muzzleVelocityMps: 915, // ~3000 fps
     ballisticCoefficientG1: 0.675,
-    maxEffectiveRangeM: 1500,
+    ballisticCoefficientG7: 0.322,
+    maxEffectiveRangeM: 1600,
     mradPerKmh: {
       500: 0.026,
       1000: 0.072,
@@ -35,10 +72,12 @@ export const BALLISTIC_CALIBERS = [
   {
     id: '50_bmg',
     name: '12.7x99mm / .50 BMG (M33 Ball)',
+    shortName: '.50 BMG',
     caliber: '12.7mm',
     bulletWeightGrains: 661,
     muzzleVelocityMps: 887, // ~2910 fps
     ballisticCoefficientG1: 0.670,
+    ballisticCoefficientG7: 0.345,
     maxEffectiveRangeM: 2000,
     mradPerKmh: {
       500: 0.021,
@@ -49,10 +88,12 @@ export const BALLISTIC_CALIBERS = [
   {
     id: '120_mortar',
     name: '120mm High-Angle Mortar (HE M933)',
+    shortName: '120mm Mortar',
     caliber: '120mm',
     bulletWeightGrains: 20000,
     muzzleVelocityMps: 310,
     ballisticCoefficientG1: 0.210,
+    ballisticCoefficientG7: 0.105,
     maxEffectiveRangeM: 7200,
     mradPerKmh: {
       500: 0.120,
@@ -158,6 +199,194 @@ function getClockFaceWind(angleDeg) {
   const clockHour = Math.round(angleDeg / 30) || 12;
   const normalizedHour = clockHour === 0 ? 12 : clockHour;
   return `${normalizedHour} o'clock`;
+}
+
+// 3.1 ATMOSPHERIC DENSITY & DENSITY ALTITUDE ENGINE (Abu Al Abyad Environmental Corrections)
+export function calculateAtmosphericDensity({ temperatureC = 25, relativeHumidity = 50, stationPressureHpa = 1013.25, altitudeM = 5 }) {
+  const T = Number(temperatureC);
+  const RH = Math.max(1, Math.min(100, Number(relativeHumidity)));
+  const P = Number(stationPressureHpa);
+  const T_kelvin = T + 273.15;
+
+  // Saturated vapor pressure (Tetens formula in hPa)
+  const satVaporPressHpa = 6.1078 * Math.pow(10, (7.5 * T) / (237.3 + T));
+  const vaporPressHpa = (satVaporPressHpa * RH) / 100;
+  const dryAirPressHpa = Math.max(0, P - vaporPressHpa);
+
+  // Gas constants: Rd = 287.058 J/(kg*K), Rv = 461.495 J/(kg*K)
+  const rhoDry = (dryAirPressHpa * 100) / (287.058 * T_kelvin);
+  const rhoVapor = (vaporPressHpa * 100) / (461.495 * T_kelvin);
+  const airDensity = Number((rhoDry + rhoVapor).toFixed(4)); // kg/m^3
+
+  // Standard Sea Level Density: 1.2250 kg/m^3
+  const standardDensity = 1.2250;
+  const airDensityRatio = Number((airDensity / standardDensity).toFixed(4));
+  const airDensityDeltaPct = Number((((airDensity - standardDensity) / standardDensity) * 100).toFixed(1));
+
+  // Density Altitude calculation in feet (NOAA standard)
+  const densityAltitudeFt = Math.round(145366 * (1 - Math.pow(airDensityRatio, 0.23496)));
+  const densityAltitudeM = Math.round(densityAltitudeFt * 0.3048);
+
+  // Speed of sound in m/s: a = 331.3 * sqrt(1 + T / 273.15)
+  const speedOfSoundMps = Number((331.3 * Math.sqrt(1 + T / 273.15)).toFixed(1));
+
+  return {
+    temperatureC: T,
+    relativeHumidity: RH,
+    stationPressureHpa: P,
+    altitudeM,
+    airDensity,
+    standardDensity,
+    airDensityRatio,
+    airDensityDeltaPct,
+    densityAltitudeFt,
+    densityAltitudeM,
+    speedOfSoundMps
+  };
+}
+
+// 3.2 HIGH-FIDELITY TRAJECTORY SOLVER (G1 / G7 Aerodynamic Drag & Drop/Windage Card)
+export function calculateComprehensiveTrajectory({
+  distanceM = 500,
+  caliberId = '338_lapua',
+  temperatureC = 25,
+  relativeHumidity = 50,
+  stationPressureHpa = 1013.25,
+  zeroDistanceM = 100,
+  crosswindKmh = 15,
+  crosswindAngleDeg = 90,
+  dragModel = 'G7',
+  sightHeightCm = 4.5
+}) {
+  const caliber = BALLISTIC_CALIBERS.find(c => c.id === caliberId) || BALLISTIC_CALIBERS[3];
+  const atm = calculateAtmosphericDensity({ temperatureC, relativeHumidity, stationPressureHpa });
+  
+  // Choose G7 or G1 ballistic coefficient
+  const baseBC = (dragModel === 'G7' && caliber.ballisticCoefficientG7) 
+    ? caliber.ballisticCoefficientG7 
+    : caliber.ballisticCoefficientG1;
+
+  // Thin desert air reduces aerodynamic drag (effective BC is higher)
+  const effectiveBC = baseBC / Math.max(0.5, atm.airDensityRatio);
+
+  // Aerodynamic retardation constant (K-factor based on G7 vs G1 curve)
+  const kFactor = dragModel === 'G7' ? 6250 : 3650;
+  const massKg = caliber.bulletWeightGrains * 0.00006479891;
+  const v0 = caliber.muzzleVelocityMps;
+
+  // Sub-function to compute kinematics at any target range x
+  const computePoint = (x) => {
+    if (x <= 0) {
+      return {
+        rangeM: 0,
+        velocityMps: v0,
+        mach: Number((v0 / atm.speedOfSoundMps).toFixed(2)),
+        energyJ: Math.round(0.5 * massKg * v0 * v0),
+        timeOfFlightSec: 0,
+        dropCm: 0,
+        elevMil: 0,
+        elevMoa: 0,
+        elevClicks01Mil: 0,
+        driftCm: 0,
+        windMil: 0,
+        windMoa: 0,
+        windClicks01Mil: 0,
+        flightRegime: 'Supersonic'
+      };
+    }
+
+    // Velocity decay: V(x) = V0 * exp(-x / (K * BC_eff))
+    const decayExp = Math.exp(-x / (kFactor * effectiveBC));
+    const vx = Math.max(50, v0 * decayExp);
+    const vAvg = (v0 + vx) / 2;
+    const tof = x / vAvg; // Time of flight in seconds
+    const mach = Number((vx / atm.speedOfSoundMps).toFixed(2));
+
+    // Flight regime: Supersonic > 1.2 Mach, Transonic 1.0 - 1.2 Mach, Subsonic < 1.0 Mach
+    let flightRegime = 'Supersonic';
+    let regimeColor = 'text-safetyGreen';
+    if (mach <= 1.0) {
+      flightRegime = 'Subsonic';
+      regimeColor = 'text-stopRed';
+    } else if (mach <= 1.2) {
+      flightRegime = 'Transonic';
+      regimeColor = 'text-amberAlert';
+    }
+
+    // Kinetic energy in Joules
+    const energyJ = Math.round(0.5 * massKg * vx * vx);
+
+    // Gravity raw drop (m) from bore axis: 0.5 * g * t^2
+    const rawDropM = 0.5 * 9.80665 * (tof * tof);
+
+    // Sight line correction: zeroed at zeroDistanceM with sightHeightCm above bore
+    const zTof = zeroDistanceM / ((v0 + (v0 * Math.exp(-zeroDistanceM / (kFactor * effectiveBC)))) / 2);
+    const zRawDropM = 0.5 * 9.80665 * (zTof * zTof);
+    const sightHeightM = sightHeightCm / 100;
+    const zeroBoreAngleRad = (zRawDropM + sightHeightM) / zeroDistanceM;
+
+    // Drop relative to Line of Sight (LOS) in cm
+    const dropLosM = rawDropM + sightHeightM - (zeroBoreAngleRad * x);
+    const dropCm = Number((dropLosM * 100).toFixed(1));
+
+    // Elevation compensation (MIL and MOA)
+    const elevMil = x > 0 ? Number(((dropCm / (x * 0.1))).toFixed(1)) : 0;
+    const elevMoa = Number((elevMil * 3.4377).toFixed(1));
+    const elevClicks01Mil = Math.round(elevMil * 10);
+
+    // Crosswind deflection (Didion's formula)
+    const radWind = (crosswindAngleDeg * Math.PI) / 180;
+    const crosswindMps = (crosswindKmh / 3.6) * Math.sin(radWind);
+    // Drift = V_cross * (tof - x / V0)
+    const lagTime = Math.max(0, tof - (x / v0));
+    const driftM = crosswindMps * lagTime;
+    const driftCm = Number((driftM * 100).toFixed(1));
+
+    const windMil = x > 0 ? Number((Math.abs(driftCm) / (x * 0.1)).toFixed(1)) : 0;
+    const windMoa = Number((windMil * 3.4377).toFixed(1));
+    const windClicks01Mil = Math.round(windMil * 10);
+
+    return {
+      rangeM: x,
+      velocityMps: Math.round(vx),
+      mach,
+      energyJ,
+      timeOfFlightSec: Number(tof.toFixed(3)),
+      dropCm,
+      elevMil,
+      elevMoa,
+      elevClicks01Mil,
+      driftCm,
+      windMil,
+      windMoa,
+      windClicks01Mil,
+      flightRegime,
+      regimeColor
+    };
+  };
+
+  // Trajectory at user-selected target distance
+  const targetSolution = computePoint(distanceM);
+
+  // Full DOPE Table generation (100m to 1500m in 100m increments)
+  const maxRange = Math.min(caliber.maxEffectiveRangeM || 1500, 2000);
+  const cardTable = [];
+  for (let r = 100; r <= maxRange; r += 100) {
+    cardTable.push(computePoint(r));
+  }
+
+  return {
+    caliber,
+    atm,
+    dragModel,
+    effectiveBC: Number(effectiveBC.toFixed(3)),
+    zeroDistanceM,
+    crosswindKmh,
+    crosswindAngleDeg,
+    targetDistanceM: distanceM,
+    targetSolution,
+    cardTable
+  };
 }
 
 // 4. UAV & DRONE AIRSPACE FLIGHT ENVELOPE
