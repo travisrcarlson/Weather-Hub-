@@ -856,7 +856,7 @@ export default function App() {
               </div>
 
               {/* 12-Hour Safety & Weather Timeline */}
-              <div className="h-[255px]">
+              <div className="h-[275px]">
                 <HourlyForecast 
                   hourlyData={activeHourlyData} 
                   currentTime={activeTime} 

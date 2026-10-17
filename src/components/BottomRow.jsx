@@ -34,29 +34,29 @@ export function DailyForecastWidget({ dailyData }) {
   }
 
   return (
-    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none backdrop-blur-md shadow-lg">
-      <div className="leading-none mb-1">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none backdrop-blur-md shadow-lg overflow-hidden">
+      <div className="leading-none mb-1.5 flex-none">
+        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
           Z9 • 5-DAY WEATHER FORECAST
         </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">Operational Outlook</h2>
+        <h2 className="text-xs sm:text-sm font-bold text-slate-200 leading-none">Operational Outlook</h2>
       </div>
 
-      <div className="grid grid-cols-5 gap-1.5 h-[78%] items-stretch">
+      <div className="grid grid-cols-5 gap-1.5 flex-grow min-h-0 items-stretch">
         {days.map((day, i) => (
-          <div key={i} className="bg-bgDeepSpace/30 border border-slate-700/20 rounded-lg p-1.5 flex flex-col justify-between items-center h-full hover:border-slate-650 transition-colors">
-            <div className="text-center">
-              <p className="text-xs font-black text-slate-300 uppercase leading-none">{day.dayName}</p>
-              <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5 leading-none">{day.dateStr}</p>
+          <div key={i} className="min-w-0 overflow-hidden bg-bgDeepSpace/30 border border-slate-700/20 rounded-lg py-1.5 px-1 flex flex-col justify-between items-center h-full hover:border-slate-650 transition-colors">
+            <div className="text-center leading-none">
+              <p className="text-[11px] font-black text-slate-300 uppercase leading-none">{day.dayName}</p>
+              <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5 leading-none">{day.dateStr}</p>
             </div>
-            <span className="text-2xl filter drop-shadow leading-none my-1">{day.condition.emoji}</span>
-            <div className="text-sm font-black text-textIceWhite leading-none">
+            <span className="text-lg sm:text-xl filter drop-shadow leading-none my-0.5">{day.condition.emoji}</span>
+            <div className="text-xs sm:text-sm font-black font-mono text-textIceWhite leading-none whitespace-nowrap">
               {day.maxTemp.toFixed(0)}°<span className="text-slate-400 font-normal">/{day.minTemp.toFixed(0)}°</span>
             </div>
             
             {/* Wind Gust Max */}
-            <div className="flex items-center space-x-0.5 text-[10.5px] font-mono font-bold text-slate-400 leading-none mt-1">
-              <Wind className="w-3 h-3 text-slate-500" />
+            <div className="flex items-center space-x-0.5 text-[9.5px] font-mono font-bold text-slate-400 leading-none mt-0.5">
+              <Wind className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" />
               <span className={day.gustMax >= 50 ? 'text-stopRed font-black animate-pulse' : 'text-slate-300 font-black'}>
                 {day.gustMax.toFixed(0)}
               </span>

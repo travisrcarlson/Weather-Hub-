@@ -45,86 +45,91 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
   const uvTrend = getTrendIndicator(curUv, prevUv, 0.2);
 
   return (
-    <div className="w-full h-full bg-slate-950/60 border border-slate-800/80 rounded-2xl p-4 backdrop-blur-md shadow-2xl flex flex-col justify-between select-none">
-      <div>
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
-          DAILY EXTREMES OUTLOOK
-        </p>
-        <h2 className="text-xs font-bold text-slate-200 leading-none">12-Hour Range Exposure Forecast</h2>
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 sm:p-3 backdrop-blur-md shadow-lg flex flex-col justify-between select-none overflow-hidden">
+      {/* Header Row with Unified Legend */}
+      <div className="flex items-center justify-between border-b border-slate-800/70 pb-1.5 mb-2 flex-none gap-2">
+        <div className="min-w-0">
+          <p className="text-[8.5px] text-slate-400 font-black uppercase tracking-widest leading-none mb-0.5 truncate">
+            DAILY EXTREMES OUTLOOK
+          </p>
+          <h2 className="text-[11px] font-bold text-slate-200 leading-none truncate">
+            12-Hour Range Exposure
+          </h2>
+        </div>
+        <div className="flex items-center space-x-1 bg-slate-900/90 border border-slate-800 px-1.5 py-0.5 rounded text-[8px] font-mono font-black uppercase tracking-wider flex-shrink-0">
+          <span className="text-textIceWhite">NOW</span>
+          <span className="text-slate-600">/</span>
+          <span className="text-edgeOrange">12H MAX</span>
+        </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6 py-2 flex-grow items-center">
-        {/* Air Temperature */}
-        <div className="flex items-center space-x-3 border-r border-slate-800/50 pr-2 h-full">
-          <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-edgeOrange">
-            <Thermometer className="w-5 h-5" />
+      {/* 3 Structured Metric Sub-Cards */}
+      <div className="grid grid-cols-3 gap-2 flex-grow items-stretch min-h-0">
+        {/* 1. Shade Air Temperature */}
+        <div className="min-w-0 overflow-hidden bg-slate-900/60 border border-slate-800/80 border-t-2 border-t-edgeOrange rounded-lg px-2 py-1.5 flex flex-col justify-between">
+          <div className="flex items-center space-x-1 min-w-0">
+            <Thermometer className="w-3 h-3 text-edgeOrange flex-shrink-0" />
+            <span className="text-[8px] text-slate-300 font-black uppercase tracking-wider leading-none truncate">
+              SHADE
+            </span>
           </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider leading-none mb-1.5">
-              TEMP IN SHADE (CUR/MAX)
-            </p>
-            <div className="flex items-baseline leading-none">
-              <span className="text-3xl font-black text-textIceWhite tracking-tight">
-                {curTemp !== undefined ? curTemp.toFixed(0) : '--'}
-              </span>
-              {tempTrend.arrow && tempTrend.arrow !== '→' && (
-                <span className={`text-xs ml-1 ${tempTrend.class}`}>{tempTrend.arrow}</span>
-              )}
-              <span className="text-sm text-slate-500 font-medium px-1.5">/</span>
-              <span className="text-3xl font-black text-edgeOrange tracking-tight">
-                {maxTemp !== undefined ? maxTemp.toFixed(0) : '--'}
-              </span>
-              <span className="text-xs font-bold text-slate-400 ml-0.5">°C</span>
-            </div>
-          </div>
-        </div>
-
-        {/* WBGT Index */}
-        <div className="flex items-center space-x-3 border-r border-slate-800/50 pr-2 h-full">
-          <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-stopRed">
-            <Flame className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider leading-none mb-1.5">
-              WBGT INDEX (CUR/MAX)
-            </p>
-            <div className="flex items-baseline leading-none">
-              <span className="text-3xl font-black text-textIceWhite tracking-tight">
-                {curWbgt !== undefined ? curWbgt.toFixed(0) : '--'}
-              </span>
-              {wbgtTrend.arrow && wbgtTrend.arrow !== '→' && (
-                <span className={`text-xs ml-1 ${wbgtTrend.class}`}>{wbgtTrend.arrow}</span>
-              )}
-              <span className="text-sm text-slate-500 font-medium px-1.5">/</span>
-              <span className="text-3xl font-black text-stopRed tracking-tight">
-                {maxWbgt !== undefined ? maxWbgt.toFixed(0) : '--'}
-              </span>
-              <span className="text-xs font-bold text-slate-400 ml-0.5">°C</span>
-            </div>
+          <div className="flex items-baseline justify-start mt-1 leading-none whitespace-nowrap">
+            <span className="text-base sm:text-lg font-black font-mono text-textIceWhite tracking-tight">
+              {curTemp !== undefined ? curTemp.toFixed(0) : '--'}
+            </span>
+            {tempTrend.arrow && tempTrend.arrow !== '→' && (
+              <span className={`text-[9px] ml-0.5 ${tempTrend.class}`}>{tempTrend.arrow}</span>
+            )}
+            <span className="text-[10px] text-slate-600 font-bold px-0.5">/</span>
+            <span className="text-base sm:text-lg font-black font-mono text-edgeOrange tracking-tight">
+              {maxTemp !== undefined ? maxTemp.toFixed(0) : '--'}
+            </span>
+            <span className="text-[9px] font-bold text-slate-400 ml-0.5">°C</span>
           </div>
         </div>
 
-        {/* UV Index */}
-        <div className="flex items-center space-x-3 h-full">
-          <div className="p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
-            <Sun className="w-5 h-5" />
+        {/* 2. WBGT Heat Stress Index */}
+        <div className="min-w-0 overflow-hidden bg-slate-900/60 border border-slate-800/80 border-t-2 border-t-stopRed rounded-lg px-2 py-1.5 flex flex-col justify-between">
+          <div className="flex items-center space-x-1 min-w-0">
+            <Flame className="w-3 h-3 text-stopRed flex-shrink-0" />
+            <span className="text-[8px] text-slate-300 font-black uppercase tracking-wider leading-none truncate">
+              WBGT
+            </span>
           </div>
-          <div>
-            <p className="text-[10px] text-slate-400 font-black uppercase tracking-wider leading-none mb-1.5">
-              UV INDEX (CUR/MAX)
-            </p>
-            <div className="flex items-baseline leading-none">
-              <span className="text-3xl font-black text-textIceWhite tracking-tight">
-                {curUv !== undefined ? curUv.toFixed(1) : '--.-'}
-              </span>
-              {uvTrend.arrow && uvTrend.arrow !== '→' && (
-                <span className={`text-xs ml-1 ${uvTrend.class}`}>{uvTrend.arrow}</span>
-              )}
-              <span className="text-sm text-slate-500 font-medium px-1.5">/</span>
-              <span className="text-3xl font-black text-amber-400 tracking-tight">
-                {maxUv !== undefined ? maxUv.toFixed(1) : '--.-'}
-              </span>
-            </div>
+          <div className="flex items-baseline justify-start mt-1 leading-none whitespace-nowrap">
+            <span className="text-base sm:text-lg font-black font-mono text-textIceWhite tracking-tight">
+              {curWbgt !== undefined ? curWbgt.toFixed(0) : '--'}
+            </span>
+            {wbgtTrend.arrow && wbgtTrend.arrow !== '→' && (
+              <span className={`text-[9px] ml-0.5 ${wbgtTrend.class}`}>{wbgtTrend.arrow}</span>
+            )}
+            <span className="text-[10px] text-slate-600 font-bold px-0.5">/</span>
+            <span className="text-base sm:text-lg font-black font-mono text-stopRed tracking-tight">
+              {maxWbgt !== undefined ? maxWbgt.toFixed(0) : '--'}
+            </span>
+            <span className="text-[9px] font-bold text-slate-400 ml-0.5">°C</span>
+          </div>
+        </div>
+
+        {/* 3. Solar UV Index */}
+        <div className="min-w-0 overflow-hidden bg-slate-900/60 border border-slate-800/80 border-t-2 border-t-amber-400 rounded-lg px-2 py-1.5 flex flex-col justify-between">
+          <div className="flex items-center space-x-1 min-w-0">
+            <Sun className="w-3 h-3 text-amber-400 flex-shrink-0" />
+            <span className="text-[8px] text-slate-300 font-black uppercase tracking-wider leading-none truncate">
+              UV INDEX
+            </span>
+          </div>
+          <div className="flex items-baseline justify-start mt-1 leading-none whitespace-nowrap">
+            <span className="text-base sm:text-lg font-black font-mono text-textIceWhite tracking-tight">
+              {curUv !== undefined ? curUv.toFixed(1) : '--'}
+            </span>
+            {uvTrend.arrow && uvTrend.arrow !== '→' && (
+              <span className={`text-[9px] ml-0.5 ${uvTrend.class}`}>{uvTrend.arrow}</span>
+            )}
+            <span className="text-[10px] text-slate-600 font-bold px-0.5">/</span>
+            <span className="text-base sm:text-lg font-black font-mono text-amber-400 tracking-tight">
+              {maxUv !== undefined ? maxUv.toFixed(1) : '--'}
+            </span>
           </div>
         </div>
       </div>

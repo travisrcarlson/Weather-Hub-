@@ -446,60 +446,65 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
       </div>
 
       {/* Hourly Grid Scrollable Cards */}
-      <div className="flex space-x-2 overflow-x-auto pb-1 no-scrollbar w-full h-[52%] items-stretch mt-0.5 flex-grow">
+      <div className="flex space-x-2 overflow-x-auto pb-1 no-scrollbar w-full h-[54%] items-stretch mt-0.5 flex-grow min-h-0">
         {hours.map((hour, i) => (
           <div
             key={i}
-            className={`flex-none w-[82px] rounded-lg border flex flex-col justify-between p-1.5 transition-all duration-300 relative ${getSafetyBg(hour.safetyStatus, hour.isBanned, hour.isNight)} ${getSafetyBorderColor(hour.safetyStatus, hour.isBanned)} ${hour.isHistory ? 'opacity-50 border-dashed border-slate-800' : ''} ${hour.isCurrent ? 'ring-1 ring-edgeOrange/60 bg-edgeOrange/5 shadow-md shadow-edgeOrange/5' : ''}`}
+            className={`flex-none w-[82px] rounded-lg border flex flex-col justify-between py-1 px-1.5 transition-all duration-300 relative overflow-hidden ${getSafetyBg(hour.safetyStatus, hour.isBanned, hour.isNight)} ${getSafetyBorderColor(hour.safetyStatus, hour.isBanned)} ${hour.isHistory ? 'opacity-50 border-dashed border-slate-800' : ''} ${hour.isCurrent ? 'ring-1 ring-edgeOrange/60 bg-edgeOrange/5 shadow-md shadow-edgeOrange/5' : ''}`}
           >
             {/* Time / Status Badge */}
-            <div className="flex flex-col items-center space-y-0.5 leading-none">
-              <span className="text-[10px] font-mono font-bold text-slate-300 text-center leading-none">
+            <div className="flex items-center justify-between w-full leading-none gap-0.5">
+              <span className="text-[9.5px] font-mono font-bold text-slate-300 leading-none">
                 {hour.timeLabel}
               </span>
               {hour.isHistory && (
-                <span className="text-[7.5px] font-black text-slate-500 uppercase tracking-wider">
+                <span className="text-[6.5px] font-black text-slate-500 uppercase tracking-tight leading-none">
                   PAST
                 </span>
               )}
               {hour.isCurrent && (
-                <span className="text-[7.5px] font-extrabold text-edgeOrange bg-edgeOrange/15 border border-edgeOrange/30 px-1 py-0.2 rounded uppercase tracking-wider select-none animate-pulse">
-                  CURRENT
+                <span className="text-[6.5px] font-extrabold text-edgeOrange bg-edgeOrange/15 border border-edgeOrange/30 px-1 py-0.5 rounded uppercase tracking-tight leading-none select-none">
+                  NOW
                 </span>
               )}
             </div>
 
-            {/* Inline Midday Ban Status Badge (non-intrusive, keeps details readable) */}
+            {/* Inline Midday Ban Status Badge */}
             {hour.isBanned && (
-              <span className="text-[7.5px] font-extrabold text-red-400 bg-red-950/85 border border-red-500/45 px-1 py-0.5 rounded text-center uppercase tracking-wide leading-none mt-1 select-none">
+              <span className="text-[6.5px] font-extrabold text-red-400 bg-red-950/85 border border-red-500/45 px-1 py-0.5 rounded text-center uppercase tracking-tight leading-none select-none">
                 {hour.rawTime.endsWith('12:00') ? 'BAN 12:30+' : 'BAN ACTIVE'}
               </span>
             )}
 
-            {/* Condition Icon */}
-            <span className="text-2xl text-center my-0.5 filter drop-shadow leading-none">
-              {hour.condition.emoji}
-            </span>
-
-            {/* Temperature */}
-            <div className="text-center">
-              <span className="text-sm font-black text-textIceWhite">
-                {hour.temp.toFixed(0)}
+            {/* Condition Icon + Temperature Side-by-Side to prevent vertical overlap */}
+            <div className="flex items-center justify-center space-x-1.5 my-0.5 leading-none">
+              <span className="text-lg filter drop-shadow leading-none flex-shrink-0">
+                {hour.condition.emoji}
               </span>
-              <span className="text-xs text-edgeOrange font-semibold">°</span>
+              <div className="leading-none">
+                <span className="text-sm font-black font-mono text-textIceWhite leading-none">
+                  {hour.temp.toFixed(0)}
+                </span>
+                <span className="text-[10px] text-edgeOrange font-bold leading-none">°</span>
+              </div>
             </div>
 
-            {/* Precip% */}
-            <div className="flex items-center justify-center space-x-0.5 text-[9.5px] font-bold text-slate-400 leading-none">
-              <Droplets className="w-2.5 h-2.5 text-blue-400" />
-              <span>{hour.precipProb}%</span>
-            </div>
-
-            {/* Wind */}
-            <div className="flex items-center justify-center space-x-0.5 text-[9.5px] font-bold text-slate-400 leading-none">
-              <Compass className="w-2.5 h-2.5 text-slate-500" />
-              <span className="font-mono text-slate-200">{hour.windSpeed.toFixed(0)}</span>
-              <span className="text-[7.5px] text-slate-500 font-semibold">k/h</span>
+            {/* Bottom Telemetry: Precip% & Wind */}
+            <div className="flex flex-col space-y-0.5 border-t border-slate-800/50 pt-0.5 leading-none">
+              <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-400 leading-none">
+                <span className="flex items-center space-x-0.5">
+                  <Droplets className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
+                  <span>RAIN</span>
+                </span>
+                <span className="font-mono text-slate-300">{hour.precipProb}%</span>
+              </div>
+              <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-400 leading-none">
+                <span className="flex items-center space-x-0.5">
+                  <Compass className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" />
+                  <span>WIND</span>
+                </span>
+                <span className="font-mono text-slate-200">{hour.windSpeed.toFixed(0)}<span className="text-[7px] text-slate-500 ml-0.5">k/h</span></span>
+              </div>
             </div>
           </div>
         ))}
