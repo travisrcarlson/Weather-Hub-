@@ -642,8 +642,17 @@ export default function App() {
   const tvExtremes = getTvProjectedExtremes();
 
   if (isMobile) {
+    const mobileSectorList = [
+      { id: 'hq', short: 'HQ', label: 'X-Range HQ' },
+      { id: 'north', short: 'NORTH', label: 'Range North' },
+      { id: 'south', short: 'SOUTH', label: 'Range South' },
+      { id: 'sea', short: 'SEA', label: 'Sea Boundary' }
+    ];
+
+    const isCommandTab = ['hse', 'planning', 'customer', 'backend'].includes(mobileTab);
+
     return (
-      <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-14 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
+      <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-15 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
         {/* Top Header bar (Z1) */}
         <Header 
           lastUpdated={lastUpdated} 
@@ -662,8 +671,91 @@ export default function App() {
           activeProvider={activeProvider}
         />
 
+        {/* Persistent 4-Sector Range Safety Switcher Bar */}
+        <div className="w-full bg-slate-950/95 border-b border-slate-800/80 px-3 py-1.5 flex-none z-40 select-none">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">
+              5KM RANGE SECTOR SAFETY SELECTOR
+            </span>
+            <span className="text-[7.5px] font-mono font-bold text-edgeOrange uppercase">
+              ACTIVE: {activeDisplayData?.sectorTitle || 'X-Range HQ'}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {mobileSectorList.map(sec => {
+              const isSelected = activeStation === sec.id;
+              const secCurrent = isSimulated
+                ? (() => {
+                    const simMap = {
+                      hq: { temperature_2m: 41.3, apparent_temperature: 43.1, wind_speed_10m: 25, wind_gusts_10m: 35, relative_humidity_2m: 20, uv_index: 9.0, weathercode: simulatedLightning ? 95 : 3 },
+                      north: { temperature_2m: 39.5, apparent_temperature: 42.0, wind_speed_10m: 42, wind_gusts_10m: 53, relative_humidity_2m: 25, visibility: 4000, uv_index: 9.0, weathercode: simulatedLightning ? 95 : 45 },
+                      south: { temperature_2m: 44.5, apparent_temperature: 49.2, wind_speed_10m: 12, wind_gusts_10m: 18, relative_humidity_2m: 15, visibility: 12000, uv_index: 9.8, weathercode: simulatedLightning ? 95 : 0 },
+                      sea: { temperature_2m: 34.0, apparent_temperature: 48.0, wind_speed_10m: 28, wind_gusts_10m: 42, relative_humidity_2m: 89, visibility: 2000, uv_index: 8.6, weathercode: simulatedLightning ? 95 : 3 }
+                    };
+                    return { ...data?.current, ...simMap[sec.id] };
+                  })()
+                : (data?.stations?.[sec.id]?.current || data?.current);
+              const secSafety = secCurrent ? evaluateSafety(secCurrent) : { status: 'GREEN' };
+              const dotClass = secSafety.status === 'RED'
+                ? 'bg-red-500 animate-ping'
+                : secSafety.status === 'AMBER'
+                ? 'bg-amber-400 animate-pulse'
+                : 'bg-emerald-400';
+
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => setActiveStation(sec.id)}
+                  className={`px-2 py-1.5 border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-orange-600/25 to-amber-600/15 border-edgeOrange text-textIceWhite shadow-sm'
+                      : 'bg-slate-900/70 border-slate-800/80 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <span className={`text-[9px] font-black uppercase tracking-wider ${isSelected ? 'text-edgeOrange' : 'text-slate-200'}`}>
+                      {sec.short}
+                    </span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+                  </div>
+                  <div className="flex items-center justify-between w-full mt-0.5 text-[8px] font-mono font-bold text-slate-300">
+                    <span>{secCurrent?.temperature_2m !== undefined ? `${secCurrent.temperature_2m.toFixed(0)}°C` : '--'}</span>
+                    <span className="text-slate-500">{secCurrent?.wind_speed_10m !== undefined ? `${secCurrent.wind_speed_10m.toFixed(0)}kph` : ''}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Secondary Command Sub-Navigation Bar (when Tools / Command tab is active) */}
+        {isCommandTab && (
+          <div className="w-full bg-slate-900/95 border-b border-slate-800 px-3 py-1.5 grid grid-cols-4 gap-1.5 flex-none z-30">
+            {[
+              { id: 'hse', label: '🛡️ HSE Audit' },
+              { id: 'planning', label: '🗓️ Range Plan' },
+              { id: 'customer', label: '💼 R&D Portal' },
+              { id: 'backend', label: '⚡ Data Feeds' }
+            ].map(sub => (
+              <button
+                key={sub.id}
+                type="button"
+                onClick={() => setMobileTab(sub.id)}
+                className={`py-1 px-1.5 text-[8.5px] font-black uppercase tracking-wider border cursor-pointer transition-all ${
+                  mobileTab === sub.id
+                    ? 'bg-edgeOrange text-white border-orange-400 shadow'
+                    : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:text-white'
+                }`}
+              >
+                {sub.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Main Scrollable Content */}
-        <main className="w-full flex-grow overflow-y-auto px-4 py-3 select-none no-scrollbar">
+        <main className="w-full flex-grow overflow-y-auto px-3.5 py-3 select-none no-scrollbar">
           {isOffline && (
             <div className="bg-stopRed/95 text-white text-[9px] font-black uppercase text-center py-1.5 mb-3 tracking-widest animate-pulse border-b border-red-700">
               ⚠️ DATA UNAVAILABLE • DISPLAYING CACHED OBSERVATIONS
@@ -671,36 +763,65 @@ export default function App() {
           )}
 
           {mobileTab === 'live' && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 pb-4">
+              {/* 1. Primary Range Safety Status Banner */}
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
+
+              {/* 2. Pocket Field Safety Directives (Work/Rest, Hydration, UV/PPE) */}
               <div className="h-auto">
+                <TvGuidelinesWidget data={activeDisplayData} isMobile={true} />
+              </div>
+
+              {/* 3. Current Sector Conditions & Munitions Thermal Load */}
+              <div className="min-h-[210px]">
                 <CurrentConditions 
                   data={activeDisplayData} 
                   dailyData={data.daily} 
-                  hourlyData={data.hourly} 
+                  hourlyData={activeHourlyData} 
                   currentTime={activeTime} 
                   onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3 h-auto">
-                <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
-                <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
+
+              {/* 4. Wind & Gust Safety (10m Surface + 100m Shear) */}
+              <div className="min-h-[235px]">
+                <WindWidget 
+                  data={activeDisplayData} 
+                  hourlyData={activeHourlyData} 
+                  currentTime={activeTime} 
+                  onOpenBallistics={() => setIsBallisticsModalOpen(true)}
+                />
               </div>
-              <div className="h-auto">
-                <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
+
+              {/* 5. Heat Stress (WBGT) & Visibility Grid */}
+              <div className="grid grid-cols-2 gap-3 min-h-[145px]">
+                <HumidityWidget data={activeDisplayData} hourlyData={activeHourlyData} />
+                <VisibilityWidget data={activeDisplayData} hourlyData={activeHourlyData} />
               </div>
-              <div className="grid grid-cols-2 gap-3 h-auto">
-                <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
+
+              {/* 6. Solar UV Exposure */}
+              <div className="min-h-[210px]">
+                <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={data.daily} currentTime={activeTime} />
+              </div>
+
+              {/* 7. Dust / Air Quality & Hydration */}
+              <div className="grid grid-cols-2 gap-3 min-h-[145px]">
+                <AqiWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                 <HydrationWidget data={activeDisplayData} />
+              </div>
+
+              {/* 8. Daylight Curfew & Abu Al Abyad Tide Cycles */}
+              <div className="min-h-[235px]">
+                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
               </div>
             </div>
           )}
 
           {mobileTab === 'map' && (
-            <div className="space-y-4 flex flex-col justify-between">
-              <div className="w-full aspect-[440/185] border border-slate-700/30 rounded bg-bgDeepSpace/40 overflow-hidden flex items-center justify-center">
+            <div className="space-y-3.5 pb-4 flex flex-col justify-between">
+              <div className="w-full h-[360px] border border-slate-800/80 bg-bgDeepSpace/40 overflow-hidden flex items-center justify-center">
                 <XRangeMap 
                   apiData={data} 
                   isSimulated={isSimulated} 
@@ -721,43 +842,46 @@ export default function App() {
                   isSimulated={isSimulated} 
                   activeStation={activeStation} 
                   setActiveStation={setActiveStation}
+                  warnings={combinedNcmWarnings}
                 />
               </div>
             </div>
           )}
 
           {mobileTab === 'forecast' && (
-            <div className="space-y-4">
-              <div className="h-[200px]">
-                <WindWidget 
-                  data={activeDisplayData} 
-                  hourlyData={data.hourly} 
-                  currentTime={activeTime} 
-                  onOpenBallistics={() => setIsBallisticsModalOpen(true)}
-                />
+            <div className="space-y-3.5 pb-4">
+              {/* 12-Hour Range Exposure Extremes (CUR / MAX) */}
+              <div className="min-h-[125px]">
+                <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={activeHourlyData} />
               </div>
-              <div className="h-[185px]">
-                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
-              </div>
-              <div className="h-[220px]">
+
+              {/* 12-Hour Safety & Weather Timeline */}
+              <div className="h-[255px]">
                 <HourlyForecast 
-                  hourlyData={data.hourly} 
+                  hourlyData={activeHourlyData} 
                   currentTime={activeTime} 
                   dailyData={data.daily}
                 />
               </div>
-              <div className="h-[150px]">
+
+              {/* 5-Day Range Outlook */}
+              <div className="min-h-[165px]">
                 <DailyForecastWidget dailyData={data.daily} />
+              </div>
+
+              {/* Daylight Curfew & Tide Cycles */}
+              <div className="min-h-[235px]">
+                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
               </div>
             </div>
           )}
 
           {mobileTab === 'alerts' && (
-            <div className="space-y-4">
+            <div className="space-y-3.5 pb-4">
               <div className="h-auto">
                 <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
-              <div className="border border-slate-800 bg-cardDarkSlate p-4 rounded-xl">
+              <div className="border border-slate-800 bg-cardDarkSlate p-3.5 rounded-xl">
                 <Suspense fallback={<ViewLoadingFallback />}>
                   <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
                 </Suspense>
@@ -766,7 +890,7 @@ export default function App() {
           )}
 
           {mobileTab === 'hse' && (
-            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <HseDashboard 
                   data={data} 
@@ -780,7 +904,7 @@ export default function App() {
           )}
 
           {mobileTab === 'planning' && (
-            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <PlanningDashboard 
                   isSimulated={isSimulated} 
@@ -792,7 +916,7 @@ export default function App() {
           )}
 
           {mobileTab === 'customer' && (
-            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
+            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <CustomerPortal />
               </Suspense>
@@ -800,7 +924,7 @@ export default function App() {
           )}
 
           {mobileTab === 'backend' && (
-            <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden p-2">
+            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto p-2">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <BackendFeeds 
                   isSimulated={isSimulated} 
@@ -816,65 +940,113 @@ export default function App() {
           )}
         </main>
 
-        {/* Mobile Navigation Bar */}
-        <nav className="absolute bottom-0 left-0 right-0 h-14 bg-cardDarkSlate border-t border-slate-800/80 flex flex-row items-stretch justify-around z-50 select-none">
+        {/* Ergonomic 5-Tab Mobile Bottom Navigation Bar */}
+        <nav className="absolute bottom-0 left-0 right-0 h-15 bg-slate-950/95 border-t border-slate-800/90 flex flex-row items-stretch justify-around z-50 select-none backdrop-blur-md">
           <button 
             onClick={() => setMobileTab('live')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'live' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              mobileTab === 'live'
+                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
           >
-            <span className="text-base">📊</span>
-            <span className="text-[9px] uppercase tracking-wider">Live</span>
+            <div className="relative flex items-center justify-center">
+              <span className="text-base">🛡️</span>
+              <span className={`absolute -top-0.5 -right-2 w-1.5 h-1.5 rounded-full ${
+                globalSafety.status === 'RED' ? 'bg-red-500 animate-ping' :
+                globalSafety.status === 'AMBER' ? 'bg-amber-400' : 'bg-emerald-400'
+              }`} />
+            </div>
+            <span className="text-[9px] uppercase tracking-wider">Safety</span>
           </button>
+
           <button 
             onClick={() => setMobileTab('map')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'map' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              mobileTab === 'map'
+                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
           >
             <span className="text-base">🗺️</span>
-            <span className="text-[9px] uppercase tracking-wider">Map</span>
+            <span className="text-[9px] uppercase tracking-wider">5km Map</span>
           </button>
+
           <button 
             onClick={() => setMobileTab('forecast')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'forecast' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              mobileTab === 'forecast'
+                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
           >
             <span className="text-base">📅</span>
-            <span className="text-[9px] uppercase tracking-wider">Forecast</span>
+            <span className="text-[9px] uppercase tracking-wider">12H / 5D</span>
           </button>
+
           <button 
             onClick={() => setMobileTab('alerts')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'alerts' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              mobileTab === 'alerts'
+                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
           >
-            <span className={`text-base ${globalSafety.status === 'RED' ? 'text-stopRed animate-pulse' : globalSafety.status === 'AMBER' ? 'text-amberAlert' : ''}`}>⚠️</span>
-            <span className="text-[9px] uppercase tracking-wider">Alerts</span>
+            <span className={`text-base ${globalSafety.status === 'RED' ? 'text-stopRed animate-pulse' : globalSafety.status === 'AMBER' ? 'text-amberAlert' : ''}`}>📋</span>
+            <span className="text-[9px] uppercase tracking-wider">SOPs</span>
           </button>
+
           <button 
-            onClick={() => setMobileTab('hse')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'hse' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
+            onClick={() => setMobileTab(isCommandTab ? mobileTab : 'hse')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              isCommandTab
+                ? 'border-cyan-400 text-cyan-400 font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
           >
-            <span className="text-base">🛡️</span>
-            <span className="text-[9px] uppercase tracking-wider">HSE</span>
-          </button>
-          <button 
-            onClick={() => setMobileTab('planning')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'planning' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
-          >
-            <span className="text-base">🗓️</span>
-            <span className="text-[9px] uppercase tracking-wider">Plan</span>
-          </button>
-          <button 
-            onClick={() => setMobileTab('customer')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'customer' ? 'text-edgeOrange font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
-          >
-            <span className="text-base">💼</span>
-            <span className="text-[9px] uppercase tracking-wider">Portal</span>
-          </button>
-          <button 
-            onClick={() => setMobileTab('backend')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-none cursor-pointer ${mobileTab === 'backend' ? 'text-cyan-400 font-black bg-slate-900/40' : 'text-slate-400 font-bold'}`}
-          >
-            <span className="text-base">⚡</span>
-            <span className="text-[9px] uppercase tracking-wider">Feeds</span>
+            <span className="text-base">⚙️</span>
+            <span className="text-[9px] uppercase tracking-wider">Command</span>
           </button>
         </nav>
+
+        {/* Mounted Modals for Mobile View */}
+        {isAlertCenterOpen && (
+          <Suspense fallback={null}>
+            <AlertCenter
+              isOpen={isAlertCenterOpen}
+              onClose={() => setIsAlertCenterOpen(false)}
+              isSimulated={isSimulated}
+              apiData={data}
+              simulatedLightning={simulatedLightning}
+              broadcastHistory={broadcastHistory}
+              onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
+              recipientDirectory={recipientDirectory}
+              onUpdateRecipientDirectory={setRecipientDirectory}
+            />
+          </Suspense>
+        )}
+
+        {isBallisticsModalOpen && (
+          <Suspense fallback={null}>
+            <TacticalBallisticsModal
+              isOpen={isBallisticsModalOpen}
+              onClose={() => setIsBallisticsModalOpen(false)}
+              currentData={activeDisplayData}
+              hourlyData={activeHourlyData}
+            />
+          </Suspense>
+        )}
+
+        {isMunitionsThermalModalOpen && (
+          <Suspense fallback={null}>
+            <MunitionsThermalModal
+              isOpen={isMunitionsThermalModalOpen}
+              onClose={() => setIsMunitionsThermalModalOpen(false)}
+              currentData={activeDisplayData}
+              hourlyData={activeHourlyData}
+            />
+          </Suspense>
+        )}
       </div>
     );
   }
