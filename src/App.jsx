@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import Header from './components/Header';
 import CurrentConditions from './components/CurrentConditions';
 import WindWidget from './components/WindWidget';
@@ -12,16 +12,23 @@ import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } fr
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
-import SafetyAdvisory from './components/SafetyAdvisory';
-import BackendFeeds from './components/BackendFeeds';
-import HseDashboard from './components/HseDashboard';
-import PlanningDashboard from './components/PlanningDashboard';
-import CustomerPortal from './components/CustomerPortal';
-import AlertCenter from './components/AlertCenter';
 import { checkAndDispatchAutoAlerts } from './services/hseBroadcastService';
-import TacticalBallisticsModal from './components/TacticalBallisticsModal';
-import MunitionsThermalModal from './components/MunitionsThermalModal';
 import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
+
+const SafetyAdvisory = lazy(() => import('./components/SafetyAdvisory'));
+const BackendFeeds = lazy(() => import('./components/BackendFeeds'));
+const HseDashboard = lazy(() => import('./components/HseDashboard'));
+const PlanningDashboard = lazy(() => import('./components/PlanningDashboard'));
+const CustomerPortal = lazy(() => import('./components/CustomerPortal'));
+const AlertCenter = lazy(() => import('./components/AlertCenter'));
+const TacticalBallisticsModal = lazy(() => import('./components/TacticalBallisticsModal'));
+const MunitionsThermalModal = lazy(() => import('./components/MunitionsThermalModal'));
+
+const ViewLoadingFallback = () => (
+  <div className="w-full h-full flex items-center justify-center bg-slate-950/80 border border-slate-800/80 text-slate-400 text-xs font-mono uppercase tracking-widest animate-pulse">
+    Loading Range Safety Module...
+  </div>
+);
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
@@ -330,7 +337,8 @@ export default function App() {
     const globalReasons = [];
 
     if (!isSimulated) {
-      const evalResult = evaluateSafety(data.current);
+      const targetCurrent = data?.stations?.[activeStation]?.current || data.current;
+      const evalResult = evaluateSafety(targetCurrent);
       globalStatus = evalResult.status;
       evalResult.reasons.forEach(r => globalReasons.push(r));
     } else {
@@ -481,6 +489,64 @@ export default function App() {
   const globalSafety = getCombinedSafety();
 
   const getActiveStationDisplayData = () => {
+    if (isSimulated) {
+      const simStationProfiles = {
+        hq: {
+          name: 'X-Range HQ',
+          temperature_2m: 41.3,
+          apparent_temperature: 43.1,
+          relative_humidity_2m: 20,
+          wind_speed_10m: 25,
+          wind_gusts_10m: 35,
+          weathercode: simulatedLightning ? 95 : 3,
+          uv_index: 9.0,
+          solar_radiation: 890
+        },
+        north: {
+          name: 'Range North',
+          temperature_2m: 39.5,
+          apparent_temperature: 42.0,
+          relative_humidity_2m: 25,
+          wind_speed_10m: 42,
+          wind_gusts_10m: 53,
+          visibility: 4000,
+          weathercode: simulatedLightning ? 95 : 45,
+          uv_index: 9.0,
+          solar_radiation: 840
+        },
+        south: {
+          name: 'Range South',
+          temperature_2m: 44.5,
+          apparent_temperature: 49.2,
+          relative_humidity_2m: 15,
+          wind_speed_10m: 12,
+          wind_gusts_10m: 18,
+          visibility: 12000,
+          weathercode: simulatedLightning ? 95 : 0,
+          uv_index: 9.8,
+          solar_radiation: 985
+        },
+        sea: {
+          name: 'Sea Boundary',
+          temperature_2m: 34.0,
+          apparent_temperature: 48.0,
+          relative_humidity_2m: 89,
+          wind_speed_10m: 28,
+          wind_gusts_10m: 42,
+          visibility: 2000,
+          weathercode: simulatedLightning ? 95 : 3,
+          uv_index: 8.6,
+          solar_radiation: 820
+        }
+      };
+      const simProfile = simStationProfiles[activeStation] || simStationProfiles.hq;
+      return {
+        ...(data?.stations?.[activeStation]?.current || data.current),
+        ...simProfile,
+        sectorTitle: simProfile.name
+      };
+    }
+
     // WeatherNext 3 5km multi-station microclimate grid resolution
     if (data?.stations && data.stations[activeStation]?.current) {
       return {
@@ -489,20 +555,11 @@ export default function App() {
         name: data.stations[activeStation].name
       };
     }
-    if (!isSimulated) return data.current;
-    return {
-      ...data.current,
-      temperature_2m: 41.3,
-      apparent_temperature: 43.1,
-      relative_humidity_2m: 20,
-      wind_speed_10m: 25,
-      wind_gusts_10m: 35,
-      weathercode: 3,
-      uv_index: 9.0
-    };
+    return data.current;
   };
 
   const activeDisplayData = getActiveStationDisplayData();
+  const activeHourlyData = data?.stations?.[activeStation]?.hourly || data?.hourly;
 
   // Automated HSE WhatsApp & Directive Dispatcher
   useEffect(() => {
@@ -517,9 +574,10 @@ export default function App() {
     activeDisplayData?.wind_speed_10m
   ]);
 
-  // Calculate projected extremes for the next 12 hours
+  // Calculate projected extremes for the next 12 hours using active station data
   const getTvProjectedExtremes = () => {
-    if (!data || !data.hourly || !data.hourly.time) {
+    const activeHourly = data?.stations?.[activeStation]?.hourly || data?.hourly;
+    if (!activeHourly || !activeHourly.time) {
       return { maxTemp: 0, maxUv: 0, maxWbgt: 0 };
     }
     
@@ -539,22 +597,35 @@ export default function App() {
       return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:00`;
     };
     const currentHourString = getDubaiHourString(now);
-    let startIndex = data.hourly.time.findIndex(t => t.startsWith(currentHourString.slice(0, 13)));
+    let startIndex = activeHourly.time.findIndex(t => t.startsWith(currentHourString.slice(0, 13)));
     if (startIndex === -1) startIndex = 0;
     
-    const next12Hours = data.hourly.time.slice(startIndex, startIndex + 12);
+    const next12Hours = activeHourly.time.slice(startIndex, startIndex + 12);
     
-    let maxTemp = 0;
-    let maxUv = 0;
-    let maxWbgt = 0;
+    const curTempVal = activeDisplayData?.temperature_2m ?? 0;
+    const curUvVal = activeDisplayData?.uv_index ?? 0;
+    const curWbgtVal = activeDisplayData
+      ? calculateWBGT(
+          activeDisplayData.temperature_2m,
+          activeDisplayData.relative_humidity_2m ?? 50,
+          activeDisplayData.wind_speed_10m ?? 0,
+          activeDisplayData.uv_index ?? 0,
+          activeDisplayData.solar_radiation ?? null
+        )
+      : 0;
+
+    let maxTemp = curTempVal;
+    let maxUv = curUvVal;
+    let maxWbgt = curWbgtVal;
     
     next12Hours.forEach((t, i) => {
       const idx = startIndex + i;
-      const temp = data.hourly.temperature_2m[idx];
-      const uv = data.hourly.uv_index ? data.hourly.uv_index[idx] : 0;
-      const rh = data.hourly.relative_humidity_2m ? data.hourly.relative_humidity_2m[idx] : 50;
-      const wind = data.hourly.wind_speed_10m ? data.hourly.wind_speed_10m[idx] : 0;
-      const wbgt = calculateWBGT(temp, rh, wind, uv);
+      const temp = activeHourly.temperature_2m[idx];
+      const uv = activeHourly.uv_index ? activeHourly.uv_index[idx] : 0;
+      const rh = activeHourly.relative_humidity_2m ? activeHourly.relative_humidity_2m[idx] : 50;
+      const wind = activeHourly.wind_speed_10m ? activeHourly.wind_speed_10m[idx] : 0;
+      const solar = activeHourly.solar_radiation ? activeHourly.solar_radiation[idx] : null;
+      const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
       
       if (temp > maxTemp) maxTemp = temp;
       if (uv > maxUv) maxUv = uv;
@@ -684,53 +755,63 @@ export default function App() {
           {mobileTab === 'alerts' && (
             <div className="space-y-4">
               <div className="h-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} isMobile={true} ncmWarnings={combinedNcmWarnings} />
               </div>
               <div className="border border-slate-800 bg-cardDarkSlate p-4 rounded-xl">
-                <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
+                <Suspense fallback={<ViewLoadingFallback />}>
+                  <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
+                </Suspense>
               </div>
             </div>
           )}
 
           {mobileTab === 'hse' && (
             <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
-              <HseDashboard 
-                data={data} 
-                hourlyData={data.hourly} 
-                currentTime={activeTime} 
-                activeStation={activeStation} 
-                isSimulated={isSimulated} 
-              />
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <HseDashboard 
+                  data={data} 
+                  hourlyData={activeHourlyData} 
+                  currentTime={activeTime} 
+                  activeStation={activeStation} 
+                  isSimulated={isSimulated} 
+                />
+              </Suspense>
             </div>
           )}
 
           {mobileTab === 'planning' && (
             <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
-              <PlanningDashboard 
-                isSimulated={isSimulated} 
-                hourlyData={data.hourly}
-                dailyData={data.daily}
-              />
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <PlanningDashboard 
+                  isSimulated={isSimulated} 
+                  hourlyData={activeHourlyData}
+                  dailyData={data.daily}
+                />
+              </Suspense>
             </div>
           )}
 
           {mobileTab === 'customer' && (
             <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden">
-              <CustomerPortal />
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <CustomerPortal />
+              </Suspense>
             </div>
           )}
 
           {mobileTab === 'backend' && (
             <div className="h-full border border-slate-800 bg-cardDarkSlate rounded-xl overflow-hidden p-2">
-              <BackendFeeds 
-                isSimulated={isSimulated} 
-                apiMeta={apiMeta} 
-                isOffline={isOffline} 
-                apiData={data}
-                activeStation={activeStation}
-                setActiveStation={setActiveStation}
-                onRefreshFeeds={loadData}
-              />
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <BackendFeeds 
+                  isSimulated={isSimulated} 
+                  apiMeta={apiMeta} 
+                  isOffline={isOffline} 
+                  apiData={data}
+                  activeStation={activeStation}
+                  setActiveStation={setActiveStation}
+                  onRefreshFeeds={loadData}
+                />
+              </Suspense>
             </div>
           )}
         </main>
@@ -823,7 +904,7 @@ export default function App() {
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none flex flex-col justify-between space-y-3.5 w-full h-full">
             {/* Z8 Safety Status Banner */}
             <div className="h-[12%] pointer-events-auto">
-              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
+              <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
             </div>
 
             {/* 3-Column Split Layout */}
@@ -831,14 +912,14 @@ export default function App() {
               {/* Left Column (Col-span-3): Daily Outlook extremes, Sunrise/Sunset & Hourly Forecast */}
               <div className="col-span-3 h-full pointer-events-auto flex flex-col justify-between space-y-3.5">
                 <div className="h-[17%]">
-                  <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={data.hourly} />
+                  <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={activeHourlyData} />
                 </div>
-                <div className="h-[28%]">
+                <div className="h-[29%]">
                   <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
                 </div>
-                <div className="h-[52%]">
+                <div className="h-[51%]">
                   <HourlyForecast 
-                    hourlyData={data.hourly} 
+                    hourlyData={activeHourlyData} 
                     currentTime={activeTime} 
                     dailyData={data.daily}
                   />
@@ -880,13 +961,13 @@ export default function App() {
                  <CurrentConditions 
                    data={activeDisplayData} 
                    dailyData={data.daily} 
-                   hourlyData={data.hourly} 
+                   hourlyData={activeHourlyData} 
                    currentTime={activeTime} 
                    onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
                  />
                </div>
                <div className="h-[18%]">
-                 <HumidityWidget data={activeDisplayData} hourlyData={data.hourly} />
+                 <HumidityWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                </div>
                <div className="h-[16%]">
                  <HydrationWidget data={activeDisplayData} />
@@ -894,7 +975,7 @@ export default function App() {
                <div className="h-[37%]">
                  <WindWidget 
                    data={activeDisplayData} 
-                   hourlyData={data.hourly} 
+                   hourlyData={activeHourlyData} 
                    currentTime={activeTime} 
                    onOpenBallistics={() => setIsBallisticsModalOpen(true)}
                  />
@@ -905,7 +986,7 @@ export default function App() {
             <div className="col-span-6 h-full flex flex-col justify-between space-y-3 pointer-events-none">
               {/* Z8 Safety Status Banner */}
               <div className="h-[12%] pointer-events-auto">
-                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={data.hourly} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
+                <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
               </div>
 
               {/* Central Area: Opaque Map Card with Station Details */}
@@ -929,7 +1010,7 @@ export default function App() {
               <div className="h-[26%] flex flex-row space-x-4 items-stretch pointer-events-auto">
                 <div className="w-[65%] h-full">
                   <HourlyForecast 
-                    hourlyData={data.hourly} 
+                    hourlyData={activeHourlyData} 
                     currentTime={activeTime} 
                     dailyData={data.daily}
                   />
@@ -942,16 +1023,16 @@ export default function App() {
 
             {/* Right Sidebar (Col-span-2): UV, Visibility, AQI, Sunrise/Sunset (Light/Curfew) */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
-               <div className="h-[34%]">
-                 <UvWidget data={activeDisplayData} hourlyData={data.hourly} dailyData={data.daily} currentTime={activeTime} />
+               <div className="h-[33%]">
+                 <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={data.daily} currentTime={activeTime} />
                </div>
                <div className="h-[17%]">
-                 <VisibilityWidget data={activeDisplayData} hourlyData={data.hourly} />
+                 <VisibilityWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                </div>
                <div className="h-[17%]">
-                 <AqiWidget data={activeDisplayData} hourlyData={data.hourly} />
+                 <AqiWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                </div>
-               <div className="h-[30%]">
+               <div className="h-[31%]">
                  <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
                </div>
              </div>
@@ -962,54 +1043,64 @@ export default function App() {
         {viewMode === 'advisory' && (
           /* Safety Advisory (Standard Operating Procedures & Survival Guidelines) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
+            </Suspense>
           </div>
         )}
 
         {viewMode === 'hse' && (
           /* HSE Dashboard (Compliance & Historical Auditing) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <HseDashboard 
-              data={data} 
-              hourlyData={data.hourly} 
-              currentTime={activeTime} 
-              activeStation={activeStation} 
-              isSimulated={isSimulated} 
-              onViewModeChange={setViewMode}
-            />
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <HseDashboard 
+                data={data} 
+                hourlyData={activeHourlyData} 
+                currentTime={activeTime} 
+                activeStation={activeStation} 
+                isSimulated={isSimulated} 
+                onViewModeChange={setViewMode}
+              />
+            </Suspense>
           </div>
         )}
 
         {viewMode === 'planning' && (
           /* Range Planning (Historical & Climatological Modeling & Tactical Mission Windows) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <PlanningDashboard 
-              isSimulated={isSimulated} 
-              hourlyData={data.hourly}
-              dailyData={data.daily}
-            />
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <PlanningDashboard 
+                isSimulated={isSimulated} 
+                hourlyData={activeHourlyData}
+                dailyData={data.daily}
+              />
+            </Suspense>
           </div>
         )}
 
         {viewMode === 'customer' && (
           /* Customer Portal (Climate Projections & R&D Simulation) */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <CustomerPortal />
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <CustomerPortal />
+            </Suspense>
           </div>
         )}
 
         {viewMode === 'backend' && (
           /* Backend Diagnostic Status & Telemetry feeds */
           <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <BackendFeeds 
-              isSimulated={isSimulated} 
-              apiMeta={apiMeta} 
-              isOffline={isOffline} 
-              apiData={data}
-              activeStation={activeStation}
-              setActiveStation={setActiveStation}
-              onRefreshFeeds={loadData}
-            />
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <BackendFeeds 
+                isSimulated={isSimulated} 
+                apiMeta={apiMeta} 
+                isOffline={isOffline} 
+                apiData={data}
+                activeStation={activeStation}
+                setActiveStation={setActiveStation}
+                onRefreshFeeds={loadData}
+              />
+            </Suspense>
           </div>
         )}
 
@@ -1023,33 +1114,45 @@ export default function App() {
       )}
 
       {/* Safety Alert Center slide-over drawer */}
-      <AlertCenter
-        isOpen={isAlertCenterOpen}
-        onClose={() => setIsAlertCenterOpen(false)}
-        isSimulated={isSimulated}
-        apiData={data}
-        simulatedLightning={simulatedLightning}
-        broadcastHistory={broadcastHistory}
-        onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
-        recipientDirectory={recipientDirectory}
-        onUpdateRecipientDirectory={setRecipientDirectory}
-      />
+      {isAlertCenterOpen && (
+        <Suspense fallback={null}>
+          <AlertCenter
+            isOpen={isAlertCenterOpen}
+            onClose={() => setIsAlertCenterOpen(false)}
+            isSimulated={isSimulated}
+            apiData={data}
+            simulatedLightning={simulatedLightning}
+            broadcastHistory={broadcastHistory}
+            onAddBroadcast={(newBroadcast) => setBroadcastHistory(prev => [...prev, newBroadcast])}
+            recipientDirectory={recipientDirectory}
+            onUpdateRecipientDirectory={setRecipientDirectory}
+          />
+        </Suspense>
+      )}
 
       {/* WeatherNext 3 Tactical Ballistics & 100m Wind Shear Modal */}
-      <TacticalBallisticsModal
-        isOpen={isBallisticsModalOpen}
-        onClose={() => setIsBallisticsModalOpen(false)}
-        currentData={activeDisplayData}
-        hourlyData={data.hourly}
-      />
+      {isBallisticsModalOpen && (
+        <Suspense fallback={null}>
+          <TacticalBallisticsModal
+            isOpen={isBallisticsModalOpen}
+            onClose={() => setIsBallisticsModalOpen(false)}
+            currentData={activeDisplayData}
+            hourlyData={activeHourlyData}
+          />
+        </Suspense>
+      )}
 
       {/* WeatherNext 3 Munitions & Equipment Thermal Cook-off Modal */}
-      <MunitionsThermalModal
-        isOpen={isMunitionsThermalModalOpen}
-        onClose={() => setIsMunitionsThermalModalOpen(false)}
-        currentData={activeDisplayData}
-        hourlyData={data.hourly}
-      />
+      {isMunitionsThermalModalOpen && (
+        <Suspense fallback={null}>
+          <MunitionsThermalModal
+            isOpen={isMunitionsThermalModalOpen}
+            onClose={() => setIsMunitionsThermalModalOpen(false)}
+            currentData={activeDisplayData}
+            hourlyData={activeHourlyData}
+          />
+        </Suspense>
+      )}
     </div>
   );
 }

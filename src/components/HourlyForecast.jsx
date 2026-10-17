@@ -239,7 +239,7 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
   };
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate/60 border border-slate-700/30 rounded-xl p-3 flex flex-col justify-between select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none backdrop-blur-md shadow-lg">
       
       {/* Title block */}
       <div className="flex justify-between items-center mb-1 flex-none">
@@ -257,8 +257,8 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
       </div>
 
       {/* Temperature Sparkline Chart Curve */}
-      <div className="w-full h-[32%] my-0.5 flex-none relative">
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full h-[32%] min-w-0 min-h-0 my-0.5 flex-none relative">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
           <AreaChart data={chartData} margin={{ top: 15, right: 10, left: 10, bottom: 2 }}>
             <defs>
               <linearGradient id="tempCurveStroke" x1="0" y1="0" x2="1" y2="0">

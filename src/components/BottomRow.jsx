@@ -34,7 +34,7 @@ export function DailyForecastWidget({ dailyData }) {
   }
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3 flex flex-col justify-between select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none backdrop-blur-md shadow-lg">
       <div className="leading-none mb-1">
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
           Z9 • 5-DAY WEATHER FORECAST
@@ -108,7 +108,7 @@ export function AqiWidget({ data, hourlyData }) {
   const pm10Pct = Math.min((pm10 / 155) * 100, 100);
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl py-2.5 px-3.5 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl py-2.5 px-3.5 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808006_1px,transparent_1px),linear-gradient(to_bottom,#80808006_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -347,7 +347,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const moonlightPct = Math.round(50 * (1 - Math.cos(2 * Math.PI * moonDetails.phase)));
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -359,7 +359,7 @@ export function SunTransitWidget({ dailyData, currentTime }) {
           </p>
           <h2 className="text-xs font-bold text-slate-200 leading-none">Sun, Moon & Tide Cycles</h2>
         </div>
-        <span className="text-[8.5px] font-mono font-bold text-slate-400 bg-slate-900/60 border border-slate-800 px-1.5 py-0.5 rounded">
+        <span className="text-[8.5px] font-mono font-bold text-slate-400 bg-slate-900/80 border border-slate-800 px-1.5 py-0.5 rounded shadow-sm">
           {moonDetails.name} • {moonlightPct}%
         </span>
       </div>
@@ -415,16 +415,16 @@ export function SunTransitWidget({ dailyData, currentTime }) {
                 {tides.currentFlow} {tides.flowArrow}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-1 text-center">
-              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-cyan-500/25">
-                <span className="text-[7px] font-black text-cyan-300 uppercase leading-none mb-0.5">HIGH TIDE</span>
+            <div className="grid grid-cols-2 gap-1.5 text-center">
+              <div className="flex flex-col items-center bg-cyan-950/25 rounded py-1 px-1 border border-cyan-500/30 shadow-inner">
+                <span className="text-[7.5px] font-black text-cyan-300 uppercase leading-none mb-0.5">HIGH TIDE</span>
                 <span className="text-xs font-mono font-black text-white leading-none">{tides.high1}</span>
-                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">{tides.high2}</span>
+                <span className="text-[7px] font-mono text-cyan-300/80 mt-0.5 leading-none">{tides.high2}</span>
               </div>
-              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-slate-800/70">
-                <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-0.5">LOW TIDE</span>
+              <div className="flex flex-col items-center bg-slate-900/50 rounded py-1 px-1 border border-slate-800/80 shadow-inner">
+                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">LOW TIDE</span>
                 <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.low1}</span>
-                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">{tides.low2}</span>
+                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">{tides.low2}</span>
               </div>
             </div>
           </div>
@@ -479,18 +479,18 @@ export function SunTransitWidget({ dailyData, currentTime }) {
                 {tides.springNeap}
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-1 text-center">
-              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-indigo-500/25">
-                <span className="text-[7px] font-black text-indigo-300 uppercase leading-none mb-0.5">NEXT EVENT</span>
+            <div className="grid grid-cols-2 gap-1.5 text-center">
+              <div className="flex flex-col items-center bg-indigo-950/25 rounded py-1 px-1 border border-indigo-500/30 shadow-inner">
+                <span className="text-[7.5px] font-black text-indigo-300 uppercase leading-none mb-0.5">NEXT EVENT</span>
                 <span className="text-xs font-mono font-black text-white leading-none">{tides.nextTide.time}</span>
-                <span className="text-[7.5px] font-mono text-indigo-300/80 mt-0.5 leading-none">
+                <span className="text-[7px] font-mono text-indigo-300/80 mt-0.5 leading-none">
                   {tides.nextTide.type} ({tides.nextTide.eta})
                 </span>
               </div>
-              <div className="flex flex-col items-center bg-bgDeepSpace/50 rounded py-1 px-0.5 border border-slate-800/70">
-                <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-0.5">TIDAL RANGE</span>
+              <div className="flex flex-col items-center bg-slate-900/50 rounded py-1 px-1 border border-slate-800/80 shadow-inner">
+                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">TIDAL RANGE</span>
                 <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.range}</span>
-                <span className="text-[7.5px] font-mono text-slate-400 mt-0.5 leading-none">ABU AL ABYAD</span>
+                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">ABU AL ABYAD</span>
               </div>
             </div>
           </div>

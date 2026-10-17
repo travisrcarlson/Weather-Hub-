@@ -52,7 +52,7 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
   const cloudTrend = getTrendIndicator(cloudCover, prevCloudCover, 5.0); // 5% threshold
 
   return (
-    <div className={`w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none`}>
+    <div className={`w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none backdrop-blur-md shadow-lg`}>
       {/* Decorative Grid Line for Tech Vibe */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none animate-grid-glow" />
 
@@ -63,7 +63,7 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
               Z2 • CURRENT CONDITIONS
             </p>
-            <span className="flex items-center space-x-1 bg-bgDeepSpace/70 border border-slate-800/80 px-1.5 py-0.5 rounded select-none">
+            <span className="flex items-center space-x-1 bg-slate-900/80 border border-slate-800 px-1.5 py-0.5 rounded select-none shadow-sm">
               <span className={`w-1.5 h-1.5 rounded-full ${condition.iconColor} bg-current`} />
               <span className="text-[9px] font-black text-slate-200 uppercase tracking-wider leading-none">
                 {condition.label}
@@ -78,7 +78,7 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
           {onOpenMunitionsThermal && (
             <button
               onClick={onOpenMunitionsThermal}
-              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-400 text-[9px] font-mono font-bold transition-colors cursor-pointer"
+              className="flex items-center space-x-1 px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[9px] font-mono font-black tracking-tight transition-colors cursor-pointer shadow-sm"
               title="Open WeatherNext 3 Munitions & Equipment Thermal Cook-off Monitor"
             >
               <span>🔥 {solarRad ? `${solarRad} W/m²` : 'THERMAL SOAK'}</span>

@@ -162,7 +162,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   const gustAreaD = `${gustPathD} L 120,52 L 15,52 Z`;
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -224,7 +224,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
         {/* Column 2 (Col-span-4): Current Compass */}
         <div className="col-span-4 flex flex-col items-center justify-center border-r border-slate-800/60 pr-1">
           <span className="text-[8px] font-black text-slate-400 uppercase mb-1 leading-none">CURRENT</span>
-          <div className="relative w-[84px] h-[84px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/20 shadow-inner">
+          <div className="relative w-[76px] h-[76px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/30 shadow-inner">
             {/* Compass Card Marks */}
             <span className="absolute top-1 text-[8px] font-black text-slate-500">N</span>
             <span className="absolute right-1.5 text-[8px] font-black text-slate-500">E</span>
@@ -236,7 +236,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
               style={{ transform: `rotate(${(directionDegrees + 180) % 360}deg)` }}
               className="transition-transform duration-500 ease-out flex items-center justify-center w-full h-full"
             >
-              <svg viewBox="0 0 24 24" className="w-8 h-8 text-edgeOrange fill-none stroke-current animate-pulse-slow" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" className="w-7 h-7 text-edgeOrange fill-none stroke-current animate-pulse-slow" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="20" x2="12" y2="4" />
                 <polyline points="7,9 12,4 17,9" />
               </svg>
@@ -257,7 +257,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
         {/* Column 3 (Col-span-4): Forecast Compass */}
         <div className="col-span-4 flex flex-col items-center justify-center pl-1">
           <span className="text-[8px] font-black text-slate-400 uppercase mb-1 leading-none">24H ZONE</span>
-          <div className="relative w-[84px] h-[84px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/20 shadow-inner">
+          <div className="relative w-[76px] h-[76px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/30 shadow-inner">
             <span className="absolute top-1 text-[8px] font-black text-slate-500">N</span>
             <span className="absolute right-1.5 text-[8px] font-black text-slate-500">E</span>
             <span className="absolute bottom-1 text-[8px] font-black text-slate-500">S</span>

@@ -152,163 +152,114 @@ export default function Header({
       </div>
 
       {/* Right Controls & Views */}
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center space-x-2.5">
         {/* View Mode Tabs */}
-        <div className="flex bg-bgDeepSpace/60 p-1 rounded-lg border border-slate-750/50">
-          <button
-            onClick={() => onViewModeChange('tv')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'tv'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            TV Display
-          </button>
-          <button
-            onClick={() => onViewModeChange('ops')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'ops'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            Tactical Console
-          </button>
-          <button
-            onClick={() => onViewModeChange('advisory')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'advisory'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            Safety Advisory
-          </button>
-          <button
-            onClick={() => onViewModeChange('hse')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'hse'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            HSE Dashboard
-          </button>
-          <button
-            onClick={() => onViewModeChange('planning')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'planning'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            Range Planning
-          </button>
-          <button
-            onClick={() => onViewModeChange('customer')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'customer'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            Customer Portal
-          </button>
-          <button
-            onClick={() => onViewModeChange('backend')}
-            className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-wider transition-all duration-300 cursor-pointer ${
-              viewMode === 'backend'
-                ? 'bg-edgeOrange text-white shadow-md shadow-edgeOrange/10'
-                : 'text-slate-400 hover:text-textIceWhite'
-            }`}
-          >
-            Backend Feeds
-          </button>
+        <div className="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-800/90 shadow-inner">
+          {[
+            { id: 'tv', label: 'TV Display' },
+            { id: 'ops', label: 'Tactical Console' },
+            { id: 'advisory', label: 'Safety Advisory' },
+            { id: 'hse', label: 'HSE Dashboard' },
+            { id: 'planning', label: 'Range Planning' },
+            { id: 'customer', label: 'Customer Portal' },
+            { id: 'backend', label: 'Backend Feeds' }
+          ].map(tab => {
+            const isActive = viewMode === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onViewModeChange(tab.id)}
+                className={`px-3 py-1.5 text-[9.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                  isActive
+                    ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md shadow-orange-950/40'
+                    : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/40'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Notification Bell */}
         <button
           onClick={onOpenAlerts}
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-305 cursor-pointer relative ${
+          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 cursor-pointer relative shadow-sm ${
             activeAlertsCount > 0
-              ? 'bg-red-500/10 border-red-500/50 text-red-200 shadow-lg shadow-red-500/5'
-              : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-400 hover:text-textIceWhite hover:border-slate-600'
+              ? 'bg-red-500/15 border-red-500/50 text-red-200 shadow-red-500/10'
+              : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-textIceWhite hover:border-slate-700'
           }`}
           title="Open Safety Alert Center & Dispatcher"
         >
-          <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'text-red-400 animate-bounce' : ''}`} />
+          <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'text-red-400 animate-bounce' : 'text-slate-400'}`} />
           <span className="text-[10px] uppercase tracking-wide">Alert Center</span>
           {activeAlertsCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-600 border border-cardDarkSlate text-[8.5px] font-black text-white px-1.5 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[16px] h-[16px] shadow-sm select-none">
+            <span className="absolute -top-1 -right-1 bg-red-600 border border-slate-900 text-[8.5px] font-black text-white px-1.5 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[16px] h-[16px] shadow-sm select-none">
               {activeAlertsCount}
             </span>
           )}
         </button>
 
-        {/* Satellite Assimilation Ingestion Countdown Badge */}
-        {activeProvider?.startsWith('WEATHERNEXT') && (
+        {/* Unified System Telemetry Cluster */}
+        <div className="flex items-center bg-slate-900/80 border border-slate-800/90 rounded-lg p-0.5 divide-x divide-slate-800/80 shadow-md">
+          {/* Segment 1: Active Forecast Model */}
           <div 
-            onClick={() => onViewModeChange && onViewModeChange('backend')}
-            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border border-sky-500/30 bg-sky-950/40 text-sky-300 text-[10px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-sky-950/60 transition-all shadow-sm"
-            title="Google DeepMind WeatherNext 3 assimilates real-time Meteosat-11 IODC (41.5°E) satellite radiance every 60 minutes for rapid convective detection. Click to view Backend Diagnostics."
+            onClick={() => onViewModeChange('backend')}
+            className="flex items-center space-x-1.5 px-2.5 py-1 text-[9.5px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800/50 transition-colors"
+            title={`Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'} • Click to view Backend Feeds`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
-            <span>🛰️ SAT INGEST: {60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
+            {activeProvider?.startsWith('WEATHERNEXT') ? (
+              <Zap className="w-3 h-3 text-cyan-400 animate-pulse flex-shrink-0" />
+            ) : (
+              <Cpu className="w-3 h-3 text-slate-400 flex-shrink-0" />
+            )}
+            <span className={activeProvider?.startsWith('WEATHERNEXT') ? 'text-cyan-300' : 'text-slate-300'}>
+              {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WN3 5km Sim' :
+               activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WN3 Live' :
+               activeProvider === PROVIDERS.UAE_NCM ? 'UAE NCM' : 'Open-Meteo'}
+            </span>
           </div>
-        )}
 
-        {/* Active AI Forecast Engine Badge */}
-        <div 
-          onClick={() => onViewModeChange('backend')}
-          className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg border text-[10px] font-mono font-black uppercase tracking-wider cursor-pointer transition-all ${
-            activeProvider?.startsWith('WEATHERNEXT')
-              ? 'bg-cyan-950/40 border-cyan-500/40 text-cyan-300 hover:bg-cyan-950/60'
-              : activeProvider === PROVIDERS.UAE_NCM
-              ? 'bg-purple-950/40 border-purple-500/40 text-purple-300 hover:bg-purple-950/60'
-              : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-300 hover:text-textIceWhite'
-          }`}
-          title={`Click to view Backend Feeds • Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'}`}
-        >
-          {activeProvider?.startsWith('WEATHERNEXT') ? (
-            <Zap className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-          ) : (
-            <Cpu className="w-3.5 h-3.5 text-slate-400" />
+          {/* Segment 2: Satellite Ingestion countdown (shown when WeatherNext active) */}
+          {activeProvider?.startsWith('WEATHERNEXT') && (
+            <div 
+              onClick={() => onViewModeChange && onViewModeChange('backend')}
+              className="hidden 2xl:flex items-center space-x-1 px-2 py-1 text-[9px] font-mono font-bold text-sky-300 cursor-pointer hover:bg-slate-800/50 transition-colors"
+              title="Meteosat-11 Radiance assimilation countdown"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping mr-0.5" />
+              <span>SAT:{60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
+            </div>
           )}
-          <span>
-            {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WeatherNext 3 (5km Sim)' :
-             activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WeatherNext 3 (Live)' :
-             activeProvider === PROVIDERS.UAE_NCM ? 'UAE NCM' : 'Open-Meteo GFS'}
-          </span>
-        </div>
 
-        {/* Simulation Toggle */}
-        <button
-          onClick={onToggleSim}
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-300 cursor-pointer ${
-            isSimulated
-              ? 'bg-edgeOrange/20 border-edgeOrange text-edgeOrange shadow-lg shadow-edgeOrange/10'
-              : 'bg-bgDeepSpace/40 border-slate-700/40 text-slate-400 hover:text-textIceWhite hover:border-slate-600'
-          }`}
-          title="Toggle Weather Station Simulation Override"
-        >
-          <Cpu className={`w-3.5 h-3.5 ${isSimulated ? 'animate-pulse' : ''}`} />
-          <span className="text-[10px] uppercase tracking-wide">{isSimulated ? 'Sim active' : 'Simulate feeds'}</span>
-        </button>
+          {/* Segment 3: Simulation Toggle */}
+          <button
+            onClick={onToggleSim}
+            className={`flex items-center space-x-1.5 px-2.5 py-1 text-[9.5px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border-none ${
+              isSimulated
+                ? 'bg-edgeOrange/20 text-edgeOrange hover:bg-edgeOrange/30'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+            title="Toggle Weather Station Simulation Override"
+          >
+            <Cpu className={`w-3 h-3 ${isSimulated ? 'animate-pulse text-edgeOrange' : 'text-slate-500'}`} />
+            <span>SIM:{isSimulated ? 'ON' : 'OFF'}</span>
+          </button>
 
-        {/* Connection Status */}
-        <div className="flex items-center space-x-1.5 bg-bgDeepSpace/40 px-3 py-1.5 rounded-lg border border-slate-700/30">
-          {isOffline ? (
-            <>
-              <WifiOff className="w-4 h-4 text-stopRed" />
-              <span className="text-[10px] font-bold text-stopRed tracking-wider uppercase">Offline</span>
-            </>
-          ) : (
-            <>
-              <Wifi className="w-4 h-4 text-safetyGreen animate-pulse" />
-              <span className="text-[10px] font-bold text-safetyGreen tracking-wider uppercase">Connected</span>
-            </>
-          )}
+          {/* Segment 4: Connection Link Status */}
+          <div className="flex items-center space-x-1.5 px-2.5 py-1" title={isOffline ? 'System Offline' : 'Live Data Stream Active'}>
+            {isOffline ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-stopRed" />
+                <span className="text-[9.5px] font-mono font-black text-stopRed tracking-wider uppercase">OFFLINE</span>
+              </>
+            ) : (
+              <>
+                <span className="w-2 h-2 rounded-full bg-safetyGreen animate-pulse shadow-sm shadow-emerald-500/50" />
+                <span className="text-[9.5px] font-mono font-black text-safetyGreen tracking-wider uppercase">ONLINE</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>

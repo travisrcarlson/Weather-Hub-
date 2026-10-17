@@ -6,15 +6,16 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
   if (!currentData || !extremes) return null;
 
   const curTemp = currentData.temperature_2m;
-  const maxTemp = extremes.maxTemp;
-  const curRh = currentData.relative_humidity_2m || 0;
-  const curWind = currentData.wind_speed_10m || 0;
+  const maxTemp = Math.max(curTemp ?? 0, extremes.maxTemp ?? 0);
+  const curRh = currentData.relative_humidity_2m ?? 0;
+  const curWind = currentData.wind_speed_10m ?? 0;
   const curUv = currentData.uv_index !== undefined ? currentData.uv_index : 0;
+  const curSolar = currentData.solar_radiation ?? null;
 
-  const curWbgt = calculateWBGT(curTemp, curRh, curWind, curUv);
-  const maxWbgt = extremes.maxWbgt || curWbgt;
+  const curWbgt = calculateWBGT(curTemp, curRh, curWind, curUv, curSolar);
+  const maxWbgt = Math.max(curWbgt ?? 0, extremes.maxWbgt ?? curWbgt);
 
-  const maxUv = extremes.maxUv;
+  const maxUv = Math.max(curUv ?? 0, extremes.maxUv ?? 0);
 
   // Calculate trends compared to previous hour
   const getPrevHourIdx = () => {
@@ -35,7 +36,8 @@ export default function TvCoreMetricsWidget({ currentData, extremes, hourlyData 
     const prevRhVal = hourlyData.relative_humidity_2m[prevIdx];
     const prevWindVal = hourlyData.wind_speed_10m ? hourlyData.wind_speed_10m[prevIdx] : 0;
     const prevUvVal = hourlyData.uv_index ? hourlyData.uv_index[prevIdx] : 0;
-    prevWbgt = calculateWBGT(prevT, prevRhVal, prevWindVal, prevUvVal);
+    const prevSolarVal = hourlyData.solar_radiation ? hourlyData.solar_radiation[prevIdx] : null;
+    prevWbgt = calculateWBGT(prevT, prevRhVal, prevWindVal, prevUvVal, prevSolarVal);
   }
   const wbgtTrend = getTrendIndicator(curWbgt, prevWbgt, 0.1);
 

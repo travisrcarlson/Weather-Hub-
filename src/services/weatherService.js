@@ -342,14 +342,17 @@ export function generate5kmSectorStations(baseHourly, baseCurrent) {
     const curTemp = Number(Math.max(15, curHour.temperature_2m + p.deltaTemp).toFixed(1));
     const curRh = Math.round(Math.min(95, Math.max(10, curHour.relative_humidity_2m + p.deltaRh)));
     const curWind = Number(Math.max(2, curHour.wind_speed_10m + p.deltaWind).toFixed(1));
-    const curGusts = Number(Math.max(curWind * 1.25, (curHour.wind_gusts_10m || curWind * 1.3) + p.deltaGusts).toFixed(1));
+    const curGusts = Number(Math.max(curWind * 1.25, (curHour.wind_gusts_10m ?? curWind * 1.3) + p.deltaGusts).toFixed(1));
     const curDir = (curHour.wind_direction_10m + p.windDirOffset + 360) % 360;
-    const curVis = Math.max(1500, Math.min(20000, (curHour.visibility || 10000) + p.deltaVis));
-    const curSolar = Math.max(0, Math.min(1150, (curHour.solar_radiation || 800) + p.deltaSolar));
+    const curVis = Math.max(1500, Math.min(20000, (curHour.visibility ?? 10000) + p.deltaVis));
+    const baseSolar = curHour.solar_radiation ?? ((curHour.uv_index ?? 0) * 90);
+    const curSolar = baseSolar > 0 ? Math.max(0, Math.min(1150, baseSolar + p.deltaSolar)) : 0;
     const curWind100 = Number((curWind * 1.35 + 1.5).toFixed(1));
     const curGusts100 = Number((curWind100 * 1.38 + 2.0).toFixed(1));
-    const curUv = Number(Math.max(0, Math.min(12, (curHour.uv_index || 8) + (p.deltaSolar > 0 ? 0.8 : -0.4))).toFixed(1));
-    const curPm10 = curWind > 28 ? Number((curHour.pm10 * 1.3).toFixed(1)) : curHour.pm10;
+    const baseUv = curHour.uv_index ?? 0;
+    const uvOffset = p.deltaSolar > 0 ? 0.8 : (p.deltaSolar < 0 ? -0.4 : 0);
+    const curUv = baseUv > 0 ? Number(Math.max(0, Math.min(12, baseUv + uvOffset)).toFixed(1)) : 0;
+    const curPm10 = curWind > 28 ? Number(((curHour.pm10 ?? 42) * 1.3).toFixed(1)) : (curHour.pm10 ?? 42);
 
     const curApparent = Number((curTemp + (curRh > 50 ? (curRh - 50) * 0.18 : (curRh - 50) * 0.08)).toFixed(1));
 
@@ -381,7 +384,8 @@ export function generate5kmSectorStations(baseHourly, baseCurrent) {
         wind_gusts_10m: baseHourly.wind_gusts_10m.map(wg => Number(Math.max(4, wg + p.deltaGusts).toFixed(1))),
         wind_speed_100m: (baseHourly.wind_speed_100m || baseHourly.wind_speed_10m).map(w => Number((w * 1.35 + 1.5).toFixed(1))),
         wind_gusts_100m: (baseHourly.wind_gusts_100m || baseHourly.wind_gusts_10m).map(w => Number((w * 1.55 + 2.0).toFixed(1))),
-        solar_radiation: (baseHourly.solar_radiation || baseHourly.uv_index.map(u => u * 90)).map(s => Math.max(0, s + p.deltaSolar)),
+        solar_radiation: (baseHourly.solar_radiation || baseHourly.uv_index.map(u => (u ?? 0) * 90)).map(s => s > 0 ? Math.max(0, Math.min(1150, s + p.deltaSolar)) : 0),
+        uv_index: baseHourly.uv_index ? baseHourly.uv_index.map(u => (u ?? 0) > 0 ? Number(Math.max(0, Math.min(12, u + uvOffset)).toFixed(1)) : 0) : undefined,
         visibility: baseHourly.visibility.map(v => Math.max(1500, Math.min(20000, v + p.deltaVis)))
       };
     }
@@ -509,24 +513,24 @@ export async function fetchWeatherNextSimData() {
   const currentHourIdx = 48;
   const current = {
     time: formatGstDateTime(now),
-    temperature_2m: temperature_2m[currentHourIdx] || 41.8,
-    apparent_temperature: apparent_temperature[currentHourIdx] || 44.2,
-    relative_humidity_2m: relative_humidity_2m[currentHourIdx] || 22,
-    wind_speed_10m: wind_speed_10m[currentHourIdx] || 24.5,
-    wind_direction_10m: wind_direction_10m[currentHourIdx] || 290,
-    wind_gusts_10m: wind_gusts_10m[currentHourIdx] || 34.0,
-    wind_speed_100m: wind_speed_100m[currentHourIdx] || 33.2,
-    wind_gusts_100m: wind_gusts_100m[currentHourIdx] || 46.5,
-    solar_radiation: solar_radiation[currentHourIdx] || 880,
+    temperature_2m: temperature_2m[currentHourIdx] ?? 41.8,
+    apparent_temperature: apparent_temperature[currentHourIdx] ?? 44.2,
+    relative_humidity_2m: relative_humidity_2m[currentHourIdx] ?? 22,
+    wind_speed_10m: wind_speed_10m[currentHourIdx] ?? 24.5,
+    wind_direction_10m: wind_direction_10m[currentHourIdx] ?? 290,
+    wind_gusts_10m: wind_gusts_10m[currentHourIdx] ?? 34.0,
+    wind_speed_100m: wind_speed_100m[currentHourIdx] ?? 33.2,
+    wind_gusts_100m: wind_gusts_100m[currentHourIdx] ?? 46.5,
+    solar_radiation: solar_radiation[currentHourIdx] ?? 0,
     weathercode: 0,
-    visibility: visibility[currentHourIdx] || 11000,
+    visibility: visibility[currentHourIdx] ?? 11000,
     precipitation: 0.0,
-    cloud_cover: cloud_cover[currentHourIdx] || 10,
-    pressure_msl: pressure_msl[currentHourIdx] || 1008.2,
-    uv_index: uv_index[currentHourIdx] || 9.4,
-    european_aqi: european_aqi[currentHourIdx] || 52,
-    pm2_5: pm2_5[currentHourIdx] || 19.5,
-    pm10: pm10[currentHourIdx] || 46.2
+    cloud_cover: cloud_cover[currentHourIdx] ?? 10,
+    pressure_msl: pressure_msl[currentHourIdx] ?? 1008.2,
+    uv_index: uv_index[currentHourIdx] ?? 0,
+    european_aqi: european_aqi[currentHourIdx] ?? 52,
+    pm2_5: pm2_5[currentHourIdx] ?? 19.5,
+    pm10: pm10[currentHourIdx] ?? 46.2
   };
 
   const daily = {
@@ -1033,28 +1037,29 @@ export async function fetchOpenMeteoData() {
     ? rawHourlyUv.map(uv => uv !== null ? Number(Math.min(12.0, uv * 1.3).toFixed(1)) : null)
     : null;
 
+  const openMeteoCurrent = {
+    ...weatherData.current,
+    ...aqiData.current,
+    uv_index: calibratedCurrentUv
+  };
+
+  const openMeteoHourly = {
+    ...weatherData.hourly,
+    uv_index: calibratedHourlyUv,
+    european_aqi: aqiData.hourly ? aqiData.hourly.european_aqi : null,
+    pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
+    pm10: aqiData.hourly ? aqiData.hourly.pm10 : null
+  };
+
   const mergedData = {
     latitude: LAT,
     longitude: LON,
     timezone: TIMEZONE,
-    current: {
-      ...weatherData.current,
-      ...aqiData.current,
-      uv_index: calibratedCurrentUv
-    },
-    hourly: {
-      ...weatherData.hourly,
-      uv_index: calibratedHourlyUv,
-      european_aqi: aqiData.hourly ? aqiData.hourly.european_aqi : null,
-      pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
-      pm10: aqiData.hourly ? aqiData.hourly.pm10 : null
-    },
+    current: openMeteoCurrent,
+    hourly: openMeteoHourly,
     daily: weatherData.daily,
-    ncmWarnings: generateMockNcmWarnings({
-      ...weatherData.current,
-      ...aqiData.current,
-      uv_index: calibratedCurrentUv
-    })
+    stations: generate5kmSectorStations(openMeteoHourly, openMeteoCurrent),
+    ncmWarnings: generateMockNcmWarnings(openMeteoCurrent)
   };
 
   const meta = {

@@ -164,7 +164,7 @@ export function evaluateSafety(data) {
   }
   
   // 5. ISO 7243 Wet Bulb Globe Temperature (WBGT) (Threshold: >=30.0°C RED, >=27.9°C AMBER)
-  const wbgt = calculateWBGT(temp, rh, windSpeed, uv);
+  const wbgt = calculateWBGT(temp, rh, windSpeed, uv, data.solar_radiation ?? null);
   if (wbgt >= 30.0) {
     status = "RED";
     reasons.push(`Extreme Heat Stress (WBGT: ${wbgt.toFixed(1)}°C) exceeds safety limit (≥30.0°C). Suspend all outdoor activities.`);

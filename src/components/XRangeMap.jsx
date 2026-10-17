@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
-import { ShieldAlert, Compass, Sun, Droplets, Map } from 'lucide-react';
+import { ShieldAlert, Compass, Sun, Droplets, Map, Play, Pause, RotateCcw, Clock } from 'lucide-react';
 import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow';
 import { getIsNightTime } from '../utils/weatherCodeMap';
 
@@ -94,6 +94,72 @@ export const stationsList = [
 
 export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning, currentTime }) {
   const [activeLayer, setActiveLayer] = useState('none'); // 'none', 'thermal', 'wind', 'vis'
+  const [forecastOffset, setForecastOffset] = useState(0); // 0 = LIVE, 1..24 = +1H..+24H
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  useEffect(() => {
+    if (!isPlaying) return;
+    const timer = setInterval(() => {
+      setForecastOffset(prev => (prev + 1) % 25);
+    }, 1200);
+    return () => clearInterval(timer);
+  }, [isPlaying]);
+
+  const currentActive = activeStation || 'hq';
+
+  // Retrieve readings for any station at a given hour offset (0 = Live, 1..24 = Forecast)
+  const getStationReadingsAtOffset = (stationId, offsetHours = forecastOffset) => {
+    if (!apiData) return null;
+    const stationMeta = stationsList.find(s => s.id === stationId) || stationsList[0];
+
+    if (offsetHours === 0) {
+      if (isSimulated) {
+        return stationMeta.getReadings(apiData.current);
+      }
+      return apiData?.stations?.[stationId]?.current || apiData.current;
+    }
+
+    const stHourly = apiData?.stations?.[stationId]?.hourly || apiData?.hourly;
+    if (!stHourly || !stHourly.time) {
+      return apiData?.stations?.[stationId]?.current || apiData.current;
+    }
+
+    const curTimeStr = (apiData.current?.time || '').slice(0, 13);
+    let baseIdx = curTimeStr ? stHourly.time.findIndex(t => t && t.startsWith(curTimeStr)) : 48;
+    if (baseIdx === -1) baseIdx = 48;
+    const targetIdx = Math.min(stHourly.time.length - 1, Math.max(0, baseIdx + offsetHours));
+
+    const temp = stHourly.temperature_2m?.[targetIdx] ?? 35;
+    const rh = stHourly.relative_humidity_2m?.[targetIdx] ?? 35;
+    const wind = stHourly.wind_speed_10m?.[targetIdx] ?? 18;
+    const gusts = stHourly.wind_gusts_10m?.[targetIdx] ?? wind * 1.35;
+    const windDir = stHourly.wind_direction_10m?.[targetIdx] ?? 280;
+    const uv = stHourly.uv_index?.[targetIdx] ?? 0;
+    const solar = stHourly.solar_radiation?.[targetIdx] ?? (uv * 90);
+    const vis = stHourly.visibility?.[targetIdx] ?? 10000;
+    const cloud = stHourly.cloud_cover?.[targetIdx] ?? 10;
+    const pm10Val = stHourly.pm10?.[targetIdx] ?? 42;
+    const aqiVal = stHourly.european_aqi?.[targetIdx] ?? 50;
+    const wmo = stHourly.weathercode?.[targetIdx] ?? 0;
+    const feels = stHourly.apparent_temperature?.[targetIdx] ?? Number((temp + (rh > 50 ? (rh - 50) * 0.18 : 1.2)).toFixed(1));
+
+    return {
+      time: stHourly.time[targetIdx],
+      temperature_2m: temp,
+      apparent_temperature: feels,
+      relative_humidity_2m: rh,
+      wind_speed_10m: wind,
+      wind_direction_10m: windDir,
+      wind_gusts_10m: gusts,
+      uv_index: uv,
+      solar_radiation: solar,
+      visibility: vis,
+      cloud_cover: cloud,
+      pm10: pm10Val,
+      european_aqi: aqiVal,
+      weathercode: wmo
+    };
+  };
 
   const getInterpolatedWind = (x, y) => {
     const defaultHQ = { speed: 25, dir: 250 };
@@ -112,14 +178,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
     if (apiData) {
       const getStationData = (stationId, defaultVal) => {
-        if (!isSimulated) {
-          return {
-            speed: apiData.current?.wind_speed_10m || defaultVal.speed,
-            dir: apiData.current?.wind_direction_10m || defaultVal.dir
-          };
-        }
-        const station = stationsList.find(s => s.id === stationId);
-        const readings = station ? station.getReadings(apiData.current) : null;
+        const readings = getStationReadingsAtOffset(stationId, forecastOffset);
         return {
           speed: readings?.wind_speed_10m ?? defaultVal.speed,
           dir: readings?.wind_direction_10m ?? defaultVal.dir
@@ -192,13 +251,19 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
 
-  const currentActive = showSimulatedStations ? activeStation : 'hq';
   const currentStationInfo = stationsList.find(s => s.id === currentActive) || stationsList[0];
-  const stationReadings = apiData 
-    ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) 
-    : null;
-  
-  const isNight = getIsNightTime(currentTime || apiData?.current?.time, apiData?.daily);
+  const stationReadings = getStationReadingsAtOffset(currentActive, forecastOffset);
+  const activeStationSafety = stationReadings ? evaluateSafety(stationReadings) : { status: 'GREEN', reasons: [] };
+
+  // Compute effective time shifted by forecastOffset hours for day/night & sun/moon transit
+  const getShiftedTime = () => {
+    const base = currentTime || apiData?.current?.time;
+    if (!base) return new Date();
+    const baseDate = base instanceof Date ? base : new Date(typeof base === 'string' && !base.includes('+') && !base.endsWith('Z') ? `${base}+04:00` : base);
+    return new Date(baseDate.getTime() + forecastOffset * 3600000);
+  };
+  const effectiveTime = getShiftedTime();
+  const isNight = getIsNightTime(effectiveTime, apiData?.daily);
 
   const getMoonIllumination = () => {
     if (!apiData || !apiData.daily || !apiData.daily.time) return 0.5;
@@ -225,7 +290,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   // Sun & Moon Transit Calculations
   const dailyData = apiData?.daily;
-  const activeTimeVal = currentTime || apiData?.current?.time;
+  const activeTimeVal = effectiveTime;
   const hasTransitData = dailyData?.sunrise?.[0] && dailyData?.sunset?.[0] && activeTimeVal;
 
   let sunTransit = { visible: false, progress: 0 };
@@ -557,13 +622,15 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       {stationsList
         .map(s => {
           const isSelected = currentActive === s.id;
-          const readings = apiData?.stations?.[s.id]?.current 
-            || (apiData ? (isSimulated ? s.getReadings(apiData.current) : apiData.current) : null);
+          const readings = getStationReadingsAtOffset(s.id, forecastOffset);
           const safety = readings ? evaluateSafety(readings) : null;
           
           let statusColor = '#22c55e'; // Green
           if (safety?.status === 'AMBER') statusColor = '#f59e0b'; // Amber
           if (safety?.status === 'RED') statusColor = '#ef4444'; // Red
+
+          const pinTemp = readings?.temperature_2m !== undefined ? `${readings.temperature_2m.toFixed(0)}°` : '--';
+          const pinWind = readings?.wind_speed_10m !== undefined ? `${readings.wind_speed_10m.toFixed(0)}kph` : '--';
 
           return (
             <g 
@@ -610,6 +677,32 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               >
                 {s.id === 'hq' ? 'X-Range HQ' : s.name.replace('Range ', '')}
               </text>
+
+              {/* Micro Safety Telemetry Pill under Pin */}
+              <g transform="translate(0, 10)">
+                <rect
+                  x="-21"
+                  y="-4.2"
+                  width="42"
+                  height="8"
+                  rx="1"
+                  fill="#090d16"
+                  fillOpacity="0.86"
+                  stroke={statusColor}
+                  strokeWidth="0.6"
+                />
+                <text
+                  x="0"
+                  y="1.2"
+                  textAnchor="middle"
+                  fontSize="4.6"
+                  fontWeight="bold"
+                  fill="#f8fafc"
+                  className="font-mono"
+                >
+                  {pinTemp} • {pinWind}
+                </text>
+              </g>
             </g>
           );
         })}
@@ -726,6 +819,17 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
     </svg>
   );
 
+  // Precompute 25-step (0H..+24H) safety timeline strip for the active sector
+  const timelineSafetySteps = Array.from({ length: 25 }, (_, h) => {
+    const r = getStationReadingsAtOffset(currentActive, h);
+    const ev = r ? evaluateSafety(r) : { status: 'GREEN' };
+    return { hourOffset: h, status: ev.status, timeStr: r?.time ? r.time.slice(11, 16) : '' };
+  });
+
+  const formattedEffectiveGst = effectiveTime instanceof Date && !isNaN(effectiveTime.getTime())
+    ? effectiveTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Dubai' })
+    : (stationReadings?.time?.slice(11, 16) || '--:--');
+
   if (isBackground) {
     return (
       <div className="w-full h-full relative select-none bg-bgDeepSpace">
@@ -738,7 +842,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   // Fallback card-style layout for default grid render
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
       <div className="absolute inset-0 bg-[radial-gradient(#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
       
       {/* Compact Title Bar */}
@@ -757,24 +861,24 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         </div>
         <div className="flex items-center space-x-2">
           {/* WeatherNext 3 5km Microclimate Station Quick Switcher */}
-          <div className="hidden sm:flex items-center space-x-1 bg-bgDeepSpace/80 p-0.5 rounded border border-slate-700/60">
+          <div className="hidden sm:flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 shadow-inner">
             {stationsList.map(st => {
               const isStActive = currentActive === st.id;
-              const stData = apiData?.stations?.[st.id]?.current;
+              const stData = getStationReadingsAtOffset(st.id, forecastOffset);
               const tempVal = stData ? `${stData.temperature_2m.toFixed(0)}°` : '';
               return (
                 <button
                   key={st.id}
                   onClick={() => setActiveStation && setActiveStation(st.id)}
-                  className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1 ${
+                  className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1 ${
                     isStActive
-                      ? 'bg-edgeOrange text-white shadow-sm shadow-edgeOrange/20'
-                      : 'text-slate-400 hover:text-textIceWhite'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm shadow-orange-950/50'
+                      : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/60'
                   }`}
                   title={`Switch active telemetry to ${st.name} (5km Sector Node)`}
                 >
                   <span>{st.id.toUpperCase()}</span>
-                  {tempVal && <span className="text-[7.5px] opacity-80">{tempVal}</span>}
+                  {tempVal && <span className="text-[7.5px] opacity-90">{tempVal}</span>}
                 </button>
               );
             })}
@@ -792,7 +896,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               ⚡ Test Lightning: {simulatedLightning ? 'ON' : 'OFF'}
             </button>
           )}
-          <span className="bg-bgDeepSpace/40 border border-slate-700/50 px-1.5 py-0.5 rounded text-[8px] font-bold text-slate-400 flex items-center space-x-1 flex-shrink-0">
+          <span className="bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-lg text-[8px] font-bold text-slate-400 flex items-center space-x-1.5 flex-shrink-0 shadow-sm">
             <Map className="w-2.5 h-2.5 text-edgeOrange" />
             <span>ABU AL ABYAD ISLAND</span>
           </span>
@@ -841,56 +945,161 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         <div className={`${(hideDetails || !showSimulatedStations) ? 'w-full' : 'w-[58%]'} h-full relative border border-slate-700/30 rounded-lg bg-bgDeepSpace/40 overflow-hidden flex items-center justify-center`}>
           {mapContent}
 
-          {/* Floating Tactical Overlay Selector Panel */}
+          {/* Top-Left Sector Safety Situational HUD Banner */}
           {!isBackground && (
-            <div className="absolute bottom-2.5 left-2.5 flex items-center bg-slate-950/90 rounded-lg p-0.5 border border-slate-800/80 select-none z-25 text-[7.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-lg shadow-black/50">
-              <button
-                type="button"
-                onClick={() => setActiveLayer('none')}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer font-sans ${
-                  activeLayer === 'none'
-                    ? 'bg-slate-800 text-white border border-slate-700/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                Satellite
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveLayer('thermal')}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
-                  activeLayer === 'thermal'
-                    ? 'bg-red-500/20 text-red-200 border border-red-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
-                <span>Thermal</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveLayer('wind')}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
-                  activeLayer === 'wind'
-                    ? 'bg-sky-500/20 text-sky-200 border border-sky-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span className="w-1 h-1 rounded-full bg-sky-400 animate-pulse" />
-                <span>Wind Vectors</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveLayer('vis')}
-                className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
-                  activeLayer === 'vis'
-                    ? 'bg-amber-500/20 text-amber-200 border border-amber-500/30'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
-                <span>Visibility</span>
-              </button>
+            <div className="absolute top-2 left-2.5 right-2.5 flex items-center justify-between pointer-events-none z-25">
+              <div className={`pointer-events-auto flex items-center space-x-2 px-2.5 py-1 border backdrop-blur-md shadow-lg text-[8px] font-black uppercase tracking-wider ${
+                activeStationSafety.status === 'RED'
+                  ? 'bg-red-950/90 border-red-500/60 text-red-200'
+                  : activeStationSafety.status === 'AMBER'
+                  ? 'bg-amber-950/90 border-amber-500/60 text-amber-200'
+                  : 'bg-slate-950/85 border-emerald-500/40 text-emerald-300'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  activeStationSafety.status === 'RED' ? 'bg-red-500 animate-ping' :
+                  activeStationSafety.status === 'AMBER' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                }`} />
+                <span className="text-textIceWhite font-mono">
+                  {forecastOffset === 0 ? 'LIVE' : `+${forecastOffset}H (${formattedEffectiveGst} GST)`}
+                </span>
+                <span className="text-slate-600">|</span>
+                <span>{currentStationInfo.name}: {activeStationSafety.status}</span>
+                <span className="hidden md:inline text-slate-300 font-bold normal-case truncate max-w-[230px]">
+                  — {activeStationSafety.reasons[0] || 'All safety parameters within limits'}
+                </span>
+              </div>
+
+              {forecastOffset > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { setForecastOffset(0); setIsPlaying(false); }}
+                  className="pointer-events-auto flex items-center space-x-1 px-2 py-1 bg-orange-600/90 hover:bg-orange-500 text-white border border-orange-400/60 text-[7.5px] font-black uppercase tracking-wider cursor-pointer shadow-lg transition-all"
+                  title="Reset map to live conditions"
+                >
+                  <RotateCcw className="w-2.5 h-2.5" />
+                  <span>Return to Live</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Bottom Tactical Dock: Overlay Selector (Left) + 24-Hour Safety Time-Scrubber (Right) */}
+          {!isBackground && (
+            <div className="absolute bottom-2 left-2.5 right-2.5 flex flex-wrap items-center justify-between gap-1.5 select-none z-25 pointer-events-none">
+              {/* Layer Switcher */}
+              <div className="pointer-events-auto flex items-center bg-slate-950/90 rounded-lg p-0.5 border border-slate-800/90 text-[7.5px] font-black uppercase tracking-wider backdrop-blur-md shadow-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('none')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer font-sans ${
+                    activeLayer === 'none'
+                      ? 'bg-slate-800 text-textIceWhite font-black border border-slate-700/60 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  Satellite
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('thermal')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                    activeLayer === 'thermal'
+                      ? 'bg-red-500/20 text-red-200 border border-red-500/40 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  <span>Thermal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('wind')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                    activeLayer === 'wind'
+                      ? 'bg-sky-500/20 text-sky-200 border border-sky-500/40 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse" />
+                  <span>Wind</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('vis')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                    activeLayer === 'vis'
+                      ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Vis</span>
+                </button>
+              </div>
+
+              {/* Interactive 24-Hour Safety Forecast Scrubber */}
+              <div className="pointer-events-auto flex items-center space-x-2 bg-slate-950/90 border border-slate-800/90 px-2.5 py-1 backdrop-blur-md shadow-xl flex-1 max-w-[360px] min-w-[210px]">
+                <button
+                  type="button"
+                  onClick={() => setIsPlaying(prev => !prev)}
+                  className={`p-1 border transition-all cursor-pointer flex items-center justify-center ${
+                    isPlaying
+                      ? 'bg-orange-600 border-orange-400 text-white'
+                      : 'bg-slate-900 border-slate-700 text-slate-300 hover:text-white hover:border-slate-500'
+                  }`}
+                  title={isPlaying ? 'Pause 24-hour safety playback' : 'Play 24-hour safety forecast'}
+                >
+                  {isPlaying ? <Pause className="w-2.5 h-2.5" /> : <Play className="w-2.5 h-2.5" />}
+                </button>
+
+                <div className="flex flex-col flex-1 min-w-0">
+                  <div className="flex items-center justify-between text-[7px] font-black uppercase tracking-wider mb-0.5">
+                    <span className="text-slate-400 flex items-center space-x-1">
+                      <Clock className="w-2.5 h-2.5 text-edgeOrange" />
+                      <span>24H SAFETY TIMELINE</span>
+                    </span>
+                    <span className={`font-mono ${forecastOffset > 0 ? 'text-edgeOrange' : 'text-emerald-400'}`}>
+                      {forecastOffset === 0 ? 'NOW (LIVE)' : `+${forecastOffset}H • ${formattedEffectiveGst}`}
+                    </span>
+                  </div>
+
+                  {/* Color-coded 25-hour safety strip + range input */}
+                  <div className="relative w-full h-2.5 flex items-center">
+                    <div className="absolute inset-x-0 h-1.5 flex overflow-hidden border border-slate-800/80 pointer-events-none">
+                      {timelineSafetySteps.map(step => (
+                        <div
+                          key={step.hourOffset}
+                          className={`flex-1 h-full ${
+                            step.status === 'RED'
+                              ? 'bg-red-500/80'
+                              : step.status === 'AMBER'
+                              ? 'bg-amber-500/80'
+                              : 'bg-emerald-500/65'
+                          } ${step.hourOffset === forecastOffset ? 'ring-1 ring-white z-10' : 'opacity-75'}`}
+                        />
+                      ))}
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="24"
+                      step="1"
+                      value={forecastOffset}
+                      onChange={(e) => {
+                        setIsPlaying(false);
+                        setForecastOffset(Number(e.target.value));
+                      }}
+                      className="relative w-full h-2.5 opacity-0 cursor-pointer z-20"
+                      title="Scrub +0h to +24h to inspect projected sector safety status"
+                    />
+                    {/* Custom Thumb Indicator */}
+                    <div
+                      className="absolute top-0 bottom-0 w-1.5 bg-white border border-slate-950 shadow pointer-events-none z-15"
+                      style={{ left: `calc(${(forecastOffset / 24) * 100}% - 3px)` }}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

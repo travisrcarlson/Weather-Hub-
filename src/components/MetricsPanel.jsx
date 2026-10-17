@@ -112,7 +112,7 @@ export function HumidityWidget({ data, hourlyData }) {
   const cycle = getWorkRestCycle();
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl py-3 px-3.5 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl py-3 px-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808006_1px,transparent_1px),linear-gradient(to_bottom,#80808006_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -219,7 +219,7 @@ export function VisibilityWidget({ data, hourlyData }) {
   const visStatus = getVisibilityStatus(visibilityKm);
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Header */}
       <div>
         <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
@@ -445,7 +445,7 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   const dynamicIntervals = calculateSunscreenIntervals(uv);
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
@@ -644,7 +644,7 @@ export function HydrationWidget({ data }) {
   const hydration = getHydrationInfo(wbgt);
 
   return (
-    <div className="w-full h-full bg-cardDarkSlate border border-slate-700/40 rounded-xl py-2 px-3 flex flex-col justify-between select-none relative overflow-hidden">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl py-2 px-3 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808006_1px,transparent_1px),linear-gradient(to_bottom,#80808006_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 

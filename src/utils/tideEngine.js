@@ -9,7 +9,12 @@
  * - Spring / Neap cycle: Coupled to synodic lunar phase.
  */
 
-import { parseGstDate } from '../components/BottomRow';
+export function parseGstDate(str) {
+  if (!str) return new Date();
+  if (str instanceof Date) return str;
+  if (typeof str === 'string' && (str.includes('+') || str.endsWith('Z'))) return new Date(str);
+  return new Date(`${str}+04:00`);
+}
 
 export function calculateAbuAlAbyadTides(dateInput) {
   const d = dateInput 
