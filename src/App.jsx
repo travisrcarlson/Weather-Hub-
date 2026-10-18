@@ -561,6 +561,37 @@ export default function App() {
   const activeDisplayData = getActiveStationDisplayData();
   const activeHourlyData = data?.stations?.[activeStation]?.hourly || data?.hourly;
 
+  const getActiveStationDailyData = () => {
+    const baseDaily = data?.stations?.[activeStation]?.daily || data?.daily;
+    if (!baseDaily) return null;
+
+    if (isSimulated) {
+      const simDailyProfiles = {
+        hq: { min0: 29.2, max0: 43.0, deltaT: 0, deltaG: 0 },
+        north: { min0: 28.0, max0: 41.2, deltaT: -1.2, deltaG: 16.0 },
+        south: { min0: 31.5, max0: 46.2, deltaT: 2.8, deltaG: -5.0 },
+        sea: { min0: 26.5, max0: 36.5, deltaT: -4.5, deltaG: 7.0 }
+      };
+      const sp = simDailyProfiles[activeStation] || simDailyProfiles.hq;
+      return {
+        ...baseDaily,
+        temperature_2m_max: (baseDaily.temperature_2m_max || []).map((v, i) =>
+          i === 0 ? sp.max0 : Number((v + sp.deltaT).toFixed(1))
+        ),
+        temperature_2m_min: (baseDaily.temperature_2m_min || []).map((v, i) =>
+          i === 0 ? sp.min0 : Number((v + sp.deltaT * 0.65).toFixed(1))
+        ),
+        wind_gusts_10m_max: (baseDaily.wind_gusts_10m_max || []).map(g =>
+          Number(Math.max(8, g + sp.deltaG).toFixed(1))
+        )
+      };
+    }
+
+    return baseDaily;
+  };
+
+  const activeDailyData = getActiveStationDailyData();
+
   // Automated HSE WhatsApp & Directive Dispatcher
   useEffect(() => {
     if (globalSafety && activeDisplayData) {
@@ -778,7 +809,7 @@ export default function App() {
               <div className="min-h-[210px]">
                 <CurrentConditions 
                   data={activeDisplayData} 
-                  dailyData={data.daily} 
+                  dailyData={activeDailyData} 
                   hourlyData={activeHourlyData} 
                   currentTime={activeTime} 
                   onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
@@ -803,7 +834,7 @@ export default function App() {
 
               {/* 6. Solar UV Exposure */}
               <div className="min-h-[210px]">
-                <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={data.daily} currentTime={activeTime} />
+                <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={activeDailyData} currentTime={activeTime} />
               </div>
 
               {/* 7. Dust / Air Quality & Hydration */}
@@ -814,7 +845,7 @@ export default function App() {
 
               {/* 8. Daylight Curfew & Abu Al Abyad Tide Cycles */}
               <div className="min-h-[235px]">
-                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
               </div>
             </div>
           )}
@@ -860,18 +891,18 @@ export default function App() {
                 <HourlyForecast 
                   hourlyData={activeHourlyData} 
                   currentTime={activeTime} 
-                  dailyData={data.daily}
+                  dailyData={activeDailyData}
                 />
               </div>
 
               {/* 5-Day Range Outlook */}
               <div className="min-h-[165px]">
-                <DailyForecastWidget dailyData={data.daily} />
+                <DailyForecastWidget dailyData={activeDailyData} />
               </div>
 
               {/* Daylight Curfew & Tide Cycles */}
               <div className="min-h-[235px]">
-                <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
               </div>
             </div>
           )}
@@ -909,7 +940,7 @@ export default function App() {
                 <PlanningDashboard 
                   isSimulated={isSimulated} 
                   hourlyData={activeHourlyData}
-                  dailyData={data.daily}
+                  dailyData={activeDailyData}
                 />
               </Suspense>
             </div>
@@ -1087,13 +1118,13 @@ export default function App() {
                   <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={activeHourlyData} />
                 </div>
                 <div className="h-[29%]">
-                  <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+                  <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
                 </div>
                 <div className="h-[51%]">
                   <HourlyForecast 
                     hourlyData={activeHourlyData} 
                     currentTime={activeTime} 
-                    dailyData={data.daily}
+                    dailyData={activeDailyData}
                   />
                 </div>
               </div>
@@ -1132,7 +1163,7 @@ export default function App() {
                <div className="h-[26%]">
                  <CurrentConditions 
                    data={activeDisplayData} 
-                   dailyData={data.daily} 
+                   dailyData={activeDailyData} 
                    hourlyData={activeHourlyData} 
                    currentTime={activeTime} 
                    onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
@@ -1184,11 +1215,11 @@ export default function App() {
                   <HourlyForecast 
                     hourlyData={activeHourlyData} 
                     currentTime={activeTime} 
-                    dailyData={data.daily}
+                    dailyData={activeDailyData}
                   />
                 </div>
                 <div className="w-[35%] h-full">
-                  <DailyForecastWidget dailyData={data.daily} />
+                  <DailyForecastWidget dailyData={activeDailyData} />
                 </div>
               </div>
             </div>
@@ -1196,7 +1227,7 @@ export default function App() {
             {/* Right Sidebar (Col-span-2): UV, Visibility, AQI, Sunrise/Sunset (Light/Curfew) */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">
                <div className="h-[33%]">
-                 <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={data.daily} currentTime={activeTime} />
+                 <UvWidget data={activeDisplayData} hourlyData={activeHourlyData} dailyData={activeDailyData} currentTime={activeTime} />
                </div>
                <div className="h-[17%]">
                  <VisibilityWidget data={activeDisplayData} hourlyData={activeHourlyData} />
@@ -1205,7 +1236,7 @@ export default function App() {
                  <AqiWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                </div>
                <div className="h-[31%]">
-                 <SunTransitWidget dailyData={data.daily} currentTime={activeTime} />
+                 <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
                </div>
              </div>
 
@@ -1244,7 +1275,7 @@ export default function App() {
               <PlanningDashboard 
                 isSimulated={isSimulated} 
                 hourlyData={activeHourlyData}
-                dailyData={data.daily}
+                dailyData={activeDailyData}
               />
             </Suspense>
           </div>

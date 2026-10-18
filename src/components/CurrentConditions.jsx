@@ -26,9 +26,58 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
 
   const sunTemp = getSunTemp();
 
-  // Max and Min temperatures for today
-  const tempMax = dailyData && dailyData.temperature_2m_max ? dailyData.temperature_2m_max[0] : null;
-  const tempMin = dailyData && dailyData.temperature_2m_min ? dailyData.temperature_2m_min[0] : null;
+  // Determine today's date string in Asia/Dubai (YYYY-MM-DD)
+  const getTodayDateStr = () => {
+    if (typeof data.time === 'string' && data.time.length >= 10) {
+      return data.time.slice(0, 10);
+    }
+    const refDate = currentTime ? new Date(currentTime) : new Date();
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dubai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).formatToParts(refDate);
+    const get = (t) => parts.find(p => p.type === t)?.value || '01';
+    return `${get('year')}-${get('month')}-${get('day')}`;
+  };
+
+  const todayDateStr = getTodayDateStr();
+
+  // Resolve today's index in dailyData (fallback to 0)
+  const dailyTodayIdx = (dailyData && Array.isArray(dailyData.time))
+    ? Math.max(0, dailyData.time.findIndex(t => t === todayDateStr))
+    : 0;
+
+  const rawDailyMax = dailyData?.temperature_2m_max?.[dailyTodayIdx] ?? null;
+  const rawDailyMin = dailyData?.temperature_2m_min?.[dailyTodayIdx] ?? null;
+
+  // Also check active sector's hourly temperatures for today so sector microclimates are always reflected
+  let hourlyTodayMax = null;
+  let hourlyTodayMin = null;
+  if (hourlyData && Array.isArray(hourlyData.time) && Array.isArray(hourlyData.temperature_2m)) {
+    const todayTemps = [];
+    hourlyData.time.forEach((t, idx) => {
+      if (typeof t === 'string' && t.startsWith(todayDateStr)) {
+        const val = hourlyData.temperature_2m[idx];
+        if (val !== undefined && val !== null) todayTemps.push(val);
+      }
+    });
+    if (todayTemps.length > 0) {
+      hourlyTodayMax = Math.max(...todayTemps);
+      hourlyTodayMin = Math.min(...todayTemps);
+    }
+  }
+
+  const baseMax = rawDailyMax !== null ? rawDailyMax : hourlyTodayMax;
+  const baseMin = rawDailyMin !== null ? rawDailyMin : hourlyTodayMin;
+
+  const tempMax = baseMax !== null
+    ? Math.max(baseMax, hourlyTodayMax ?? baseMax, temp ?? baseMax)
+    : null;
+  const tempMin = baseMin !== null
+    ? Math.min(baseMin, hourlyTodayMin ?? baseMin, temp ?? baseMin)
+    : null;
 
   const isNight = getIsNightTime(currentTime || data?.time, dailyData);
   const condition = getWeatherCondition(weathercode, isNight);
@@ -113,11 +162,11 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
             )}
           </div>
           {tempMax !== null && tempMin !== null && (
-            <div className="flex items-center space-x-2.5 mt-2 bg-bgDeepSpace/50 border border-slate-800/70 rounded-lg px-2.5 py-1.5 w-fit select-none">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Today's Forecast:</span>
-              <span className="text-[17px] font-black text-blue-400 font-mono leading-none">{tempMin.toFixed(0)}°</span>
-              <span className="text-xs font-bold text-slate-650">/</span>
-              <span className="text-[17px] font-black text-stopRed font-mono leading-none">{tempMax.toFixed(0)}°</span>
+            <div className="flex items-center space-x-2 mt-2 bg-bgDeepSpace/50 border border-slate-800/70 rounded-lg px-2.5 py-1.5 w-fit select-none">
+              <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Today's Forecast:</span>
+              <span className="text-[15px] font-black text-blue-400 font-mono leading-none">{tempMin.toFixed(1)}°</span>
+              <span className="text-xs font-bold text-slate-600">/</span>
+              <span className="text-[15px] font-black text-stopRed font-mono leading-none">{tempMax.toFixed(1)}°</span>
             </div>
           )}
         </div>
