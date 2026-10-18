@@ -33,15 +33,17 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   const cardinal = getCardinalDirection(directionDegrees);
   const beaufort = getBeaufortScale(windSpeed);
 
-  // Calculate trends
-  const getPrevHourIdx = () => {
+  // Calculate current hour index in hourlyData
+  const getCurHourIdx = () => {
     if (!hourlyData || !hourlyData.time || !data.time) return -1;
     const curHourStr = data.time.slice(0, 13) + ':00';
-    const curIdx = hourlyData.time.findIndex(t => t.startsWith(curHourStr));
-    return curIdx > 0 ? curIdx - 1 : -1;
+    return hourlyData.time.findIndex(t => t.startsWith(curHourStr));
   };
 
-  const prevIdx = getPrevHourIdx();
+  const curIdx = getCurHourIdx();
+  const startIdx = curIdx >= 0 ? curIdx : 48;
+  const prevIdx = curIdx > 0 ? curIdx - 1 : -1;
+
   const prevWindSpeed = prevIdx >= 0 ? hourlyData.wind_speed_10m[prevIdx] : null;
   const windTrend = getTrendIndicator(windSpeed, prevWindSpeed, 1.0);
 
@@ -60,7 +62,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
     return 'text-textIceWhite';
   };
 
-  // Helper to get 24h wind statistics
+  // Helper to get next-24h wind statistics starting from current hour
   const getWindForecast = () => {
     if (!hourlyData || !hourlyData.wind_speed_10m || !hourlyData.wind_direction_10m) {
       return {
@@ -73,14 +75,14 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
       };
     }
     
-    const speeds = hourlyData.wind_speed_10m.slice(0, 24);
-    const directions = hourlyData.wind_direction_10m.slice(0, 24);
+    const speeds = hourlyData.wind_speed_10m.slice(startIdx, startIdx + 24);
+    const directions = hourlyData.wind_direction_10m.slice(startIdx, startIdx + 24);
     
-    const minSpeed = Math.min(...speeds);
-    const maxSpeed = Math.max(...speeds);
+    const minSpeed = speeds.length ? Math.min(windSpeed, ...speeds) : windSpeed;
+    const maxSpeed = speeds.length ? Math.max(windSpeed, ...speeds) : windSpeed;
     
-    const startDir = directions[0] || 0;
-    const endDir = directions[directions.length - 1] || 0;
+    const startDir = directionDegrees ?? directions[0] ?? 0;
+    const endDir = directions[directions.length - 1] ?? startDir;
     
     const startCardinal = getCardinalDirection(startDir);
     const endCardinal = getCardinalDirection(endDir);
@@ -124,16 +126,6 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   };
   
   const wedgePath = forecast ? getForecastWedgePath(forecast.startDir, forecast.endDir) : null;
-
-  // Calculate current hour index in hourlyData for the 12h forecast
-  const getCurHourIdx = () => {
-    if (!hourlyData || !hourlyData.time || !data.time) return -1;
-    const curHourStr = data.time.slice(0, 13) + ':00';
-    return hourlyData.time.findIndex(t => t.startsWith(curHourStr));
-  };
-
-  const curIdx = getCurHourIdx();
-  const startIdx = curIdx >= 0 ? curIdx : 0;
 
   const windForecast12h = [];
   if (hourlyData && hourlyData.time && hourlyData.wind_speed_10m) {

@@ -126,7 +126,9 @@ const fallbackData = {
 export default function App() {
   const [data, setData] = useState(fallbackData);
   const [apiMeta, setApiMeta] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState('12:30:00');
+  const [lastUpdated, setLastUpdated] = useState(() =>
+    new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour12: false })
+  );
   const [isOffline, setIsOffline] = useState(false);
   const [isSimulated, setIsSimulated] = useState(false);
   const [simulatedLightning, setSimulatedLightning] = useState(false);

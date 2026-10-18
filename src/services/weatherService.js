@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-export const LAT = 24.20;
-export const LON = 52.78;
+export const LAT = 24.195;
+export const LON = 53.86;
 export const TIMEZONE = 'Asia/Dubai';
 
 // GST (Asia/Dubai, UTC+4) formatting helpers
@@ -377,13 +377,13 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
       coords: { lat: 24.230, lon: 53.895 },
       gridCell: 'VN3-5K-02 (North Spit)',
       terrain: 'Exposed Coastal Barrier Spit',
-      deltaTemp: -1.2,
-      deltaRh: 6,
-      deltaWind: 12.5,
-      deltaGusts: 16.0,
-      windDirOffset: 25,
-      deltaVis: -4500,
-      deltaSolar: -20
+      deltaTemp: -0.6,
+      deltaRh: 4,
+      deltaWind: 3.0,
+      deltaGusts: 4.5,
+      windDirOffset: 10,
+      deltaVis: -1200,
+      deltaSolar: -10
     },
     south: {
       id: 'south',
@@ -393,13 +393,13 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
       coords: { lat: 24.150, lon: 53.820 },
       gridCell: 'VN3-5K-03 (South Interior)',
       terrain: 'High-Albedo Sand Dunes & Arid Salt Flats',
-      deltaTemp: 2.8,
-      deltaRh: -9,
-      deltaWind: -6.5,
-      deltaGusts: -5.0,
-      windDirOffset: -15,
-      deltaVis: 1500,
-      deltaSolar: 95
+      deltaTemp: 1.2,
+      deltaRh: -5,
+      deltaWind: -1.5,
+      deltaGusts: -2.0,
+      windDirOffset: -8,
+      deltaVis: 0,
+      deltaSolar: 35
     },
     sea: {
       id: 'sea',
@@ -409,35 +409,45 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
       coords: { lat: 24.180, lon: 53.890 },
       gridCell: 'VN3-5K-04 (Marine Interface)',
       terrain: 'Marine Interface & Tidal Lagoon Spit',
-      deltaTemp: -4.5,
-      deltaRh: 42,
-      deltaWind: 4.0,
-      deltaGusts: 7.0,
-      windDirOffset: 10,
-      deltaVis: -6000,
-      deltaSolar: -50
+      deltaTemp: -1.2,
+      deltaRh: 10,
+      deltaWind: 1.5,
+      deltaGusts: 2.5,
+      windDirOffset: 6,
+      deltaVis: -1500,
+      deltaSolar: -20
     }
   };
 
   const stations = {};
 
   Object.entries(profiles).forEach(([stationId, p]) => {
-    const curTemp = Number(Math.max(12, curHour.temperature_2m + p.deltaTemp).toFixed(1));
-    const curRh = Math.round(Math.min(95, Math.max(10, curHour.relative_humidity_2m + p.deltaRh)));
-    const curWind = Number(Math.max(2, curHour.wind_speed_10m + p.deltaWind).toFixed(1));
-    const curGusts = Number(Math.max(curWind * 1.25, (curHour.wind_gusts_10m ?? curWind * 1.3) + p.deltaGusts).toFixed(1));
+    const curTemp = Number(Math.max(10, curHour.temperature_2m + p.deltaTemp).toFixed(1));
+    const curRh = Math.round(Math.min(98, Math.max(8, curHour.relative_humidity_2m + p.deltaRh)));
+    const curWind = Number(Math.max(1, curHour.wind_speed_10m + p.deltaWind).toFixed(1));
+    const curGusts = Number(Math.max(curWind * 1.15, (curHour.wind_gusts_10m ?? curWind * 1.25) + p.deltaGusts).toFixed(1));
     const curDir = (curHour.wind_direction_10m + p.windDirOffset + 360) % 360;
-    const curVis = Math.max(1500, Math.min(20000, (curHour.visibility ?? 10000) + p.deltaVis));
+    const baseVis = curHour.visibility ?? 10000;
+    // Only apply sector dust/mist visibility reduction when wind (>26 km/h) or humidity (>=78%) warrants it
+    const effectiveDeltaVis = (stationId === 'north' && curWind > 26)
+      ? p.deltaVis
+      : (stationId === 'sea' && curRh >= 78)
+      ? p.deltaVis
+      : 0;
+    const curVis = Math.max(1000, Math.min(24000, baseVis + effectiveDeltaVis));
     const baseSolar = curHour.solar_radiation ?? ((curHour.uv_index ?? 0) * 90);
-    const curSolar = baseSolar > 0 ? Math.max(0, Math.min(1150, baseSolar + p.deltaSolar)) : 0;
-    const curWind100 = Number((curWind * 1.35 + 1.5).toFixed(1));
-    const curGusts100 = Number((curWind100 * 1.38 + 2.0).toFixed(1));
+    const curSolar = baseSolar > 0 ? Math.max(0, Math.min(1150, Math.round(baseSolar + p.deltaSolar))) : 0;
+    const curWind100 = Number((curWind * 1.28 + 1.2).toFixed(1));
+    const curGusts100 = Number((curWind100 * 1.32 + 1.5).toFixed(1));
     const baseUv = curHour.uv_index ?? 0;
-    const uvOffset = p.deltaSolar > 0 ? 0.8 : (p.deltaSolar < 0 ? -0.4 : 0);
+    const uvOffset = p.deltaSolar > 0 ? 0.3 : (p.deltaSolar < 0 ? -0.2 : 0);
     const curUv = baseUv > 0 ? Number(Math.max(0, Math.min(12, baseUv + uvOffset)).toFixed(1)) : 0;
-    const curPm10 = curWind > 28 ? Number(((curHour.pm10 ?? 42) * 1.3).toFixed(1)) : (curHour.pm10 ?? 42);
+    const curPm10 = curWind > 28 ? Number(((curHour.pm10 ?? 38) * 1.2).toFixed(1)) : (curHour.pm10 ?? 38);
 
-    const curApparent = Number((curTemp + (curRh > 50 ? (curRh - 50) * 0.18 : (curRh - 50) * 0.08)).toFixed(1));
+    const baseApparent = curHour.apparent_temperature ?? curHour.temperature_2m;
+    const curApparent = stationId === 'hq'
+      ? Number(baseApparent.toFixed(1))
+      : Number((baseApparent + p.deltaTemp + (p.deltaRh * 0.06)).toFixed(1));
 
     const stationCurrent = {
       ...curHour,
@@ -460,16 +470,24 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
     if (baseHourly && baseHourly.time) {
       stationHourly = {
         ...baseHourly,
-        temperature_2m: baseHourly.temperature_2m.map(t => Number(Math.max(12, t + p.deltaTemp).toFixed(1))),
-        relative_humidity_2m: baseHourly.relative_humidity_2m.map(rh => Math.round(Math.min(95, Math.max(10, rh + p.deltaRh)))),
-        wind_speed_10m: baseHourly.wind_speed_10m.map(ws => Number(Math.max(2, ws + p.deltaWind).toFixed(1))),
+        temperature_2m: baseHourly.temperature_2m.map(t => Number(Math.max(10, t + p.deltaTemp).toFixed(1))),
+        apparent_temperature: (baseHourly.apparent_temperature || baseHourly.temperature_2m).map(at =>
+          stationId === 'hq' ? Number(at.toFixed(1)) : Number((at + p.deltaTemp + (p.deltaRh * 0.06)).toFixed(1))
+        ),
+        relative_humidity_2m: baseHourly.relative_humidity_2m.map(rh => Math.round(Math.min(98, Math.max(8, rh + p.deltaRh)))),
+        wind_speed_10m: baseHourly.wind_speed_10m.map(ws => Number(Math.max(1, ws + p.deltaWind).toFixed(1))),
         wind_direction_10m: baseHourly.wind_direction_10m.map(wd => (wd + p.windDirOffset + 360) % 360),
-        wind_gusts_10m: baseHourly.wind_gusts_10m.map(wg => Number(Math.max(4, wg + p.deltaGusts).toFixed(1))),
-        wind_speed_100m: (baseHourly.wind_speed_100m || baseHourly.wind_speed_10m).map(w => Number((w * 1.35 + 1.5).toFixed(1))),
-        wind_gusts_100m: (baseHourly.wind_gusts_100m || baseHourly.wind_gusts_10m).map(w => Number((w * 1.55 + 2.0).toFixed(1))),
-        solar_radiation: (baseHourly.solar_radiation || baseHourly.uv_index.map(u => (u ?? 0) * 90)).map(s => s > 0 ? Math.max(0, Math.min(1150, s + p.deltaSolar)) : 0),
+        wind_gusts_10m: baseHourly.wind_gusts_10m.map(wg => Number(Math.max(3, wg + p.deltaGusts).toFixed(1))),
+        wind_speed_100m: (baseHourly.wind_speed_100m || baseHourly.wind_speed_10m).map(w => Number((w * 1.28 + 1.2).toFixed(1))),
+        wind_gusts_100m: (baseHourly.wind_gusts_100m || baseHourly.wind_gusts_10m).map(w => Number((w * 1.32 + 1.5).toFixed(1))),
+        solar_radiation: (baseHourly.solar_radiation || baseHourly.uv_index.map(u => (u ?? 0) * 90)).map(s => s > 0 ? Math.max(0, Math.min(1150, Math.round(s + p.deltaSolar))) : 0),
         uv_index: baseHourly.uv_index ? baseHourly.uv_index.map(u => (u ?? 0) > 0 ? Number(Math.max(0, Math.min(12, u + uvOffset)).toFixed(1)) : 0) : undefined,
-        visibility: baseHourly.visibility.map(v => Math.max(1500, Math.min(20000, v + p.deltaVis)))
+        visibility: baseHourly.visibility.map((v, idx) => {
+          const w = baseHourly.wind_speed_10m?.[idx] ?? 15;
+          const r = baseHourly.relative_humidity_2m?.[idx] ?? 50;
+          const dVis = (stationId === 'north' && w > 26) ? p.deltaVis : (stationId === 'sea' && r >= 78) ? p.deltaVis : 0;
+          return Math.max(1000, Math.min(24000, v + dVis));
+        })
       };
     }
 
@@ -524,22 +542,26 @@ export async function fetchWeatherNextSimData() {
     if (liveBase && liveBase.mergedData) {
       const m = liveBase.mergedData;
       const curWind = m.current.wind_speed_10m ?? 18;
-      const curWind100 = Number((curWind * 1.34 + 1.2).toFixed(1));
+      const curWind100 = Number((curWind * 1.28 + 1.2).toFixed(1));
       const curUv = m.current.uv_index ?? 0;
-      const curSolar = curUv > 0 ? Math.round(Math.min(1080, curUv * 92)) : 0;
+      const curSolar = m.current.solar_radiation !== undefined && m.current.solar_radiation !== null
+        ? Math.round(m.current.solar_radiation)
+        : (curUv > 0 ? Math.round(Math.min(1080, curUv * 88)) : 0);
 
       const enhancedCurrent = {
         ...m.current,
         wind_speed_100m: curWind100,
-        wind_gusts_100m: Number((curWind100 * 1.38 + 2.0).toFixed(1)),
+        wind_gusts_100m: Number((curWind100 * 1.32 + 1.5).toFixed(1)),
         solar_radiation: curSolar
       };
 
       const enhancedHourly = {
         ...m.hourly,
-        wind_speed_100m: (m.hourly.wind_speed_10m || []).map(w => Number(((w ?? 15) * 1.34 + 1.2).toFixed(1))),
-        wind_gusts_100m: (m.hourly.wind_gusts_10m || []).map(g => Number(((g ?? 20) * 1.36 + 2.0).toFixed(1))),
-        solar_radiation: (m.hourly.uv_index || []).map(u => (u ?? 0) > 0 ? Math.round(Math.min(1080, (u ?? 0) * 92)) : 0)
+        wind_speed_100m: (m.hourly.wind_speed_10m || []).map(w => Number(((w ?? 15) * 1.28 + 1.2).toFixed(1))),
+        wind_gusts_100m: (m.hourly.wind_gusts_10m || []).map(g => Number(((g ?? 20) * 1.32 + 1.5).toFixed(1))),
+        solar_radiation: m.hourly.solar_radiation
+          ? m.hourly.solar_radiation.map(s => Math.round(s ?? 0))
+          : (m.hourly.uv_index || []).map(u => (u ?? 0) > 0 ? Math.round(Math.min(1080, (u ?? 0) * 88)) : 0)
       };
 
       const normalizedDaily = normalizeDailyToToday(m.daily, now);
@@ -1115,7 +1137,8 @@ export async function fetchOpenMeteoData() {
       'precipitation',
       'cloud_cover',
       'pressure_msl',
-      'uv_index'
+      'uv_index',
+      'shortwave_radiation'
     ].join(','),
     hourly: [
       'temperature_2m',
@@ -1127,6 +1150,7 @@ export async function fetchOpenMeteoData() {
       'wind_direction_10m',
       'wind_gusts_10m',
       'uv_index',
+      'shortwave_radiation',
       'pressure_msl',
       'visibility',
       'cloud_cover'
@@ -1184,26 +1208,40 @@ export async function fetchOpenMeteoData() {
   const weatherData = weatherResult.res.data;
   const aqiData = aqiResult.res.data;
 
-  // UAE-specific UV index calibration (1.3x capped at 12)
-  const rawCurrentUv = weatherData.current ? weatherData.current.uv_index : undefined;
-  const calibratedCurrentUv = rawCurrentUv !== undefined 
-    ? Number(Math.min(12.0, rawCurrentUv * 1.3).toFixed(1)) 
-    : undefined;
+  // Locate current GST hour in hourly array to backfill any missing current fields
+  const nowHourStr = formatGstHour(new Date()).slice(0, 13);
+  const curHourIdx = weatherData.hourly?.time
+    ? Math.max(0, weatherData.hourly.time.findIndex(t => t && t.startsWith(nowHourStr)))
+    : 48;
+
+  const rawCurrentUv = weatherData.current?.uv_index ?? weatherData.hourly?.uv_index?.[curHourIdx];
+  const calibratedCurrentUv = rawCurrentUv !== undefined && rawCurrentUv !== null
+    ? Number(Math.min(12.0, rawCurrentUv).toFixed(1))
+    : 0;
 
   const rawHourlyUv = weatherData.hourly ? weatherData.hourly.uv_index : null;
-  const calibratedHourlyUv = rawHourlyUv 
-    ? rawHourlyUv.map(uv => uv !== null ? Number(Math.min(12.0, uv * 1.3).toFixed(1)) : null)
+  const calibratedHourlyUv = rawHourlyUv
+    ? rawHourlyUv.map(uv => uv !== null && uv !== undefined ? Number(Math.min(12.0, uv).toFixed(1)) : 0)
     : null;
+
+  const currentSolar = weatherData.current?.shortwave_radiation
+    ?? weatherData.hourly?.shortwave_radiation?.[curHourIdx]
+    ?? (calibratedCurrentUv > 0 ? Math.round(calibratedCurrentUv * 88) : 0);
 
   const openMeteoCurrent = {
     ...weatherData.current,
     ...aqiData.current,
-    uv_index: calibratedCurrentUv
+    visibility: weatherData.current?.visibility ?? weatherData.hourly?.visibility?.[curHourIdx] ?? 10000,
+    uv_index: calibratedCurrentUv,
+    solar_radiation: Math.round(currentSolar)
   };
 
   const openMeteoHourly = {
     ...weatherData.hourly,
     uv_index: calibratedHourlyUv,
+    solar_radiation: weatherData.hourly?.shortwave_radiation
+      ? weatherData.hourly.shortwave_radiation.map(s => Math.round(s ?? 0))
+      : null,
     european_aqi: aqiData.hourly ? aqiData.hourly.european_aqi : null,
     pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
     pm10: aqiData.hourly ? aqiData.hourly.pm10 : null

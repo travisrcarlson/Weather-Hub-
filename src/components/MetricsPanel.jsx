@@ -10,20 +10,21 @@ export function HumidityWidget({ data, hourlyData }) {
   const rh = data.relative_humidity_2m || 0;
   const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
+  const solar = data.solar_radiation ?? null;
 
   const dewPoint = calculateDewPoint(temp, rh);
-  const wbgt = calculateWBGT(temp, rh, wind, uv);
+  const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
   const comfort = getWBGTComfort(wbgt);
 
-  // Calculate trends compared to previous hour
-  const getPrevHourIdx = () => {
+  // Locate current hour index in hourlyData
+  const getCurHourIdx = () => {
     if (!hourlyData || !hourlyData.time || !data.time) return -1;
     const curHourStr = data.time.slice(0, 13) + ':00';
-    const curIdx = hourlyData.time.findIndex(t => t.startsWith(curHourStr));
-    return curIdx > 0 ? curIdx - 1 : -1;
+    return hourlyData.time.findIndex(t => t.startsWith(curHourStr));
   };
 
-  const prevIdx = getPrevHourIdx();
+  const curIdx = getCurHourIdx();
+  const prevIdx = curIdx > 0 ? curIdx - 1 : -1;
   const prevRh = prevIdx >= 0 ? hourlyData.relative_humidity_2m[prevIdx] : null;
   const rhTrend = getTrendIndicator(rh, prevRh, 1.0);
 
@@ -33,7 +34,8 @@ export function HumidityWidget({ data, hourlyData }) {
     const prevRhVal = hourlyData.relative_humidity_2m[prevIdx];
     const prevWindVal = hourlyData.wind_speed_10m ? hourlyData.wind_speed_10m[prevIdx] : 0;
     const prevUvVal = hourlyData.uv_index ? hourlyData.uv_index[prevIdx] : 0;
-    prevWbgt = calculateWBGT(prevTemp, prevRhVal, prevWindVal, prevUvVal);
+    const prevSolarVal = hourlyData.solar_radiation ? hourlyData.solar_radiation[prevIdx] : null;
+    prevWbgt = calculateWBGT(prevTemp, prevRhVal, prevWindVal, prevUvVal, prevSolarVal);
   }
   const wbgtTrend = getTrendIndicator(wbgt, prevWbgt, 0.1);
 
@@ -43,7 +45,7 @@ export function HumidityWidget({ data, hourlyData }) {
     return 'text-textIceWhite';
   };
 
-  // Helper to calculate 24h Humidity/WBGT Forecast
+  // Helper to calculate 24h Humidity/WBGT Forecast starting from current hour
   const getHumidityForecast = () => {
     if (!hourlyData || !hourlyData.relative_humidity_2m || !hourlyData.temperature_2m) {
       return {
@@ -53,19 +55,22 @@ export function HumidityWidget({ data, hourlyData }) {
       };
     }
     
-    const rhList = hourlyData.relative_humidity_2m.slice(0, 24);
-    const tempList = hourlyData.temperature_2m.slice(0, 24);
+    const startIdx = curIdx >= 0 ? curIdx : 48;
+    const rhList = hourlyData.relative_humidity_2m.slice(startIdx, startIdx + 24);
+    const tempList = hourlyData.temperature_2m.slice(startIdx, startIdx + 24);
     
-    const minRh = Math.min(...rhList);
-    const maxRh = Math.max(...rhList);
+    const minRh = rhList.length ? Math.min(rh, ...rhList) : rh;
+    const maxRh = rhList.length ? Math.max(rh, ...rhList) : rh;
     
-    let maxWbgt = 0;
+    let maxWbgt = wbgt;
     for (let i = 0; i < tempList.length; i++) {
+      const idx = startIdx + i;
       const hTemp = tempList[i];
       const hRh = rhList[i];
-      const hWind = hourlyData.wind_speed_10m ? (hourlyData.wind_speed_10m[i] || 0) : 0;
-      const hUv = hourlyData.uv_index ? (hourlyData.uv_index[i] || 0) : 0;
-      const hWbgt = calculateWBGT(hTemp, hRh, hWind, hUv);
+      const hWind = hourlyData.wind_speed_10m ? (hourlyData.wind_speed_10m[idx] || 0) : 0;
+      const hUv = hourlyData.uv_index ? (hourlyData.uv_index[idx] || 0) : 0;
+      const hSolar = hourlyData.solar_radiation ? hourlyData.solar_radiation[idx] : null;
+      const hWbgt = calculateWBGT(hTemp, hRh, hWind, hUv, hSolar);
       if (hWbgt > maxWbgt) {
         maxWbgt = hWbgt;
       }
@@ -389,7 +394,7 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   pointsList.push({ t: sunsetTime.totalMinutes, uv: 0 });
   pointsList.sort((a, b) => a.t - b.t);
 
-  const maxUv = Math.max(...pointsList.map(pt => pt.uv), 0.1);
+  const maxUv = Math.max(uv, ...pointsList.map(pt => pt.uv), 0.1);
 
   const duration = sunsetTime.totalMinutes - sunriseTime.totalMinutes;
   const currentMins = currentTimeParsed.totalMinutes;
@@ -591,7 +596,7 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
       </div>
       {/* Compact Advisory Footer */}
       <div className="border-t border-slate-800/50 pt-1 flex justify-between items-center text-[8px] text-slate-500 font-medium select-none z-10">
-        <span>* 1.3x desert albedo calibration</span>
+        <span>* CAMS Direct Solar UV Index</span>
         <span className="text-slate-400 italic font-semibold truncate max-w-[60%] text-right">{details.warning}</span>
       </div>
     </div>
@@ -606,7 +611,7 @@ export function HydrationWidget({ data }) {
   const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
 
-  const wbgt = calculateWBGT(temp, rh, wind, uv);
+  const wbgt = calculateWBGT(temp, rh, wind, uv, data.solar_radiation ?? null);
 
   const getHydrationInfo = (wbgtVal) => {
     if (wbgtVal < 25.9) {

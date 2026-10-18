@@ -35,15 +35,15 @@ export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex, solarRadiationWm2
              + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) 
              - 4.686035;
 
-  // 2. Solar radiation: use direct solar flux (W/m^2) from WeatherNext 3 if provided, or fallback to UV * 90
+  // 2. Solar radiation: use direct solar flux (W/m^2) if provided, or fallback to UV * 80
   const uv = uvIndex !== undefined ? uvIndex : 0;
-  const S = solarRadiationWm2 !== undefined && solarRadiationWm2 !== null ? solarRadiationWm2 : uv * 90;
+  const S = solarRadiationWm2 !== undefined && solarRadiationWm2 !== null ? solarRadiationWm2 : uv * 80;
 
   // 3. Convert wind speed from km/h to m/s
   const u = (windSpeedKmh || 0) / 3.6;
 
-  // 4. Estimate Globe Temperature (Tg)
-  let Tg = temp + 0.017 * S - 0.208 * u;
+  // 4. Estimate Globe Temperature (Tg) calibrated for solar irradiance & wind convection
+  let Tg = temp + 0.013 * S - 0.30 * u;
   if (S === 0 || Tg < temp) {
     Tg = temp;
   }
@@ -370,7 +370,8 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
     if (temp >= 43) {
       tempBreachHours.push(hour);
     }
-    const wbgt = calculateWBGT(temp, rh, windSpeed, uv);
+    const solarRad = hourlyData.solar_radiation ? (hourlyData.solar_radiation[idx] ?? null) : null;
+    const wbgt = calculateWBGT(temp, rh, windSpeed, uv, solarRad);
     if (wbgt >= 30.0) {
       wbgtBreachHours.push(hour);
     }

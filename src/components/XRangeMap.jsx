@@ -1123,8 +1123,9 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 // Named export for the station details panel
 export function StationDetailsWidget({ apiData, isSimulated, activeStation, setActiveStation, warnings = [] }) {
   const currentStationInfo = stationsList.find(s => s.id === activeStation) || stationsList[0];
-  const stationReadings = apiData?.stations?.[currentStationInfo.id]?.current
-    || (apiData ? (isSimulated ? currentStationInfo.getReadings(apiData.current) : apiData.current) : null);
+  const stationReadings = isSimulated && apiData?.current
+    ? currentStationInfo.getReadings(apiData.current)
+    : (apiData?.stations?.[currentStationInfo.id]?.current || apiData?.current || null);
   let safety = stationReadings ? evaluateSafety(stationReadings) : null;
 
   const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
