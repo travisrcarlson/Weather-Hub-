@@ -20,6 +20,7 @@ const BackendFeeds = lazy(() => import('./components/BackendFeeds'));
 const HseDashboard = lazy(() => import('./components/HseDashboard'));
 const PlanningDashboard = lazy(() => import('./components/PlanningDashboard'));
 const CustomerPortal = lazy(() => import('./components/CustomerPortal'));
+const PilotConsole = lazy(() => import('./components/PilotConsole'));
 const AlertCenter = lazy(() => import('./components/AlertCenter'));
 const TacticalBallisticsModal = lazy(() => import('./components/TacticalBallisticsModal'));
 const MunitionsThermalModal = lazy(() => import('./components/MunitionsThermalModal'));
@@ -682,7 +683,7 @@ export default function App() {
       { id: 'sea', short: 'SEA', label: 'Sea Boundary' }
     ];
 
-    const isCommandTab = ['hse', 'planning', 'customer', 'backend'].includes(mobileTab);
+    const isCommandTab = ['pilot', 'hse', 'planning', 'customer', 'backend'].includes(mobileTab);
 
     return (
       <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-15 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
@@ -764,8 +765,9 @@ export default function App() {
 
         {/* Secondary Command Sub-Navigation Bar (when Tools / Command tab is active) */}
         {isCommandTab && (
-          <div className="w-full bg-slate-900/95 border-b border-slate-800 px-3 py-1.5 grid grid-cols-4 gap-1.5 flex-none z-30">
+          <div className="w-full bg-slate-900/95 border-b border-slate-800 px-3 py-1.5 grid grid-cols-5 gap-1 flex-none z-30">
             {[
+              { id: 'pilot', label: '✈️ UAV Pilot' },
               { id: 'hse', label: '🛡️ HSE Audit' },
               { id: 'planning', label: '🗓️ Range Plan' },
               { id: 'customer', label: '💼 R&D Portal' },
@@ -775,7 +777,7 @@ export default function App() {
                 key={sub.id}
                 type="button"
                 onClick={() => setMobileTab(sub.id)}
-                className={`py-1 px-1.5 text-[8.5px] font-black uppercase tracking-wider border cursor-pointer transition-all ${
+                className={`py-1 px-1 text-[8px] font-black uppercase tracking-wider border cursor-pointer transition-all truncate ${
                   mobileTab === sub.id
                     ? 'bg-edgeOrange text-white border-orange-400 shadow'
                     : 'bg-slate-950/70 text-slate-400 border-slate-800 hover:text-white'
@@ -943,6 +945,22 @@ export default function App() {
                   isSimulated={isSimulated} 
                   hourlyData={activeHourlyData}
                   dailyData={activeDailyData}
+                />
+              </Suspense>
+            </div>
+          )}
+
+          {mobileTab === 'pilot' && (
+            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
+              <Suspense fallback={<ViewLoadingFallback />}>
+                <PilotConsole
+                  data={data}
+                  activeDisplayData={activeDisplayData}
+                  activeStation={activeStation}
+                  setActiveStation={setActiveStation}
+                  isSimulated={isSimulated}
+                  ncmWarnings={combinedNcmWarnings}
+                  currentTime={activeTime}
                 />
               </Suspense>
             </div>
@@ -1242,6 +1260,23 @@ export default function App() {
                </div>
              </div>
 
+          </div>
+        )}
+
+        {viewMode === 'pilot' && (
+          /* Drone Pilot Console (UAV Flight Envelope, Vertical Wind Shear & Crosswind Resolver) */
+          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
+            <Suspense fallback={<ViewLoadingFallback />}>
+              <PilotConsole
+                data={data}
+                activeDisplayData={activeDisplayData}
+                activeStation={activeStation}
+                setActiveStation={setActiveStation}
+                isSimulated={isSimulated}
+                ncmWarnings={combinedNcmWarnings}
+                currentTime={activeTime}
+              />
+            </Suspense>
           </div>
         )}
 

@@ -158,6 +158,7 @@ export default function Header({
           {[
             { id: 'tv', label: 'TV Display' },
             { id: 'ops', label: 'Tactical Console' },
+            { id: 'pilot', label: 'Drone Pilot' },
             { id: 'advisory', label: 'Safety Advisory' },
             { id: 'hse', label: 'HSE Dashboard' },
             { id: 'planning', label: 'Range Planning' },
