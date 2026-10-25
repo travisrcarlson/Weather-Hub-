@@ -159,6 +159,8 @@ export function getWeatherNextGovernorStats() {
 const NCM_API_URL = 'https://api.ncm.gov.ae/v1/forecast';
 const WEATHER_URL = 'https://api.open-meteo.com/v1/forecast';
 const AQI_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality';
+const MARINE_URL = 'https://marine-api.open-meteo.com/v1/marine';
+const STORAGE_KEY_LAST_LIVE = 'xrange_last_live_telemetry_v1';
 
 // UAE NCM Warnings Mock Generator
 export function generateMockNcmWarnings(currentData) {
@@ -437,12 +439,16 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
     const curVis = Math.max(1000, Math.min(24000, baseVis + effectiveDeltaVis));
     const baseSolar = curHour.solar_radiation ?? ((curHour.uv_index ?? 0) * 90);
     const curSolar = baseSolar > 0 ? Math.max(0, Math.min(1150, Math.round(baseSolar + p.deltaSolar))) : 0;
-    const curWind100 = Number((curWind * 1.28 + 1.2).toFixed(1));
-    const curGusts100 = Number((curWind100 * 1.32 + 1.5).toFixed(1));
+    const baseWind100 = curHour.wind_speed_100m ?? (curWind * 1.28 + 1.2);
+    const curWind100 = Number(Math.max(curWind, baseWind100 + p.deltaWind * 1.15).toFixed(1));
+    const curGusts100 = Number(Math.max(curGusts, (curHour.wind_gusts_100m ?? (curWind100 * 1.28 + 1.5)) + p.deltaGusts).toFixed(1));
     const baseUv = curHour.uv_index ?? 0;
     const uvOffset = p.deltaSolar > 0 ? 0.3 : (p.deltaSolar < 0 ? -0.2 : 0);
     const curUv = baseUv > 0 ? Number(Math.max(0, Math.min(12, baseUv + uvOffset)).toFixed(1)) : 0;
     const curPm10 = curWind > 28 ? Number(((curHour.pm10 ?? 38) * 1.2).toFixed(1)) : (curHour.pm10 ?? 38);
+    const curDust = curWind > 28 ? Number(((curHour.dust ?? 25) * 1.25).toFixed(1)) : (curHour.dust ?? 25);
+    const baseSoilTemp = curHour.soil_temperature_0cm ?? curTemp;
+    const curSoilTemp = Number((baseSoilTemp + p.deltaTemp * 1.25).toFixed(1));
 
     const baseApparent = curHour.apparent_temperature ?? curHour.temperature_2m;
     const curApparent = stationId === 'hq'
@@ -454,6 +460,7 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
       time: curHour.time,
       temperature_2m: curTemp,
       apparent_temperature: curApparent,
+      soil_temperature_0cm: curSoilTemp,
       relative_humidity_2m: curRh,
       wind_speed_10m: curWind,
       wind_direction_10m: curDir,
@@ -463,7 +470,8 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
       solar_radiation: curSolar,
       uv_index: curUv,
       visibility: curVis,
-      pm10: curPm10
+      pm10: curPm10,
+      dust: curDust
     };
 
     let stationHourly = null;
@@ -474,12 +482,19 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
         apparent_temperature: (baseHourly.apparent_temperature || baseHourly.temperature_2m).map(at =>
           stationId === 'hq' ? Number(at.toFixed(1)) : Number((at + p.deltaTemp + (p.deltaRh * 0.06)).toFixed(1))
         ),
+        soil_temperature_0cm: (baseHourly.soil_temperature_0cm || baseHourly.temperature_2m).map(st =>
+          Number(((st ?? 30) + p.deltaTemp * 1.25).toFixed(1))
+        ),
         relative_humidity_2m: baseHourly.relative_humidity_2m.map(rh => Math.round(Math.min(98, Math.max(8, rh + p.deltaRh)))),
         wind_speed_10m: baseHourly.wind_speed_10m.map(ws => Number(Math.max(1, ws + p.deltaWind).toFixed(1))),
         wind_direction_10m: baseHourly.wind_direction_10m.map(wd => (wd + p.windDirOffset + 360) % 360),
         wind_gusts_10m: baseHourly.wind_gusts_10m.map(wg => Number(Math.max(3, wg + p.deltaGusts).toFixed(1))),
-        wind_speed_100m: (baseHourly.wind_speed_100m || baseHourly.wind_speed_10m).map(w => Number((w * 1.28 + 1.2).toFixed(1))),
-        wind_gusts_100m: (baseHourly.wind_gusts_100m || baseHourly.wind_gusts_10m).map(w => Number((w * 1.32 + 1.5).toFixed(1))),
+        wind_speed_100m: baseHourly.wind_speed_100m
+          ? baseHourly.wind_speed_100m.map(w100 => Number(Math.max(2, (w100 ?? 18) + p.deltaWind * 1.15).toFixed(1)))
+          : baseHourly.wind_speed_10m.map(w => Number(((w + p.deltaWind) * 1.28 + 1.2).toFixed(1))),
+        wind_gusts_100m: baseHourly.wind_gusts_100m
+          ? baseHourly.wind_gusts_100m.map(g100 => Number(Math.max(4, (g100 ?? 24) + p.deltaGusts).toFixed(1)))
+          : baseHourly.wind_gusts_10m.map(w => Number(((w + p.deltaGusts) * 1.32 + 1.5).toFixed(1))),
         solar_radiation: (baseHourly.solar_radiation || baseHourly.uv_index.map(u => (u ?? 0) * 90)).map(s => s > 0 ? Math.max(0, Math.min(1150, Math.round(s + p.deltaSolar))) : 0),
         uv_index: baseHourly.uv_index ? baseHourly.uv_index.map(u => (u ?? 0) > 0 ? Number(Math.max(0, Math.min(12, u + uvOffset)).toFixed(1)) : 0) : undefined,
         visibility: baseHourly.visibility.map((v, idx) => {
@@ -542,7 +557,7 @@ export async function fetchWeatherNextSimData() {
     if (liveBase && liveBase.mergedData) {
       const m = liveBase.mergedData;
       const curWind = m.current.wind_speed_10m ?? 18;
-      const curWind100 = Number((curWind * 1.28 + 1.2).toFixed(1));
+      const curWind100 = m.current.wind_speed_100m ?? Number((curWind * 1.28 + 1.2).toFixed(1));
       const curUv = m.current.uv_index ?? 0;
       const curSolar = m.current.solar_radiation !== undefined && m.current.solar_radiation !== null
         ? Math.round(m.current.solar_radiation)
@@ -551,14 +566,16 @@ export async function fetchWeatherNextSimData() {
       const enhancedCurrent = {
         ...m.current,
         wind_speed_100m: curWind100,
-        wind_gusts_100m: Number((curWind100 * 1.32 + 1.5).toFixed(1)),
+        wind_gusts_100m: m.current.wind_gusts_100m ?? Number((curWind100 * 1.28 + 1.5).toFixed(1)),
         solar_radiation: curSolar
       };
 
       const enhancedHourly = {
         ...m.hourly,
-        wind_speed_100m: (m.hourly.wind_speed_10m || []).map(w => Number(((w ?? 15) * 1.28 + 1.2).toFixed(1))),
-        wind_gusts_100m: (m.hourly.wind_gusts_10m || []).map(g => Number(((g ?? 20) * 1.32 + 1.5).toFixed(1))),
+        wind_speed_100m: m.hourly.wind_speed_100m
+          || (m.hourly.wind_speed_10m || []).map(w => Number(((w ?? 15) * 1.28 + 1.2).toFixed(1))),
+        wind_gusts_100m: m.hourly.wind_gusts_100m
+          || (m.hourly.wind_gusts_10m || []).map(g => Number(((g ?? 20) * 1.28 + 1.5).toFixed(1))),
         solar_radiation: m.hourly.solar_radiation
           ? m.hourly.solar_radiation.map(s => Math.round(s ?? 0))
           : (m.hourly.uv_index || []).map(u => (u ?? 0) > 0 ? Math.round(Math.min(1080, (u ?? 0) * 88)) : 0)
@@ -580,7 +597,7 @@ export async function fetchWeatherNextSimData() {
           provider: PROVIDERS.WEATHERNEXT_SIM,
           model: 'WeatherNext 3 Global AI (DeepMind / Google Research • Live Assimilated)',
           resolution: '5 km Surface Grid (Hyperlocal Station-Calibrated)',
-          ingestion: 'Hourly Geostationary Satellite + Live NWP Assimilation',
+          ingestion: 'Hourly Geostationary Satellite + Live NWP & Marine Assimilation',
           cost: '$0.00 (Zero Cost Mode)',
           satelliteTelemetry: {
             sensor: 'EUMETSAT Meteosat-11 IODC (0.0° Lat, 45.5°E)',
@@ -607,7 +624,8 @@ export async function fetchWeatherNextSimData() {
               cost: '$0.00 (Client-side AI Physics Engine - No Google Cloud Billing)'
             }
           },
-          aqi: liveBase.meta.aqi
+          aqi: liveBase.meta.aqi,
+          marine: liveBase.meta.marine
         }
       };
     }
@@ -1149,6 +1167,11 @@ export async function fetchOpenMeteoData() {
       'wind_speed_10m',
       'wind_direction_10m',
       'wind_gusts_10m',
+      'wind_speed_80m',
+      'wind_speed_120m',
+      'wind_direction_80m',
+      'soil_temperature_0cm',
+      'cape',
       'uv_index',
       'shortwave_radiation',
       'pressure_msl',
@@ -1174,8 +1197,18 @@ export async function fetchOpenMeteoData() {
   const aqiParams = {
     latitude: LAT,
     longitude: LON,
-    current: 'european_aqi,pm2_5,pm10',
-    hourly: 'european_aqi,pm2_5,pm10',
+    current: 'european_aqi,pm2_5,pm10,dust,aerosol_optical_depth',
+    hourly: 'european_aqi,pm2_5,pm10,dust,aerosol_optical_depth',
+    timezone: TIMEZONE,
+    past_days: 2
+  };
+
+  // Marine coordinates for Abu Al Abyad northern/eastern coastal channel
+  const marineParams = {
+    latitude: 24.23,
+    longitude: 53.89,
+    current: 'wave_height,wave_direction,wave_period,sea_surface_temperature,ocean_current_velocity',
+    hourly: 'wave_height,wave_direction,wave_period,sea_surface_temperature',
     timezone: TIMEZONE,
     past_days: 2
   };
@@ -1200,13 +1233,29 @@ export async function fetchOpenMeteoData() {
     };
   };
 
-  const [weatherResult, aqiResult] = await Promise.all([
+  const fetchMarine = async () => {
+    try {
+      const start = performance.now();
+      const res = await axios.get(MARINE_URL, { params: marineParams, timeout: 6000 });
+      const end = performance.now();
+      return {
+        res,
+        latency: Math.round(end - start)
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const [weatherResult, aqiResult, marineResult] = await Promise.all([
     fetchWeather(),
-    fetchAqi()
+    fetchAqi(),
+    fetchMarine()
   ]);
 
   const weatherData = weatherResult.res.data;
   const aqiData = aqiResult.res.data;
+  const marineData = marineResult?.res?.data || null;
 
   // Locate current GST hour in hourly array to backfill any missing current fields
   const nowHourStr = formatGstHour(new Date()).slice(0, 13);
@@ -1228,12 +1277,58 @@ export async function fetchOpenMeteoData() {
     ?? weatherData.hourly?.shortwave_radiation?.[curHourIdx]
     ?? (calibratedCurrentUv > 0 ? Math.round(calibratedCurrentUv * 88) : 0);
 
+  // Compute true 100m wind speed by interpolating 80m and 120m NWP boundary levels
+  const w80Arr = weatherData.hourly?.wind_speed_80m;
+  const w120Arr = weatherData.hourly?.wind_speed_120m;
+  const hourlyWind100m = weatherData.hourly?.wind_speed_10m
+    ? weatherData.hourly.wind_speed_10m.map((w10, idx) => {
+        const w80 = w80Arr?.[idx];
+        const w120 = w120Arr?.[idx];
+        if (w80 !== undefined && w80 !== null && w120 !== undefined && w120 !== null) {
+          return Number(((w80 + w120) * 0.5).toFixed(1));
+        }
+        if (w80 !== undefined && w80 !== null) return Number(w80.toFixed(1));
+        return Number(((w10 ?? 15) * 1.28 + 1.2).toFixed(1));
+      })
+    : null;
+
+  const currentWind100m = hourlyWind100m?.[curHourIdx]
+    ?? Number(((weatherData.current?.wind_speed_10m ?? 15) * 1.28 + 1.2).toFixed(1));
+  const currentSoilTemp = weatherData.hourly?.soil_temperature_0cm?.[curHourIdx]
+    ?? weatherData.current?.temperature_2m;
+  const currentCape = weatherData.hourly?.cape?.[curHourIdx] ?? 0;
+
+  const currentWaveHeight = marineData?.current?.wave_height
+    ?? marineData?.hourly?.wave_height?.[curHourIdx]
+    ?? null;
+  const currentWavePeriod = marineData?.current?.wave_period
+    ?? marineData?.hourly?.wave_period?.[curHourIdx]
+    ?? null;
+  const currentWaveDir = marineData?.current?.wave_direction
+    ?? marineData?.hourly?.wave_direction?.[curHourIdx]
+    ?? null;
+  const currentSeaTemp = marineData?.current?.sea_surface_temperature
+    ?? marineData?.hourly?.sea_surface_temperature?.[curHourIdx]
+    ?? null;
+  const currentOceanCurrent = marineData?.current?.ocean_current_velocity ?? null;
+
   const openMeteoCurrent = {
     ...weatherData.current,
     ...aqiData.current,
     visibility: weatherData.current?.visibility ?? weatherData.hourly?.visibility?.[curHourIdx] ?? 10000,
     uv_index: calibratedCurrentUv,
-    solar_radiation: Math.round(currentSolar)
+    solar_radiation: Math.round(currentSolar),
+    wind_speed_100m: currentWind100m,
+    wind_direction_100m: weatherData.hourly?.wind_direction_80m?.[curHourIdx] ?? weatherData.current?.wind_direction_10m,
+    soil_temperature_0cm: currentSoilTemp,
+    cape: currentCape,
+    dust: aqiData.current?.dust ?? aqiData.hourly?.dust?.[curHourIdx] ?? null,
+    aerosol_optical_depth: aqiData.current?.aerosol_optical_depth ?? aqiData.hourly?.aerosol_optical_depth?.[curHourIdx] ?? null,
+    wave_height: currentWaveHeight,
+    wave_period: currentWavePeriod,
+    wave_direction: currentWaveDir,
+    sea_surface_temperature: currentSeaTemp,
+    ocean_current_velocity: currentOceanCurrent
   };
 
   const openMeteoHourly = {
@@ -1242,9 +1337,15 @@ export async function fetchOpenMeteoData() {
     solar_radiation: weatherData.hourly?.shortwave_radiation
       ? weatherData.hourly.shortwave_radiation.map(s => Math.round(s ?? 0))
       : null,
+    wind_speed_100m: hourlyWind100m,
     european_aqi: aqiData.hourly ? aqiData.hourly.european_aqi : null,
     pm2_5: aqiData.hourly ? aqiData.hourly.pm2_5 : null,
-    pm10: aqiData.hourly ? aqiData.hourly.pm10 : null
+    pm10: aqiData.hourly ? aqiData.hourly.pm10 : null,
+    dust: aqiData.hourly ? aqiData.hourly.dust : null,
+    aerosol_optical_depth: aqiData.hourly ? aqiData.hourly.aerosol_optical_depth : null,
+    wave_height: marineData?.hourly?.wave_height || null,
+    wave_period: marineData?.hourly?.wave_period || null,
+    sea_surface_temperature: marineData?.hourly?.sea_surface_temperature || null
   };
 
   const openMeteoDaily = normalizeDailyToToday(weatherData.daily, new Date());
@@ -1256,13 +1357,20 @@ export async function fetchOpenMeteoData() {
     current: openMeteoCurrent,
     hourly: openMeteoHourly,
     daily: openMeteoDaily,
+    marine: marineData ? {
+      wave_height: currentWaveHeight,
+      wave_period: currentWavePeriod,
+      wave_direction: currentWaveDir,
+      sea_surface_temperature: currentSeaTemp,
+      ocean_current_velocity: currentOceanCurrent
+    } : null,
     stations: generate5kmSectorStations(openMeteoHourly, openMeteoCurrent, openMeteoDaily),
     ncmWarnings: generateMockNcmWarnings(openMeteoCurrent)
   };
 
   const meta = {
     provider: PROVIDERS.OPEN_METEO,
-    model: 'Open-Meteo GFS / ECMWF Ensemble Blend',
+    model: 'Open-Meteo GFS / ECMWF Ensemble + CAMS & Marine',
     resolution: '11 km - 25 km Global Grid',
     ingestion: '6-Hour NWP Cycle Refresh',
     cost: '$0.00 (Public Free Tier)',
@@ -1283,7 +1391,16 @@ export async function fetchOpenMeteoData() {
       latency: aqiResult.latency,
       lastPing: new Date().toISOString(),
       payload: aqiData
-    }
+    },
+    marine: marineResult ? {
+      url: MARINE_URL,
+      params: marineParams,
+      status: 'OK',
+      statusCode: marineResult.res.status,
+      latency: marineResult.latency,
+      lastPing: new Date().toISOString(),
+      payload: marineData
+    } : null
   };
 
   return { mergedData, meta };
@@ -1428,20 +1545,180 @@ export async function fetchNCMData() {
 }
 
 // --------------------------------------------------------------------------
+// INITIAL GROUNDED STATE (Zero June-2026 Flash on Page Load)
+// --------------------------------------------------------------------------
+export function getInitialGroundedData() {
+  if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_LAST_LIVE);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.current && parsed.hourly && parsed.daily) {
+          return parsed;
+        }
+      }
+    } catch {
+      // fall through to seasonal date-seeded baseline
+    }
+  }
+
+  const now = new Date();
+  const nowMs = now.getTime();
+  const currentGst = getGstParts(now);
+  const minuteMs = (currentGst.minute * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+  const currentHourStartMs = nowMs - minuteMs;
+  const baseDateMs = currentHourStartMs - 48 * 3600 * 1000;
+
+  const monthIdx = parseInt(currentGst.month, 10) - 1;
+  const seasonalMin = [15.5, 16.5, 19.0, 23.0, 26.5, 29.0, 31.0, 31.5, 28.5, 25.0, 21.0, 17.5][monthIdx] ?? 25.0;
+  const seasonalSpan = [9.5, 10.0, 11.0, 12.0, 12.5, 12.5, 12.5, 12.0, 11.5, 11.0, 10.0, 9.5][monthIdx] ?? 11.0;
+
+  const time = [];
+  const temperature_2m = [];
+  const apparent_temperature = [];
+  const relative_humidity_2m = [];
+  const wind_speed_10m = [];
+  const wind_direction_10m = [];
+  const wind_gusts_10m = [];
+  const wind_speed_100m = [];
+  const wind_gusts_100m = [];
+  const solar_radiation = [];
+  const uv_index = [];
+  const visibility = [];
+  const cloud_cover = [];
+  const pressure_msl = [];
+  const european_aqi = [];
+  const pm2_5 = [];
+  const pm10 = [];
+  const dust = [];
+
+  for (let i = 0; i < 216; i++) {
+    const d = new Date(baseDateMs + i * 3600000);
+    time.push(formatGstHour(d));
+    const parts = getGstParts(d);
+    const hour = parts.hour;
+    const solarFactor = Math.sin((hour - 8) * Math.PI / 12);
+    const dayProgress = Math.max(0, solarFactor);
+
+    const tVal = Number((seasonalMin + seasonalSpan * dayProgress).toFixed(1));
+    temperature_2m.push(tVal);
+    apparent_temperature.push(Number((tVal + 1.8 * dayProgress + 0.5).toFixed(1)));
+    relative_humidity_2m.push(Math.round(Math.max(15, Math.min(85, 62 - 30 * dayProgress))));
+
+    const ws = Number((12 + 8 * dayProgress).toFixed(1));
+    wind_speed_10m.push(ws);
+    wind_direction_10m.push(hour >= 12 && hour <= 19 ? 295 : 240);
+    wind_gusts_10m.push(Number((ws * 1.35 + 1.5).toFixed(1)));
+    wind_speed_100m.push(Number((ws * 1.28 + 1.2).toFixed(1)));
+    wind_gusts_100m.push(Number((ws * 1.65 + 2.0).toFixed(1)));
+
+    const isDay = hour >= 6 && hour <= 18;
+    const uvVal = isDay ? Number((8.5 * Math.sin((hour - 6) * Math.PI / 12)).toFixed(1)) : 0;
+    uv_index.push(uvVal);
+    solar_radiation.push(isDay ? Math.round(uvVal * 88) : 0);
+    visibility.push(10000);
+    cloud_cover.push(10);
+    pressure_msl.push(1012.0);
+    pm10.push(42.0);
+    pm2_5.push(17.5);
+    european_aqi.push(45);
+    dust.push(24.0);
+  }
+
+  const curIdx = 48;
+  const current = {
+    time: formatGstDateTime(now),
+    temperature_2m: temperature_2m[curIdx],
+    apparent_temperature: apparent_temperature[curIdx],
+    soil_temperature_0cm: temperature_2m[curIdx],
+    relative_humidity_2m: relative_humidity_2m[curIdx],
+    wind_speed_10m: wind_speed_10m[curIdx],
+    wind_direction_10m: wind_direction_10m[curIdx],
+    wind_gusts_10m: wind_gusts_10m[curIdx],
+    wind_speed_100m: wind_speed_100m[curIdx],
+    wind_gusts_100m: wind_gusts_100m[curIdx],
+    solar_radiation: solar_radiation[curIdx],
+    uv_index: uv_index[curIdx],
+    weathercode: 0,
+    visibility: 10000,
+    precipitation: 0,
+    cloud_cover: 10,
+    pressure_msl: 1012.0,
+    european_aqi: 45,
+    pm2_5: 17.5,
+    pm10: 42.0,
+    dust: 24.0,
+    cape: 0
+  };
+
+  const hourly = {
+    time,
+    temperature_2m,
+    apparent_temperature,
+    relative_humidity_2m,
+    weathercode: Array(216).fill(0),
+    precipitation_probability: Array(216).fill(0),
+    wind_speed_10m,
+    wind_direction_10m,
+    wind_gusts_10m,
+    wind_speed_100m,
+    wind_gusts_100m,
+    solar_radiation,
+    uv_index,
+    pressure_msl,
+    visibility,
+    cloud_cover,
+    european_aqi,
+    pm2_5,
+    pm10,
+    dust
+  };
+
+  const daily = buildDailyFromHourly(hourly, now);
+  const stations = generate5kmSectorStations(hourly, current, daily);
+
+  return {
+    latitude: LAT,
+    longitude: LON,
+    timezone: TIMEZONE,
+    current,
+    hourly,
+    daily,
+    stations,
+    ncmWarnings: []
+  };
+}
+
+// --------------------------------------------------------------------------
 // MAIN DISPATCHER: fetchDashboardData()
 // --------------------------------------------------------------------------
 export async function fetchDashboardData() {
   const provider = getActiveProvider();
 
+  let result;
   switch (provider) {
     case PROVIDERS.WEATHERNEXT_SIM:
-      return fetchWeatherNextSimData();
+      result = await fetchWeatherNextSimData();
+      break;
     case PROVIDERS.WEATHERNEXT_LIVE:
-      return fetchWeatherNextLiveData();
+      result = await fetchWeatherNextLiveData();
+      break;
     case PROVIDERS.UAE_NCM:
-      return fetchNCMData();
+      result = await fetchNCMData();
+      break;
     case PROVIDERS.OPEN_METEO:
     default:
-      return fetchOpenMeteoData();
+      result = await fetchOpenMeteoData();
+      break;
   }
+
+  if (result?.mergedData && typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY_LAST_LIVE, JSON.stringify(result.mergedData));
+    } catch {
+      // ignore storage quota errors
+    }
+  }
+
+  return result;
 }

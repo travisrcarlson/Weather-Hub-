@@ -367,8 +367,9 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
       // 2. Moon Transit
       moonDetails = getMoonDetails(dailyData.time[targetIdx]);
-      const moonriseDate = new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
-      const moonsetDate = new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+      const moonTimesObj = getMoonTimes(sunriseStr, sunsetStr, moonDetails.phase);
+      const moonriseDate = moonTimesObj.riseDate || new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+      const moonsetDate = moonTimesObj.setDate || new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
 
       moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
       if (moonTransit.visible) {

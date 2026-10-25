@@ -13,12 +13,12 @@ export default function TacticalBallisticsModal({ isOpen, onClose, currentData }
   const [firingAzimuth, setFiringAzimuth] = useState(300); // Default 300° NW Range Bearing
   const [selectedCaliberId, setSelectedCaliberId] = useState('338_lapua');
 
-  const surfaceWind = currentData?.wind_speed_10m || 24;
-  const boundaryWind100m = currentData?.wind_speed_100m || (surfaceWind * 1.34 + 1.2);
-  const gusts100m = currentData?.wind_gusts_100m || (boundaryWind100m * 1.38 + 2.0);
-  const windDir = currentData?.wind_direction_10m || 290;
-  const ambientTemp = currentData?.temperature_2m || 41.5;
-  const solarRad = currentData?.solar_radiation || 850;
+  const surfaceWind = currentData?.wind_speed_10m ?? 15;
+  const boundaryWind100m = currentData?.wind_speed_100m ?? Number((surfaceWind * 1.28 + 1.2).toFixed(1));
+  const gusts100m = currentData?.wind_gusts_100m ?? Number((boundaryWind100m * 1.28 + 1.5).toFixed(1));
+  const windDir = currentData?.wind_direction_10m ?? 290;
+  const ambientTemp = currentData?.temperature_2m ?? 32.0;
+  const solarRad = currentData?.solar_radiation ?? 0;
 
   // Compute 100m Wind Shear
   const shearAnalysis = calculate100mWindShear(surfaceWind, boundaryWind100m);

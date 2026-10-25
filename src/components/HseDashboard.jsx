@@ -104,10 +104,13 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       const gusts = hourlyData.wind_gusts_10m ? hourlyData.wind_gusts_10m[idx] : wind * 1.3;
       const visibility = hourlyData.visibility ? hourlyData.visibility[idx] : 10000;
       const uv = hourlyData.uv_index ? hourlyData.uv_index[idx] : 0;
-      const aqIndex = hourlyData.pm10 ? (hourlyData.pm10[idx] * 0.9) : 50; // Mock PM10 to AQI index conversion
+      const solarRad = hourlyData.solar_radiation ? (hourlyData.solar_radiation[idx] ?? null) : null;
+      const aqIndex = hourlyData.european_aqi && hourlyData.european_aqi[idx] !== undefined && hourlyData.european_aqi[idx] !== null
+        ? Math.round(hourlyData.european_aqi[idx])
+        : (hourlyData.pm10 ? Math.round(hourlyData.pm10[idx] * 0.9) : 50);
 
       const dp = calculateDewPoint(temp, rh);
-      const wbgt = calculateWBGT(temp, rh, wind, uv);
+      const wbgt = calculateWBGT(temp, rh, wind, uv, solarRad);
 
       // Evaluate safety for this specific hour
       const readings = {

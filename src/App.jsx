@@ -7,7 +7,7 @@ import HourlyForecast from './components/HourlyForecast';
 import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
-import { fetchDashboardData, getActiveProvider } from './services/weatherService';
+import { fetchDashboardData, getActiveProvider, getInitialGroundedData } from './services/weatherService';
 import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
@@ -125,7 +125,7 @@ const fallbackData = {
 };
 
 export default function App() {
-  const [data, setData] = useState(fallbackData);
+  const [data, setData] = useState(() => getInitialGroundedData());
   const [apiMeta, setApiMeta] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(() =>
     new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour12: false })
@@ -215,12 +215,12 @@ export default function App() {
     ];
 
     stations.forEach(s => {
-      const temp = isSimulated ? s.t : (data.current?.temperature_2m || 0);
-      const wind = isSimulated ? s.ws : (data.current?.wind_speed_10m || 0);
-      const gusts = isSimulated ? s.ws * 1.3 : (data.current?.wind_gusts_10m || wind * 1.3);
-      const uv = isSimulated ? s.uv : (data.current?.uv_index || 0);
-      const visibility = isSimulated ? s.vis : (data.current?.visibility || 10000);
-      const pm10 = isSimulated ? s.pm : (data.current?.pm10 || 50);
+      const liveStation = data.stations?.[s.id]?.current || data.current;
+      const temp = isSimulated ? s.t : (liveStation?.temperature_2m || 0);
+      const wind = isSimulated ? s.ws : (liveStation?.wind_speed_10m || 0);
+      const gusts = isSimulated ? s.ws * 1.3 : (liveStation?.wind_gusts_10m || wind * 1.3);
+      const visibility = isSimulated ? s.vis : (liveStation?.visibility || 10000);
+      const pm10 = isSimulated ? s.pm : (liveStation?.pm10 || 50);
 
       // Check temperature
       if (temp >= 43) count++;
@@ -461,7 +461,9 @@ export default function App() {
         prevW,
         data.current.wind_direction_10m,
         prevDir,
-        data.current.relative_humidity_2m
+        data.current.relative_humidity_2m,
+        data.current.cape ?? 0,
+        data.current.dust ?? 0
       );
       if (haboob.detected) {
         if (haboob.riskLevel === 'CRITICAL') {
@@ -849,7 +851,7 @@ export default function App() {
 
               {/* 8. Daylight Curfew & Abu Al Abyad Tide Cycles */}
               <div className="min-h-[235px]">
-                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
+                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} marineData={data?.marine} currentData={activeDisplayData} />
               </div>
             </div>
           )}
@@ -906,7 +908,7 @@ export default function App() {
 
               {/* Daylight Curfew & Tide Cycles */}
               <div className="min-h-[235px]">
-                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
+                <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} marineData={data?.marine} currentData={activeDisplayData} />
               </div>
             </div>
           )}
@@ -1138,7 +1140,7 @@ export default function App() {
                   <TvCoreMetricsWidget currentData={activeDisplayData} extremes={tvExtremes} hourlyData={activeHourlyData} />
                 </div>
                 <div className="h-[29%]">
-                  <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
+                  <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} marineData={data?.marine} currentData={activeDisplayData} />
                 </div>
                 <div className="h-[51%]">
                   <HourlyForecast 
@@ -1256,7 +1258,7 @@ export default function App() {
                  <AqiWidget data={activeDisplayData} hourlyData={activeHourlyData} />
                </div>
                <div className="h-[31%]">
-                 <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} />
+                 <SunTransitWidget dailyData={activeDailyData} currentTime={activeTime} marineData={data?.marine} currentData={activeDisplayData} />
                </div>
              </div>
 

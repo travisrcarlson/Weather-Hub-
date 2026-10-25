@@ -1,5 +1,6 @@
 // Tactical Ballistics, 100m Wind Shear, Munitions Thermal & Haboob Early-Warning Engine
 // Calibrated for Google DeepMind WeatherNext 3 High-Resolution Boundary Layer Physics
+import { calculateWBGT } from './safetyEngine';
 
 // 1. STANDARD BALLISTIC CARTRIDGE PROFILES
 export const BALLISTIC_CALIBERS = [
@@ -438,21 +439,24 @@ export function evaluateUavFlightEnvelope(surfaceWindKmh, boundaryWind100mKmh, g
 }
 
 // 5. MUNITIONS & EQUIPMENT THERMAL COOK-OFF SAFETY INDEX
-// Direct solar radiation (W/m^2) heating dark metal containers / ordnance crates
+// Direct solar radiation (W/m^2) + ground skin temp (0cm) heating dark metal containers / ordnance crates
 // MIL-STD-810H Method 501.7 High Temperature & Explosive Cook-off thresholds
-export function calculateMunitionsThermalLoad(ambientTempC, solarRadiationWm2, windSpeedKmh) {
-  const ta = ambientTempC || 38;
-  const solar = solarRadiationWm2 || 850;
-  const wind = windSpeedKmh || 15;
+export function calculateMunitionsThermalLoad(ambientTempC, solarRadiationWm2, windSpeedKmh, soilTemp0cm = null) {
+  const ta = ambientTempC ?? 32;
+  const solar = solarRadiationWm2 ?? 0;
+  const wind = windSpeedKmh ?? 15;
 
   // Radiation absorptivity for olive-drab (OD) or desert-tan steel/aluminum: alpha ~ 0.82
   // Wind cooling convective coefficient: hc = 10.45 - v + 10 * sqrt(v) in W/(m^2*K)
   const vMps = Math.max(0.5, wind / 3.6);
-  const windCooling = Math.min(6.5, vMps * 0.45);
+  const windCooling = solar > 0 ? Math.min(6.5, vMps * 0.45) : 0;
   
-  // Equilibrium surface temperature: ambient + solar thermal soak - convective wind loss
+  // Equilibrium surface temperature: anchored to ambient + solar thermal soak + ground infrared radiation - convective wind loss
   const solarSoakElevation = (solar / 1000) * 23.5;
-  const surfaceTempC = Number((ta + solarSoakElevation - windCooling).toFixed(1));
+  const groundBonus = (soilTemp0cm !== null && soilTemp0cm !== undefined && soilTemp0cm > ta)
+    ? (soilTemp0cm - ta) * 0.25
+    : 0;
+  const surfaceTempC = Number((ta + solarSoakElevation + groundBonus - windCooling).toFixed(1));
 
   let status = 'SAFE';
   let badgeColor = 'bg-safetyGreen/20 text-safetyGreen border-safetyGreen/40';
@@ -475,6 +479,7 @@ export function calculateMunitionsThermalLoad(ambientTempC, solarRadiationWm2, w
 
   return {
     ambientTempC: Number(ta.toFixed(1)),
+    soilTempC: soilTemp0cm !== null && soilTemp0cm !== undefined ? Number(Number(soilTemp0cm).toFixed(1)) : Number(ta.toFixed(1)),
     solarRadiationWm2: Math.round(solar),
     surfaceTempC,
     status,
@@ -487,7 +492,7 @@ export function calculateMunitionsThermalLoad(ambientTempC, solarRadiationWm2, w
 
 // 6. RAPID CONVECTIVE HABOOB / SQUALL DETECTION
 // Detects sudden convective downdrafts typical in desert summers (within 60-90m ETA)
-export function detectHaboobConvectiveRisk(currentPressureHpa, prevPressureHpa, windSpeedKmh, prevWindSpeedKmh, windDirDeg, prevWindDirDeg, humidityPercent) {
+export function detectHaboobConvectiveRisk(currentPressureHpa, prevPressureHpa, windSpeedKmh, prevWindSpeedKmh, windDirDeg, prevWindDirDeg, humidityPercent, capeJkg = 0, dustUgm3 = 0) {
   if (!currentPressureHpa || !prevPressureHpa) {
     return { detected: false, riskLevel: 'LOW' };
   }
@@ -496,23 +501,23 @@ export function detectHaboobConvectiveRisk(currentPressureHpa, prevPressureHpa, 
   const windSurge = windSpeedKmh - (prevWindSpeedKmh || windSpeedKmh);
   const dirShift = Math.abs((windDirDeg - (prevWindDirDeg || windDirDeg) + 360) % 360);
 
-  // Severe haboob signature: Rapid pressure plunge (> 1.2 hPa) + Wind surge (> 15 km/h) + Direction shift (> 45°)
-  if (pressureDrop >= 1.2 && windSurge >= 15 && dirShift >= 45) {
+  // Severe haboob signature: Rapid pressure plunge (> 1.2 hPa) + Wind surge (> 15 km/h) + Direction shift (> 45°) or high CAPE + dust surge
+  if ((pressureDrop >= 1.2 && windSurge >= 15 && dirShift >= 45) || (capeJkg >= 1000 && windSurge >= 12 && dustUgm3 >= 150)) {
     return {
       detected: true,
       riskLevel: 'CRITICAL',
       title: 'AI HABOOB / CONVECTIVE DUST WALL DETECTED',
       etaMinutes: 45,
-      description: `Rapid barometric plunge (-${pressureDrop.toFixed(1)} hPa/h) & sudden ${dirShift}° wind surge. High probability of incoming dust wall & zero visibility.`,
+      description: `Rapid barometric plunge (-${pressureDrop.toFixed(1)} hPa/h), CAPE ${Math.round(capeJkg)} J/kg & sudden ${dirShift}° wind surge. High probability of incoming dust wall.`,
       action: 'Secure all light equipment, batten firing lines, halt drone flights, issue respiratory PPE.'
     };
-  } else if (pressureDrop >= 0.8 && windSurge >= 10) {
+  } else if ((pressureDrop >= 0.8 && windSurge >= 10) || (capeJkg >= 600 && windSurge >= 8)) {
     return {
       detected: true,
       riskLevel: 'ELEVATED',
       title: 'CONVECTIVE GUST FRONT FORMING',
       etaMinutes: 75,
-      description: `Barometric instability detected (-${pressureDrop.toFixed(1)} hPa/h). Regional downdraft developing.`,
+      description: `Barometric instability detected (-${pressureDrop.toFixed(1)} hPa/h, CAPE ${Math.round(capeJkg)} J/kg). Regional downdraft developing.`,
       action: 'Monitor radar and northern horizon. Prepare for sudden gust shifts.'
     };
   }
@@ -553,33 +558,34 @@ export function evaluateTacticalMissionMatrix(hourlyData, dailyData, startDateSt
       const timeKey = `${dateStr}T${hrPad}:00`;
 
       // Find matching hour in hourlyData if available
-      let temp = 38, rh = 35, wind = 18, gusts = 26, uv = 0, solar = 0, wind100m = 24, vis = 10000;
+      let temp = 32, rh = 45, wind = 16, gusts = 24, uv = 0, solar = 0, wind100m = 21, vis = 10000, waveHeight = null;
       if (hourlyData && hourlyData.time) {
         const idx = hourlyData.time.findIndex(t => t.startsWith(`${dateStr}T${hrPad}`));
         if (idx !== -1) {
-          temp = hourlyData.temperature_2m[idx] || temp;
-          rh = hourlyData.relative_humidity_2m[idx] || rh;
-          wind = hourlyData.wind_speed_10m[idx] || wind;
-          gusts = hourlyData.wind_gusts_10m ? hourlyData.wind_gusts_10m[idx] : wind * 1.35;
-          uv = hourlyData.uv_index ? hourlyData.uv_index[idx] : 0;
-          solar = hourlyData.solar_radiation ? hourlyData.solar_radiation[idx] : uv * 95;
-          wind100m = hourlyData.wind_speed_100m ? hourlyData.wind_speed_100m[idx] : wind * 1.35;
-          vis = hourlyData.visibility ? hourlyData.visibility[idx] : 10000;
+          temp = hourlyData.temperature_2m[idx] ?? temp;
+          rh = hourlyData.relative_humidity_2m[idx] ?? rh;
+          wind = hourlyData.wind_speed_10m[idx] ?? wind;
+          gusts = hourlyData.wind_gusts_10m ? (hourlyData.wind_gusts_10m[idx] ?? wind * 1.35) : wind * 1.35;
+          uv = hourlyData.uv_index ? (hourlyData.uv_index[idx] ?? 0) : 0;
+          solar = hourlyData.solar_radiation ? (hourlyData.solar_radiation[idx] ?? uv * 80) : uv * 80;
+          wind100m = hourlyData.wind_speed_100m ? (hourlyData.wind_speed_100m[idx] ?? wind * 1.28) : wind * 1.28;
+          vis = hourlyData.visibility ? (hourlyData.visibility[idx] ?? 10000) : 10000;
+          waveHeight = hourlyData.wave_height ? (hourlyData.wave_height[idx] ?? null) : null;
         } else {
           // Synthetic diurnal estimation
           const rad = Math.PI * (hr - 14) / 12;
-          temp = Number((34 + 8 * (0.5 + 0.5 * Math.cos(rad))).toFixed(1));
-          rh = Math.round(50 - 25 * (0.5 + 0.5 * Math.cos(rad)));
-          wind = Number((14 + 10 * Math.sin(Math.PI * hr / 24)).toFixed(1));
-          gusts = Number((wind * 1.4).toFixed(1));
-          wind100m = Number((wind * 1.38).toFixed(1));
-          uv = (hr >= 6 && hr <= 18) ? Math.round(11 * Math.sin(Math.PI * (hr - 6) / 12)) : 0;
-          solar = uv * 95;
+          temp = Number((26 + 9 * (0.5 + 0.5 * Math.cos(rad))).toFixed(1));
+          rh = Math.round(55 - 25 * (0.5 + 0.5 * Math.cos(rad)));
+          wind = Number((13 + 8 * Math.sin(Math.PI * hr / 24)).toFixed(1));
+          gusts = Number((wind * 1.35).toFixed(1));
+          wind100m = Number((wind * 1.28).toFixed(1));
+          uv = (hr >= 6 && hr <= 18) ? Math.round(8.5 * Math.sin(Math.PI * (hr - 6) / 12)) : 0;
+          solar = uv * 80;
         }
       }
 
-      // WBGT approximation
-      const wbgt = Number((0.7 * (temp * (0.5 + 0.005 * rh)) + 0.2 * (temp + 3) + 0.1 * temp).toFixed(1));
+      // Grounded Stull + Globe WBGT calculation
+      const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
 
       if (temp > maxTemp) maxTemp = temp;
       if (wbgt > maxWbgt) maxWbgt = wbgt;
@@ -626,15 +632,19 @@ export function evaluateTacticalMissionMatrix(hourlyData, dailyData, startDateSt
         infantryReason = `High thermal load: 40m Work / 20m Rest mandated`;
       }
 
-      // 4. Amphibious / Marine Sea Ops (Coastal Spit winds & visibility)
+      // 4. Amphibious / Marine Sea Ops (Coastal Spit winds, wave height & visibility)
       let amphStatus = 'GO';
-      let amphReason = 'Calm sea state & secure marine corridor';
-      if (wind >= 32 || gusts >= 45 || vis < 3000) {
+      let amphReason = waveHeight !== null ? `Calm sea state (${waveHeight.toFixed(1)}m waves) & secure corridor` : 'Calm sea state & secure marine corridor';
+      if (wind >= 32 || gusts >= 45 || vis < 3000 || (waveHeight !== null && waveHeight >= 1.5)) {
         amphStatus = 'NO-GO';
-        amphReason = `High coastal chop/squall risk or low visibility (<3km)`;
-      } else if (wind >= 22 || gusts >= 32) {
+        amphReason = waveHeight !== null && waveHeight >= 1.5
+          ? `High Persian Gulf wave state (${waveHeight.toFixed(1)}m ≥ 1.5m limit)`
+          : `High coastal chop/squall risk or low visibility (<3km)`;
+      } else if (wind >= 22 || gusts >= 32 || (waveHeight !== null && waveHeight >= 0.9)) {
         amphStatus = 'CAUTION';
-        amphReason = 'Moderate swell & tidal current chop at spit';
+        amphReason = waveHeight !== null && waveHeight >= 0.9
+          ? `Moderate swell (${waveHeight.toFixed(1)}m waves) & tidal chop at spit`
+          : 'Moderate swell & tidal current chop at spit';
       }
 
       hours.push({

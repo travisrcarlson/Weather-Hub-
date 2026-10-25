@@ -5,11 +5,12 @@ import { calculateMunitionsThermalLoad } from '../utils/tacticalBallisticsEngine
 export default function MunitionsThermalModal({ isOpen, onClose, currentData }) {
   if (!isOpen) return null;
 
-  const ambientTemp = currentData?.temperature_2m || 41.5;
-  const solarRad = currentData?.solar_radiation || 880;
-  const windSpeed = currentData?.wind_speed_10m || 24;
+  const ambientTemp = currentData?.temperature_2m ?? 32.0;
+  const solarRad = currentData?.solar_radiation ?? 0;
+  const windSpeed = currentData?.wind_speed_10m ?? 15;
+  const soilTemp = currentData?.soil_temperature_0cm ?? null;
 
-  const thermal = calculateMunitionsThermalLoad(ambientTemp, solarRad, windSpeed);
+  const thermal = calculateMunitionsThermalLoad(ambientTemp, solarRad, windSpeed, soilTemp);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in select-none">

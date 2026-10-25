@@ -75,6 +75,7 @@ export function AqiWidget({ data, hourlyData }) {
   const aqi = data.european_aqi || 0;
   const pm25 = data.pm2_5 || 0;
   const pm10 = data.pm10 || 0;
+  const dust = data.dust !== undefined && data.dust !== null ? Number(data.dust) : null;
 
   // Calculate trends compared to previous hour
   const getPrevHourIdx = () => {
@@ -118,7 +119,14 @@ export function AqiWidget({ data, hourlyData }) {
           <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-0.5">
             Z10 • AIR QUALITY & DUST
           </p>
-          <h2 className="text-sm font-black text-slate-200 leading-none">Particulate Hazards</h2>
+          <div className="flex items-center space-x-1.5">
+            <h2 className="text-sm font-black text-slate-200 leading-none">Particulate Hazards</h2>
+            {dust !== null && (
+              <span className="text-[8.5px] font-mono font-bold text-amber-300 bg-amber-950/40 border border-amber-500/30 px-1 py-0.5 rounded leading-none">
+                DUST {dust.toFixed(0)} µg/m³
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-1">
@@ -233,29 +241,90 @@ export function parseGstDate(str) {
   return new Date(`${str}+04:00`);
 }
 
-// Helper for Moonrise/Moonset times approximation
-export function getMoonTimes(sunriseTimeStr, sunsetTimeStr, agePct) {
+// Astronomical Lunar Altitude Calculator for Abu Al Abyad Island (24.195°N, 53.860°E)
+function computeLunarAltitudeDeg(dateUtcMs, latDeg = 24.195, lonDeg = 53.860) {
+  const rad = Math.PI / 180;
+  // Days since J2000.0 (2000-01-01T12:00:00Z)
+  const d = (dateUtcMs - 946728000000) / 86400000;
+
+  // Geocentric ecliptic lunar elements (low-precision astronomical ephemeris)
+  const L = (218.316 + 13.176396 * d) * rad; // Mean longitude
+  const M = (134.963 + 13.064993 * d) * rad; // Mean anomaly
+  const F = (93.272 + 13.229350 * d) * rad;  // Mean distance
+
+  const lonEcl = L + 6.289 * rad * Math.sin(M); // Ecliptic longitude
+  const latEcl = 5.128 * rad * Math.sin(F);     // Ecliptic latitude
+  const eps = (23.439 - 0.0000004 * d) * rad;   // Obliquity of ecliptic
+
+  // Right Ascension (ra) and Declination (dec)
+  const sinDec = Math.sin(latEcl) * Math.cos(eps) + Math.cos(latEcl) * Math.sin(eps) * Math.sin(lonEcl);
+  const dec = Math.asin(Math.max(-1, Math.min(1, sinDec)));
+  const y = Math.sin(lonEcl) * Math.cos(eps) - Math.tan(latEcl) * Math.sin(eps);
+  const x = Math.cos(lonEcl);
+  const ra = Math.atan2(y, x);
+
+  // Greenwich Mean Sidereal Time + Local Sidereal Time
+  const gmstDeg = (280.46061837 + 360.98564736629 * d) % 360;
+  const lstRad = (gmstDeg + lonDeg) * rad;
+  const ha = lstRad - ra; // Local Hour Angle
+
+  const latRad = latDeg * rad;
+  const sinAlt = Math.sin(latRad) * Math.sin(dec) + Math.cos(latRad) * Math.cos(dec) * Math.cos(ha);
+  const altDeg = (Math.asin(Math.max(-1, Math.min(1, sinAlt))) / rad) + 0.125; // +0.125° horizon refraction/parallax
+  return altDeg;
+}
+
+// Helper for astronomical Moonrise/Moonset times at Abu Al Abyad Island (GST = UTC+4)
+export function getMoonTimes(sunriseTimeStr, sunsetTimeStr, agePct = 0.5) {
   if (!sunriseTimeStr || !sunsetTimeStr) return { rise: '--:--', set: '--:--' };
-  
-  const riseDate = parseGstDate(sunriseTimeStr);
-  const setDate = parseGstDate(sunsetTimeStr);
-  const offsetMs = agePct * 24 * 60 * 60 * 1000;
-  
-  const moonriseDate = new Date(riseDate.getTime() + offsetMs);
-  const moonsetDate = new Date(setDate.getTime() + offsetMs);
-  
-  const formatTimeLocal = (d) => {
-    return d.toLocaleTimeString('en-US', {
+
+  const refDate = parseGstDate(sunriseTimeStr);
+  const gstOffsetMs = 4 * 3600 * 1000;
+  const gstRef = new Date(refDate.getTime() + gstOffsetMs);
+  const dayStartUtcMs = Date.UTC(
+    gstRef.getUTCFullYear(),
+    gstRef.getUTCMonth(),
+    gstRef.getUTCDate(),
+    0, 0, 0
+  ) - gstOffsetMs;
+
+  let riseMs = null;
+  let setMs = null;
+  const stepMs = 5 * 60 * 1000; // 5-minute ephemeris scan across 24h GST day
+  let prevAlt = computeLunarAltitudeDeg(dayStartUtcMs);
+
+  for (let m = 5; m <= 1440; m += 5) {
+    const tMs = dayStartUtcMs + m * 60 * 1000;
+    const curAlt = computeLunarAltitudeDeg(tMs);
+    if (prevAlt < 0 && curAlt >= 0 && riseMs === null) {
+      const frac = -prevAlt / (curAlt - prevAlt || 1);
+      riseMs = tMs - stepMs + frac * stepMs;
+    } else if (prevAlt >= 0 && curAlt < 0 && setMs === null) {
+      const frac = prevAlt / (prevAlt - curAlt || 1);
+      setMs = tMs - stepMs + frac * stepMs;
+    }
+    prevAlt = curAlt;
+  }
+
+  // Fallback if circumpolar or single crossing near midnight
+  const fallbackRiseMs = refDate.getTime() + agePct * 24 * 3600 * 1000;
+  const fallbackSetMs = parseGstDate(sunsetTimeStr).getTime() + agePct * 24 * 3600 * 1000;
+  const finalRiseDate = new Date(riseMs !== null ? riseMs : fallbackRiseMs);
+  const finalSetDate = new Date(setMs !== null ? setMs : fallbackSetMs);
+
+  const formatTimeLocal = (d) =>
+    d.toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
       timeZone: 'Asia/Dubai'
     });
-  };
-  
+
   return {
-    rise: formatTimeLocal(moonriseDate),
-    set: formatTimeLocal(moonsetDate)
+    rise: formatTimeLocal(finalRiseDate),
+    set: formatTimeLocal(finalSetDate),
+    riseDate: finalRiseDate,
+    setDate: finalSetDate
   };
 }
 
@@ -285,7 +354,7 @@ export function checkTransitPosition(nowDate, riseDate, setDate) {
 }
 
 // Z11: Sun & Moon Transit Widget (Fits Left Sidebar, 24% height)
-export function SunTransitWidget({ dailyData, currentTime }) {
+export function SunTransitWidget({ dailyData, currentTime, marineData, currentData }) {
   if (!dailyData || !dailyData.sunrise) return null;
 
   const sunriseStr = dailyData.sunrise[0];
@@ -312,6 +381,8 @@ export function SunTransitWidget({ dailyData, currentTime }) {
   const sunriseDate = parseGstDate(sunriseStr);
   const sunsetDate = parseGstDate(sunsetStr);
   const tides = calculateAbuAlAbyadTides(nowDate);
+  const waveHeight = marineData?.wave_height ?? currentData?.wave_height ?? null;
+  const seaSurfaceTemp = marineData?.sea_surface_temperature ?? currentData?.sea_surface_temperature ?? null;
 
   // Calculate Sun position
   const sunTransit = checkTransitPosition(nowDate, sunriseDate, sunsetDate);
@@ -327,9 +398,9 @@ export function SunTransitWidget({ dailyData, currentTime }) {
     sunY = 0;
   }
 
-  // Calculate Moon position
-  const moonriseDate = new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
-  const moonsetDate = new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+  // Calculate Moon position using astronomical moonrise/moonset
+  const moonriseDate = moonTimes.riseDate || new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
+  const moonsetDate = moonTimes.setDate || new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
   const moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
   
   let moonX = 7.5;
@@ -488,9 +559,15 @@ export function SunTransitWidget({ dailyData, currentTime }) {
                 </span>
               </div>
               <div className="flex flex-col items-center bg-slate-900/50 rounded py-1 px-1 border border-slate-800/80 shadow-inner">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">TIDAL RANGE</span>
-                <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.range}</span>
-                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">ABU AL ABYAD</span>
+                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">
+                  {waveHeight !== null ? 'WAVE / TIDE' : 'TIDAL RANGE'}
+                </span>
+                <span className="text-xs font-mono font-black text-slate-200 leading-none">
+                  {waveHeight !== null ? `${Number(waveHeight).toFixed(1)}m • ${tides.range}` : tides.range}
+                </span>
+                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">
+                  {seaSurfaceTemp !== null ? `SEA ${Number(seaSurfaceTemp).toFixed(1)}°C` : 'ABU AL ABYAD'}
+                </span>
               </div>
             </div>
           </div>

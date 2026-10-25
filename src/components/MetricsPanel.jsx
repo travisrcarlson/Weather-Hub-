@@ -214,10 +214,21 @@ export function VisibilityWidget({ data, hourlyData }) {
 
   const prevPressure = (prevIdx >= 0 && hourlyData.pressure_msl) ? hourlyData.pressure_msl[prevIdx] : null;
   const pressureTrend = getTrendIndicator(pressure, prevPressure, 0.2);
+  const dust = data.dust !== undefined && data.dust !== null ? Number(data.dust) : null;
 
   const getVisibilityStatus = (visKm) => {
-    if (visKm < 1) return { label: 'FOG / SUSPEND OPS', color: 'text-stopRed font-bold animate-pulse' };
-    if (visKm <= 5) return { label: 'HAZE / CAUTION', color: 'text-amberAlert' };
+    if (visKm < 1) {
+      return {
+        label: dust && dust >= 120 ? 'DUST STORM / SUSPEND' : 'FOG / SUSPEND OPS',
+        color: 'text-stopRed font-bold animate-pulse'
+      };
+    }
+    if (visKm <= 5) {
+      return {
+        label: dust && dust >= 60 ? 'BLOWING DUST / CAUTION' : 'HAZE / CAUTION',
+        color: 'text-amberAlert'
+      };
+    }
     return { label: 'CLEAR VISIBILITY', color: 'text-safetyGreen' };
   };
 
@@ -226,11 +237,18 @@ export function VisibilityWidget({ data, hourlyData }) {
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Header */}
-      <div>
-        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
-          Z5 • VISIBILITY & PRESSURE
-        </p>
-        <h2 className="text-xs font-bold text-slate-300 leading-none">Transit & Runway Safety</h2>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
+            Z5 • VISIBILITY & PRESSURE
+          </p>
+          <h2 className="text-xs font-bold text-slate-300 leading-none">Transit & Runway Safety</h2>
+        </div>
+        {dust !== null && (
+          <span className="text-[8px] font-mono font-bold text-slate-400 bg-slate-900/80 border border-slate-800 px-1.5 py-0.5 rounded leading-none">
+            DUST {dust.toFixed(0)} µg/m³
+          </span>
+        )}
       </div>
 
       {/* Main Content */}
