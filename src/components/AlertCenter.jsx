@@ -161,11 +161,9 @@ export default function AlertCenter({
 
     // Evaluate each station
     stationsList.forEach(s => {
-      const readings = isSimulated ? s.getReadings(apiData.current) : apiData.current;
+      const readings = isSimulated ? s.getReadings(apiData.current) : (apiData.stations?.[s.id]?.current || apiData.current);
       if (!readings) return;
 
-      const evalResult = evaluateSafety(readings);
-      
       // Add individual breaches to alerts
       const temp = readings.temperature_2m || 0;
       const rh = readings.relative_humidity_2m || 0;
@@ -199,7 +197,7 @@ export default function AlertCenter({
       }
 
       // 2. WBGT Stress
-      const wbgt = calculateWBGT(temp, rh, wind, uv);
+      const wbgt = calculateWBGT(temp, rh, wind, uv, readings.solar_radiation ?? null);
       if (wbgt >= 30.0) {
         alerts.push({
           id: `${s.id}-wbgt-red`,

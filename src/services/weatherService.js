@@ -349,7 +349,7 @@ function buildDailyFromHourly(hourly, now = new Date()) {
 // - North: Northern coastal spit & barrier flats (24.230°N, 53.895°E) - High wind/gusts, blowing dust, UAV corridor
 // - South: Deep desert interior (24.150°N, 53.820°E) - High dry-bulb heat (+2.8°C), low RH, high solar irradiance
 // - Sea: Marine boundary spit & tidal lagoon (24.180°N, 53.890°E) - High maritime humidity (+42%), humid apparent heat
-export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = null) {
+export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = null, rawNodesByStation = null) {
   if (!baseCurrent) return {};
 
   const curHour = baseCurrent;
@@ -424,11 +424,19 @@ export function generate5kmSectorStations(baseHourly, baseCurrent, baseDaily = n
   const stations = {};
 
   Object.entries(profiles).forEach(([stationId, p]) => {
-    const curTemp = Number(Math.max(10, curHour.temperature_2m + p.deltaTemp).toFixed(1));
-    const curRh = Math.round(Math.min(98, Math.max(8, curHour.relative_humidity_2m + p.deltaRh)));
-    const curWind = Number(Math.max(1, curHour.wind_speed_10m + p.deltaWind).toFixed(1));
-    const curGusts = Number(Math.max(curWind * 1.15, (curHour.wind_gusts_10m ?? curWind * 1.25) + p.deltaGusts).toFixed(1));
-    const curDir = (curHour.wind_direction_10m + p.windDirOffset + 360) % 360;
+    const rawNode = rawNodesByStation?.[stationId] || null;
+    const nodeCur = rawNode?.current || curHour;
+    const baseTempVal = nodeCur.temperature_2m ?? curHour.temperature_2m;
+    const baseRhVal = nodeCur.relative_humidity_2m ?? curHour.relative_humidity_2m;
+    const baseWindVal = nodeCur.wind_speed_10m ?? curHour.wind_speed_10m;
+    const baseGustVal = nodeCur.wind_gusts_10m ?? curHour.wind_gusts_10m;
+    const baseDirVal = nodeCur.wind_direction_10m ?? curHour.wind_direction_10m;
+
+    const curTemp = Number(Math.max(10, baseTempVal + p.deltaTemp).toFixed(1));
+    const curRh = Math.round(Math.min(98, Math.max(8, baseRhVal + p.deltaRh)));
+    const curWind = Number(Math.max(1, baseWindVal + p.deltaWind).toFixed(1));
+    const curGusts = Number(Math.max(curWind * 1.15, (baseGustVal ?? curWind * 1.25) + p.deltaGusts).toFixed(1));
+    const curDir = (baseDirVal + p.windDirOffset + 360) % 360;
     const baseVis = curHour.visibility ?? 10000;
     // Only apply sector dust/mist visibility reduction when wind (>26 km/h) or humidity (>=78%) warrants it
     const effectiveDeltaVis = (stationId === 'north' && curWind > 26)
@@ -582,7 +590,7 @@ export async function fetchWeatherNextSimData() {
       };
 
       const normalizedDaily = normalizeDailyToToday(m.daily, now);
-      const stations = generate5kmSectorStations(enhancedHourly, enhancedCurrent, normalizedDaily);
+      const stations = m.stations || generate5kmSectorStations(enhancedHourly, enhancedCurrent, normalizedDaily);
       const latency = Math.round(performance.now() - start);
 
       return {
@@ -1140,9 +1148,10 @@ export async function fetchWeatherNextLiveData() {
 // 3. OPEN-METEO LIVE FORECAST ($0.00 Free Standard Tier)
 // --------------------------------------------------------------------------
 export async function fetchOpenMeteoData() {
+  // Multi-point coordinates for HQ (24.195,53.860), North (24.230,53.895), South (24.150,53.820), Sea (24.180,53.890)
   const weatherParams = {
-    latitude: LAT,
-    longitude: LON,
+    latitude: '24.195,24.230,24.150,24.180',
+    longitude: '53.860,53.895,53.820,53.890',
     current: [
       'temperature_2m',
       'apparent_temperature',
@@ -1253,7 +1262,16 @@ export async function fetchOpenMeteoData() {
     fetchMarine()
   ]);
 
-  const weatherData = weatherResult.res.data;
+  const rawWeatherPayload = weatherResult.res.data;
+  const weatherData = Array.isArray(rawWeatherPayload) ? rawWeatherPayload[0] : rawWeatherPayload;
+  const rawNodesByStation = Array.isArray(rawWeatherPayload) && rawWeatherPayload.length >= 4
+    ? {
+        hq: rawWeatherPayload[0],
+        north: rawWeatherPayload[1],
+        south: rawWeatherPayload[2],
+        sea: rawWeatherPayload[3]
+      }
+    : null;
   const aqiData = aqiResult.res.data;
   const marineData = marineResult?.res?.data || null;
 
@@ -1364,7 +1382,7 @@ export async function fetchOpenMeteoData() {
       sea_surface_temperature: currentSeaTemp,
       ocean_current_velocity: currentOceanCurrent
     } : null,
-    stations: generate5kmSectorStations(openMeteoHourly, openMeteoCurrent, openMeteoDaily),
+    stations: generate5kmSectorStations(openMeteoHourly, openMeteoCurrent, openMeteoDaily, rawNodesByStation),
     ncmWarnings: generateMockNcmWarnings(openMeteoCurrent)
   };
 

@@ -177,25 +177,97 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         return;
       }
 
+      const dateObj = new Date(selectedDate);
+      const month = isNaN(dateObj.getTime()) ? 0 : dateObj.getMonth();
+      const calendarMonth = month + 1;
+      const calendarDay = isNaN(dateObj.getTime()) ? 1 : dateObj.getDate();
+      const isMiddayBanDate = (calendarMonth === 6 && calendarDay >= 15) ||
+                              calendarMonth === 7 ||
+                              calendarMonth === 8 ||
+                              (calendarMonth === 9 && calendarDay <= 15);
+
+      // 1. If selectedDate falls within our live 9-day forecast/observation window (past 2d + next 7d),
+      // serve directly from the live Abu Al Abyad hourlyData stream!
+      if (!isSimulated && hourlyData && Array.isArray(hourlyData.time)) {
+        const matchingIndices = [];
+        hourlyData.time.forEach((t, idx) => {
+          if (typeof t === 'string' && t.startsWith(selectedDate)) {
+            matchingIndices.push(idx);
+          }
+        });
+
+        if (matchingIndices.length >= 12) {
+          const liveLogs = matchingIndices.map((idx) => {
+            const timeStr = hourlyData.time[idx];
+            const hr = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
+            const temp = Number((hourlyData.temperature_2m?.[idx] ?? 28).toFixed(1));
+            const rh = Math.round(hourlyData.relative_humidity_2m?.[idx] ?? 50);
+            const wind = Number((hourlyData.wind_speed_10m?.[idx] ?? 15).toFixed(1));
+            const gusts = Number((hourlyData.wind_gusts_10m?.[idx] ?? wind * 1.3).toFixed(1));
+            const visibility = hourlyData.visibility?.[idx] ?? 10000;
+            const uv = Number((hourlyData.uv_index?.[idx] ?? 0).toFixed(1));
+            const solar = hourlyData.solar_radiation?.[idx] ?? null;
+            const pm10Val = hourlyData.pm10?.[idx] ?? 40;
+
+            const dp = calculateDewPoint(temp, rh);
+            const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
+            const isMiddayBanActive = isMiddayBanDate && (hr >= 12 && hr <= 14);
+
+            const safetyEval = evaluateSafety({
+              temperature_2m: temp,
+              relative_humidity_2m: rh,
+              wind_speed_10m: wind,
+              wind_gusts_10m: gusts,
+              visibility,
+              uv_index: uv,
+              pm10: pm10Val
+            });
+
+            return {
+              time: `${selectedDate}T${hr.toString().padStart(2, '0')}:00`,
+              hourLabel: `${hr.toString().padStart(2, '0')}:00`,
+              temp,
+              rh,
+              dewPoint: dp,
+              wbgt,
+              wind,
+              gusts,
+              uv,
+              visibility: visibility / 1000,
+              safetyStatus: safetyEval.status,
+              safetyReasons: safetyEval.reasons,
+              isMiddayBanActive
+            };
+          });
+
+          if (active) {
+            setHourlyLogs(liveLogs);
+            setAnalogDateUsed(null);
+            setDataSource('API');
+            setIsLoading(false);
+          }
+          return;
+        }
+      }
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const planDate = new Date(selectedDate);
       planDate.setHours(0, 0, 0, 0);
 
-      const isFuture = planDate > today;
       let queryDate = selectedDate;
       let isAnalog = false;
       let analogYear = null;
 
-      // Archive API has a ~2 day delay, so treat dates newer than 3 days ago as future/analog or simulation
+      // Archive API has a ~2 day delay, so dates beyond the live 7-day forecast use previous year's historical analog
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - 3);
       cutoffDate.setHours(0, 0, 0, 0);
 
       if (planDate > cutoffDate) {
         isAnalog = true;
-        analogYear = today.getFullYear() - 1; // Slide to the previous calendar year
+        analogYear = today.getFullYear() - 1;
         const analogDateObj = new Date(planDate);
         analogDateObj.setFullYear(analogYear);
         queryDate = analogDateObj.toISOString().slice(0, 10);
@@ -205,9 +277,9 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
       }
 
       try {
-        // Fetch from Open-Meteo Archive API
+        // Fetch from Open-Meteo ERA5 Archive API at true Abu Al Abyad Island coordinates (24.195°N, 53.86°E)
         const response = await fetch(
-          `https://archive-api.open-meteo.com/v1/archive?latitude=24.20&longitude=52.78&start_date=${queryDate}&end_date=${queryDate}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,visibility&timezone=Asia/Dubai&wind_speed_unit=kmh`
+          `https://archive-api.open-meteo.com/v1/archive?latitude=24.195&longitude=53.86&start_date=${queryDate}&end_date=${queryDate}&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,shortwave_radiation&timezone=Asia/Dubai&wind_speed_unit=kmh`
         );
 
         if (!response.ok) {
@@ -222,18 +294,6 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
 
         if (!active) return;
 
-        // Process hourly logs using historical data
-        const dateObj = new Date(selectedDate);
-        const month = dateObj.getMonth();
-        const calendarMonth = month + 1;
-        const calendarDay = dateObj.getDate();
-        
-        // Check midday work ban date range (June 15 - Sept 15) is active
-        const isMiddayBanDate = (calendarMonth === 6 && calendarDay >= 15) || 
-                                calendarMonth === 7 || 
-                                calendarMonth === 8 || 
-                                (calendarMonth === 9 && calendarDay <= 15);
-
         // Climatological clear-sky UV peak index guide
         const monthlyUvPeak = [5, 6, 8, 10, 11, 12, 12, 12, 10, 8, 6, 5];
         const peakUv = monthlyUvPeak[month];
@@ -241,38 +301,24 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         const logs = archive.hourly.time.map((timeStr, idx) => {
           const hr = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
           
-          let temp = archive.hourly.temperature_2m[idx];
-          let rh = archive.hourly.relative_humidity_2m[idx];
-          let wind = archive.hourly.wind_speed_10m[idx];
-          let gusts = archive.hourly.wind_gusts_10m ? archive.hourly.wind_gusts_10m[idx] : wind * 1.3;
-          let visibility = archive.hourly.visibility ? archive.hourly.visibility[idx] : 10000;
+          let temp = Number((archive.hourly.temperature_2m[idx] ?? 28).toFixed(1));
+          let rh = Math.round(archive.hourly.relative_humidity_2m[idx] ?? 50);
+          let wind = Number((archive.hourly.wind_speed_10m[idx] ?? 14).toFixed(1));
+          let gusts = Number((archive.hourly.wind_gusts_10m ? archive.hourly.wind_gusts_10m[idx] : wind * 1.3).toFixed(1));
+          const solar = archive.hourly.shortwave_radiation ? (archive.hourly.shortwave_radiation[idx] ?? 0) : 0;
+          let visibility = wind > 28 ? 6500 : 10000;
+          let pm10Val = wind > 28 ? 75 : 40;
 
-          // Apply anomaly offsets
-          let pm10Val = 40;
-          if (activeAnomaly === 'EL_NINO') {
-            temp = Number((temp + 2.2).toFixed(1));
-            rh = Math.max(5, Math.min(100, Math.round(rh - 12)));
-            wind = Number((wind * 0.85).toFixed(1));
-            gusts = Number((gusts * 0.85).toFixed(1));
-            visibility = Math.max(100, visibility - 3000);
-            pm10Val = Math.round(pm10Val * 1.6);
-          } else if (activeAnomaly === 'LA_NINA') {
-            temp = Number((temp - 1.5).toFixed(1));
-            rh = Math.max(5, Math.min(100, Math.round(rh + 15)));
-            wind = Number((wind * 1.25).toFixed(1));
-            gusts = Number((gusts * 1.25).toFixed(1));
-            visibility = Math.max(100, visibility + 1500);
-            pm10Val = Math.round(pm10Val * 0.75);
-          }
-
-          // Estimate UV index from hour for clear skies
+          // Derive UV from actual historical shortwave solar irradiance (W/m²) when available
           let uv = 0;
-          if (hr >= 6 && hr <= 18) {
-            uv = Math.round(peakUv * Math.sin(Math.PI * (hr - 6) / 12));
+          if (solar > 0) {
+            uv = Number(Math.min(12.0, solar / 88).toFixed(1));
+          } else if (hr >= 6 && hr <= 18) {
+            uv = Number((peakUv * Math.sin(Math.PI * (hr - 6) / 12)).toFixed(1));
           }
 
           const dp = calculateDewPoint(temp, rh);
-          const wbgt = calculateWBGT(temp, rh, wind, uv);
+          const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
 
           // Check midday work ban compliance
           let isMiddayBanActive = false;
@@ -330,7 +376,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
     return () => {
       active = false;
     };
-  }, [selectedDate, planningSource]);
+  }, [selectedDate, planningSource, hourlyData, isSimulated]);
 
   // Aggregate Key Planning Statistics
   const getPlanningStats = () => {

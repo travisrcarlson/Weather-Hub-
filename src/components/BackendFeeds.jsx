@@ -134,29 +134,29 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
           hq_station: {
             title: apiData.stations.hq?.current?.sectorTitle || "HQ Command Sector",
             temp: `${apiData.stations.hq?.current?.temperature_2m}°C`,
-            wind: `${apiData.stations.hq?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.hq?.current?.wind_speed_100m || Math.round(apiData.stations.hq?.current?.wind_speed_10m * 1.35)} km/h)`,
-            solar: `${apiData.stations.hq?.current?.solar_radiation || 850} W/m²`,
+            wind: `${apiData.stations.hq?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.hq?.current?.wind_speed_100m ?? Math.round(apiData.stations.hq?.current?.wind_speed_10m * 1.28)} km/h)`,
+            solar: `${apiData.stations.hq?.current?.solar_radiation ?? 0} W/m²`,
             humidity: `${apiData.stations.hq?.current?.relative_humidity_2m}%`
           },
           north_corridor: {
             title: apiData.stations.north?.current?.sectorTitle || "Heavy Ballistics & Drone Range",
             temp: `${apiData.stations.north?.current?.temperature_2m}°C`,
-            wind: `${apiData.stations.north?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.north?.current?.wind_speed_100m || Math.round(apiData.stations.north?.current?.wind_speed_10m * 1.35)} km/h)`,
-            solar: `${apiData.stations.north?.current?.solar_radiation || 890} W/m²`,
+            wind: `${apiData.stations.north?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.north?.current?.wind_speed_100m ?? Math.round(apiData.stations.north?.current?.wind_speed_10m * 1.28)} km/h)`,
+            solar: `${apiData.stations.north?.current?.solar_radiation ?? 0} W/m²`,
             humidity: `${apiData.stations.north?.current?.relative_humidity_2m}%`
           },
           south_desert: {
             title: apiData.stations.south?.current?.sectorTitle || "Desert Durability Sector",
             temp: `${apiData.stations.south?.current?.temperature_2m}°C`,
-            wind: `${apiData.stations.south?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.south?.current?.wind_speed_100m || Math.round(apiData.stations.south?.current?.wind_speed_10m * 1.35)} km/h)`,
-            solar: `${apiData.stations.south?.current?.solar_radiation || 980} W/m²`,
+            wind: `${apiData.stations.south?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.south?.current?.wind_speed_100m ?? Math.round(apiData.stations.south?.current?.wind_speed_10m * 1.28)} km/h)`,
+            solar: `${apiData.stations.south?.current?.solar_radiation ?? 0} W/m²`,
             humidity: `${apiData.stations.south?.current?.relative_humidity_2m}%`
           },
           sea_boundary: {
             title: apiData.stations.sea?.current?.sectorTitle || "Sea Spit & Marine Boundary",
             temp: `${apiData.stations.sea?.current?.temperature_2m}°C`,
-            wind: `${apiData.stations.sea?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.sea?.current?.wind_speed_100m || Math.round(apiData.stations.sea?.current?.wind_speed_10m * 1.35)} km/h)`,
-            solar: `${apiData.stations.sea?.current?.solar_radiation || 780} W/m²`,
+            wind: `${apiData.stations.sea?.current?.wind_speed_10m} km/h (100m: ${apiData.stations.sea?.current?.wind_speed_100m ?? Math.round(apiData.stations.sea?.current?.wind_speed_10m * 1.28)} km/h)`,
+            solar: `${apiData.stations.sea?.current?.solar_radiation ?? 0} W/m²`,
             humidity: `${apiData.stations.sea?.current?.relative_humidity_2m}%`
           }
         } : "Nodes initialized on active stream",
@@ -165,15 +165,17 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
           timestamp: apiData.current.time,
           temperature_2m: `${apiData.current.temperature_2m}°C`,
           apparent_temperature: `${apiData.current.apparent_temperature}°C`,
+          soil_temperature_0cm: `${apiData.current.soil_temperature_0cm ?? apiData.current.temperature_2m}°C`,
           relative_humidity: `${apiData.current.relative_humidity_2m}%`,
           surface_wind_10m: `${apiData.current.wind_speed_10m} km/h`,
-          boundary_wind_100m: `${apiData.current.wind_speed_100m || Math.round(apiData.current.wind_speed_10m * 1.35)} km/h`,
-          wind_gusts_100m: `${apiData.current.wind_gusts_100m || Math.round(apiData.current.wind_speed_10m * 1.8)} km/h`,
-          solar_radiation: `${apiData.current.solar_radiation || 850} W/m²`,
+          boundary_wind_100m: `${apiData.current.wind_speed_100m ?? Math.round(apiData.current.wind_speed_10m * 1.28)} km/h`,
+          wind_gusts_100m: `${apiData.current.wind_gusts_100m ?? Math.round(apiData.current.wind_speed_10m * 1.65)} km/h`,
+          solar_radiation: `${apiData.current.solar_radiation ?? 0} W/m²`,
           uv_index: apiData.current.uv_index,
           visibility: `${apiData.current.visibility} m`,
           cloud_cover: `${apiData.current.cloud_cover}%`,
-          surface_pressure: `${apiData.current.pressure_msl} hPa`
+          surface_pressure: `${apiData.current.pressure_msl} hPa`,
+          cape: `${apiData.current.cape ?? 0} J/kg`
         } : "Awaiting telemetry stream...",
         satelliteTelemetry: apiData?.meta?.satelliteTelemetry || {
           sensor: "EUMETSAT Meteosat-11 IODC (41.5°E)",
@@ -203,44 +205,69 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
       latency: isOffline ? null : (feeds.weather?.latency || 145),
       lastPing: feeds.weather?.lastPing || new Date().toISOString(),
       payload: feeds.weather?.payload || (apiData?.current ? {
-        latitude: apiData.latitude || 24.2,
-        longitude: apiData.longitude || 52.78,
+        latitude: apiData.latitude || 24.195,
+        longitude: apiData.longitude || 53.86,
         timezone: apiData.timezone || "Asia/Dubai",
         current: {
           temperature_2m: apiData.current.temperature_2m,
           relative_humidity_2m: apiData.current.relative_humidity_2m,
           wind_speed_10m: apiData.current.wind_speed_10m,
+          wind_speed_100m: apiData.current.wind_speed_100m,
+          shortwave_radiation: apiData.current.solar_radiation,
           uv_index: apiData.current.uv_index
         }
       } : null),
-      calibrationTitle: 'Local UV Index & Climate Anomalies Calibration',
+      calibrationTitle: 'Multi-Point NWP & Upper-Air Boundary Calibration',
       calibration: [
-        '🏜️ Desert Albedo Calibration: Open-Meteo GFS UV Index values are multiplied by 1.3x (capped at 12.0) to compensate for solar radiation reflecting off high-reflectivity desert sands.',
-        '🌀 Climatic Anomaly Scaling: If simulated in an anomaly year, temperature is offset (+2.2°C for El Niño / -1.5°C for La Niña).'
+        '📍 4-Sector Multi-Point Query: Queries HQ (24.195°N, 53.860°E), Range North, Range South, and Sea Boundary simultaneously.',
+        '🌬️ 80m / 120m Boundary Interpolation: Derives true 100m AGL wind shear directly from NWP 80m and 120m vertical levels plus 0cm ground skin temperature.'
       ]
     },
     {
       id: 'aqi',
-      name: 'Open-Meteo Air Quality API',
+      name: 'Open-Meteo CAMS Air Quality & Dust API',
       url: feeds.aqi?.url || 'https://air-quality-api.open-meteo.com/v1/air-quality',
-      description: 'Fetches live PM10 and PM2.5 particulate concentrations to audit regional sandstorm and dust levels concurrently with WeatherNext 3.',
+      description: 'Fetches live European AQI, PM10, PM2.5, CAMS mineral desert dust (µg/m³), and Aerosol Optical Depth concurrently.',
       status: getFeedStatus(),
       statusCode: feeds.aqi?.statusCode || (isOffline ? 503 : 200),
       latency: isOffline ? null : (feeds.aqi?.latency || 115),
       lastPing: feeds.aqi?.lastPing || new Date().toISOString(),
       payload: feeds.aqi?.payload || (apiData?.current ? {
-        latitude: apiData.latitude || 24.2,
-        longitude: apiData.longitude || 52.78,
+        latitude: apiData.latitude || 24.195,
+        longitude: apiData.longitude || 53.86,
         timezone: apiData.timezone || "Asia/Dubai",
         current: {
+          european_aqi: apiData.current.european_aqi,
           pm10: apiData.current.pm10,
-          pm2_5: apiData.current.pm2_5
+          pm2_5: apiData.current.pm2_5,
+          dust: apiData.current.dust
         }
       } : null),
-      calibrationTitle: 'Breathing Air Quality Index Mapping',
+      calibrationTitle: 'CAMS Mineral Dust & AQI Thresholds',
       calibration: [
-        '💨 PM10 to AQI Conversion: PM10 concentration (ug/m3) is scaled by 0.9 to align with local Air Quality index ranges.',
-        '😷 Personnel Threshold Alerts: Feeds trigger ADOSH outdoor work warnings when PM10 values exceed 150 ug/m3 (High Dust Hazard).'
+        '🏜️ CAMS Desert Dust Tracking: Directly monitors airborne mineral dust (µg/m³) and Aerosol Optical Depth to distinguish sandstorms from coastal mist.',
+        '😷 Personnel Threshold Alerts: Triggers ADOSH outdoor respiratory warnings when PM10 exceeds 155 µg/m³.'
+      ]
+    },
+    {
+      id: 'marine',
+      name: 'Open-Meteo Persian Gulf Marine & Wave API',
+      url: feeds.marine?.url || 'https://marine-api.open-meteo.com/v1/marine',
+      description: 'Ingests live Significant Wave Height (m), Wave Period (s), Wave Direction, and Sea Surface Temperature (°C) for the Abu Al Abyad coastal channel.',
+      status: getFeedStatus(),
+      statusCode: feeds.marine?.statusCode || (isOffline ? 503 : 200),
+      latency: isOffline ? null : (feeds.marine?.latency || 95),
+      lastPing: feeds.marine?.lastPing || new Date().toISOString(),
+      payload: feeds.marine?.payload || (apiData?.marine || {
+        latitude: 24.23,
+        longitude: 53.89,
+        wave_height: apiData?.current?.wave_height ?? null,
+        sea_surface_temperature: apiData?.current?.sea_surface_temperature ?? null
+      }),
+      calibrationTitle: 'Marine Spit & Amphibious Safety Gates',
+      calibration: [
+        '🌊 Live Wave Telemetry: Grounds Sea Boundary and Z11 Marine cards with real Persian Gulf wave height and sea surface temperature.',
+        '⚓ Amphibious Thresholds: Flags Caution at ≥0.9m wave height and No-Go at ≥1.5m wave height.'
       ]
     },
     {
@@ -256,7 +283,7 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
       lastPing: currentProvider === PROVIDERS.UAE_NCM ? (apiMeta?.weather?.lastPing || new Date().toISOString()) : null,
       payload: {
         agency: "National Center of Meteorology (NCM), UAE",
-        stationCoordinates: "Abu Al Abyad Sector (24.20°N, 52.78°E)",
+        stationCoordinates: "Abu Al Abyad Sector (24.195°N, 53.860°E)",
         alertProtocol: "NCM Early Warning Matrix (Heat, Wind, Sandstorm, Lightning)",
         interAgencyFeed: "Live Secure Gateway",
         status: currentProvider === PROVIDERS.UAE_NCM ? "ACTIVE OPERATIONAL FEED" : "STANDBY PROTOCOL"

@@ -12,6 +12,7 @@ import {
   calculate100mWindShear,
   calculateAtmosphericDensity
 } from '../utils/tacticalBallisticsEngine';
+import { calculateDewPoint } from '../utils/safetyEngine';
 import { stationsList } from './XRangeMap';
 
 // Standard UAV Airframe Profiles operated at X-Range
@@ -118,17 +119,20 @@ export default function PilotConsole({
     : baseAirframe;
 
   // Extract live meteorological values with safe defaults
-  const surfaceWindKmh = Number(stationReadings?.wind_speed_10m ?? 22);
-  const surfaceGustKmh = Number(stationReadings?.wind_gusts_10m ?? (surfaceWindKmh * 1.38));
+  const surfaceWindKmh = Number(stationReadings?.wind_speed_10m ?? 18);
+  const surfaceGustKmh = Number(stationReadings?.wind_gusts_10m ?? (surfaceWindKmh * 1.35));
   const windDirDeg = Number(stationReadings?.wind_direction_10m ?? 315);
-  const tempC = Number(stationReadings?.temperature_2m ?? 39.5);
-  const rhPct = Number(stationReadings?.relative_humidity_2m ?? 32);
-  const pressureHpa = Number(stationReadings?.surface_pressure ?? 1011.2);
+  const tempC = Number(stationReadings?.temperature_2m ?? 30.0);
+  const rhPct = Number(stationReadings?.relative_humidity_2m ?? 45);
+  const pressureHpa = Number(stationReadings?.pressure_msl ?? stationReadings?.surface_pressure ?? 1012.0);
   const visibilityM = Number(stationReadings?.visibility ?? 10000);
   const visibilityKm = Number((visibilityM / 1000).toFixed(1));
-  const uvIndex = Number(stationReadings?.uv_index ?? 9);
-  const solarWm2 = Number(stationReadings?.solar_radiation ?? (uvIndex * 92));
-  const pm10 = Number(stationReadings?.pm10 ?? 45);
+  const uvIndex = Number(stationReadings?.uv_index ?? 0);
+  const solarWm2 = Number(stationReadings?.solar_radiation ?? (uvIndex > 0 ? uvIndex * 88 : 0));
+  const pm10 = Number(stationReadings?.pm10 ?? 42);
+  const soilTemp0cm = stationReadings?.soil_temperature_0cm ?? null;
+  const cloudCoverPct = Number(stationReadings?.cloud_cover ?? 10);
+  const dustUgm3 = Number(stationReadings?.dust ?? 25);
 
   // 100m Boundary layer wind & vertical shear calculation
   const rawWind100m = stationReadings?.wind_speed_100m !== undefined
@@ -269,8 +273,9 @@ export default function PilotConsole({
     }
 
     // EO/IR FLIR Thermal Crossover & Optical Quality
-    // In desert environments, sand temp equals target temp around 08:30-09:30 and 16:30-17:30, or saturates at midday
-    const sandSurfaceTempC = Number((tempC + (solarWm2 / 1000) * 18).toFixed(1));
+    // Grounded in Open-Meteo soil_temperature_0cm when available, plus solar surface heating
+    const baseGroundC = soilTemp0cm !== null && soilTemp0cm !== undefined ? Number(soilTemp0cm) : tempC;
+    const sandSurfaceTempC = Number((Math.max(baseGroundC, tempC + (solarWm2 / 1000) * 16)).toFixed(1));
     const tempContrastDelta = Math.abs(sandSurfaceTempC - 37.0); // vs 37°C human/vehicle baseline
     let flirStatus = 'OPTIMAL IR CONTRAST';
     let flirColor = 'text-safetyGreen';
@@ -295,7 +300,7 @@ export default function PilotConsole({
       flirStatus,
       flirColor
     };
-  }, [atmData.airDensityRatio, surfaceWindKmh, airframe, solarWm2, tempC, visibilityKm, pm10]);
+  }, [atmData.airDensityRatio, surfaceWindKmh, airframe, solarWm2, tempC, soilTemp0cm, visibilityKm, pm10]);
 
   // Master Go / Caution / No-Go Evaluation
   const masterClearance = useMemo(() => {
@@ -368,9 +373,10 @@ export default function PilotConsole({
     atmData.densityAltitudeFt
   ]);
 
-  // 12-Hour Diurnal UAV Flight Window Chart Data
+  // 12-Hour Diurnal UAV Flight Window Chart Data (using active sector's hourly stream)
   const hourlyChartData = useMemo(() => {
-    if (!data?.hourly?.time) return [];
+    const activeHourly = data?.stations?.[activeStation]?.hourly || data?.hourly;
+    if (!activeHourly?.time) return [];
     const now = currentTime || new Date();
     const formatter = new Intl.DateTimeFormat('en-US', {
       timeZone: 'Asia/Dubai',
@@ -384,19 +390,19 @@ export default function PilotConsole({
     const getPart = (type) => parts.find(p => p.type === type)?.value || '00';
     const currentKey = `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour') === '24' ? '00' : getPart('hour')}`;
 
-    let startIdx = data.hourly.time.findIndex(t => t.startsWith(currentKey));
+    let startIdx = activeHourly.time.findIndex(t => t.startsWith(currentKey));
     if (startIdx === -1) startIdx = 0;
 
     const slice = [];
     for (let i = 0; i < 12; i++) {
       const idx = startIdx + i;
-      if (idx >= data.hourly.time.length) break;
-      const tStr = data.hourly.time[idx];
+      if (idx >= activeHourly.time.length) break;
+      const tStr = activeHourly.time[idx];
       const hrLabel = tStr.slice(11, 16);
-      const w10 = Number((data.hourly.wind_speed_10m?.[idx] ?? surfaceWindKmh).toFixed(1));
-      const g10 = Number((data.hourly.wind_gusts_10m?.[idx] ?? (w10 * 1.35)).toFixed(1));
-      const w100 = data.hourly.wind_speed_100m?.[idx] !== undefined
-        ? Number(data.hourly.wind_speed_100m[idx].toFixed(1))
+      const w10 = Number((activeHourly.wind_speed_10m?.[idx] ?? surfaceWindKmh).toFixed(1));
+      const g10 = Number((activeHourly.wind_gusts_10m?.[idx] ?? (w10 * 1.35)).toFixed(1));
+      const w100 = activeHourly.wind_speed_100m?.[idx] !== undefined
+        ? Number(activeHourly.wind_speed_100m[idx].toFixed(1))
         : Number((w10 * Math.pow(100 / 10, 0.24)).toFixed(1));
 
       slice.push({
@@ -407,9 +413,9 @@ export default function PilotConsole({
       });
     }
     return slice;
-  }, [data, currentTime, surfaceWindKmh]);
+  }, [data, activeStation, currentTime, surfaceWindKmh]);
 
-  // Generate synthetic aviation METAR string for Abu Al Abyad Island (OMAB)
+  // Generate grounded aviation METAR string for Abu Al Abyad Island (OMAB)
   const metarString = useMemo(() => {
     const now = currentTime || new Date();
     const dd = String(now.getUTCDate()).padStart(2, '0');
@@ -419,13 +425,27 @@ export default function PilotConsole({
     const spdKts = String(Math.round(surfaceWindKmh * 0.539957)).padStart(2, '0');
     const gstKts = String(Math.round(surfaceGustKmh * 0.539957)).padStart(2, '0');
     const visCode = visibilityM >= 9999 ? '9999' : String(Math.round(visibilityM / 100) * 100).padStart(4, '0');
+    const wxGroup = visibilityM < 1000
+      ? ' DS'
+      : visibilityM < 5000
+      ? (dustUgm3 >= 60 ? ' DU' : ' HZ')
+      : '';
+    const skyGroup = cloudCoverPct < 10
+      ? 'SKC'
+      : cloudCoverPct < 25
+      ? 'FEW040'
+      : cloudCoverPct < 50
+      ? 'SCT045'
+      : cloudCoverPct < 85
+      ? 'BKN050'
+      : 'OVC050';
     const tPad = String(Math.round(tempC)).padStart(2, '0');
-    const dpC = Math.round(tempC - ((100 - rhPct) / 5));
+    const dpC = Math.round(calculateDewPoint(tempC, rhPct));
     const dpPad = String(Math.max(0, dpC)).padStart(2, '0');
     const qnh = String(Math.round(pressureHpa)).padStart(4, '0');
 
-    return `METAR OMAB ${dd}${hh}${mm}Z ${dirPad}${spdKts}G${gstKts}KT ${visCode} NSC ${tPad}/${dpPad} Q${qnh} RMK DA${atmData.densityAltitudeFt}FT WN100/${Math.round(shearData.boundaryWind100mKmh * 0.54)}KT`;
-  }, [currentTime, windDirDeg, surfaceWindKmh, surfaceGustKmh, visibilityM, tempC, rhPct, pressureHpa, atmData.densityAltitudeFt, shearData.boundaryWind100mKmh]);
+    return `METAR OMAB ${dd}${hh}${mm}Z ${dirPad}${spdKts}G${gstKts}KT ${visCode}${wxGroup} ${skyGroup} ${tPad}/${dpPad} Q${qnh} RMK DA${atmData.densityAltitudeFt}FT WN100/${Math.round(shearData.boundaryWind100mKmh * 0.54)}KT`;
+  }, [currentTime, windDirDeg, surfaceWindKmh, surfaceGustKmh, visibilityM, dustUgm3, cloudCoverPct, tempC, rhPct, pressureHpa, atmData.densityAltitudeFt, shearData.boundaryWind100mKmh]);
 
   const handleCopyMetar = () => {
     navigator.clipboard.writeText(metarString);
