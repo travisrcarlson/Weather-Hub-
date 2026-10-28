@@ -120,6 +120,10 @@ export default function PilotConsole({
   const [runwayHeading, setRunwayHeading] = useState(310);
   const [selectedRunwayId, setSelectedRunwayId] = useState('RAIL_310');
 
+  // Goal Ground Speed Calculator state
+  const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
+  const [calcAltitudeM, setCalcAltitudeM] = useState(100);
+
   // RPIC Pre-Flight Safety Gate Checklist state
   const [checkedItems, setCheckedItems] = useState({
     bat: true,
@@ -410,6 +414,108 @@ export default function PilotConsole({
     rhPct
   ]);
 
+  // Goal Ground Speed Calculator (Wind Triangle, Crab Angle, Required TAS/IAS, Throttle & 5km Leg Burn)
+  const groundSpeedSolver = useMemo(() => {
+    const vg = Math.max(5, Math.min(180, Number(goalGroundSpeedKmh) || 45));
+    const altObj = altitudeLadder.find(l => l.altM === calcAltitudeM) || altitudeLadder[2];
+    const windSpd = altObj?.speedKmh ?? surfaceWindKmh;
+    const gustSpd = altObj?.gustKmh ?? surfaceGustKmh;
+    const windDir = altObj?.dirDeg ?? windDirDeg;
+
+    // Angle between wind-from direction and desired course track (runwayHeading)
+    const deltaRad = (((windDir - runwayHeading) + 360) % 360) * (Math.PI / 180);
+    const headwindComp = windSpd * Math.cos(deltaRad); // + = headwind, - = tailwind
+    const crosswindComp = windSpd * Math.sin(deltaRad); // + = from right, - = from left
+
+    const gustHeadwind = gustSpd * Math.cos(deltaRad);
+    const gustCrosswind = gustSpd * Math.sin(deltaRad);
+
+    // Wind Triangle: V_air_vector = (Vg + W_head, W_cross)
+    const reqTasKmh = Number(Math.sqrt(Math.pow(vg + headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
+    const reqTasGustKmh = Number(Math.sqrt(Math.pow(vg + gustHeadwind, 2) + Math.pow(gustCrosswind, 2)).toFixed(1));
+    const reqIasKmh = Number((reqTasKmh * Math.sqrt(Math.max(0.7, atmData.airDensityRatio))).toFixed(1));
+
+    // Reciprocal Return-Leg Required TAS (holding same Vg on opposite track)
+    const returnTasKmh = Number(Math.sqrt(Math.pow(vg - headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
+
+    // Wind Correction Angle (Crab Angle) & Required Compass Heading to Fly
+    const wcaRad = Math.atan2(crosswindComp, vg + headwindComp);
+    const wcaDeg = Number(((wcaRad * 180) / Math.PI).toFixed(1));
+    const wcaAbs = Math.abs(wcaDeg);
+    const wcaDir = wcaAbs < 0.4 ? '0°' : wcaDeg > 0 ? `+${wcaAbs}° R` : `-${wcaAbs}° L`;
+    const commandHeadingDeg = Math.round((runwayHeading + wcaDeg + 360) % 360);
+
+    // Airframe Max Airspeed & Propulsion Demand
+    const maxAirspeedKmh = Math.round((airframe.cruiseSpeedKmh || 54) * 1.32);
+    const speedRatio = reqTasKmh / Math.max(25, maxAirspeedKmh);
+    const reqPitchDeg = Number(Math.min(38, Math.max(4, speedRatio * 28)).toFixed(1));
+    const reqThrottlePct = Math.min(
+      100,
+      Math.round(aeroPerformance.estHoverThrottlePct * 0.72 + Math.pow(speedRatio, 1.65) * 52)
+    );
+
+    // 5 km Range Corridor Transit Time & Battery Consumption
+    const legTimeMinFloat = (5 / vg) * 60;
+    const legMin = Math.floor(legTimeMinFloat);
+    const legSec = Math.round((legTimeMinFloat - legMin) * 60);
+    const legTime5kmStr = `${legMin}m ${String(legSec).padStart(2, '0')}s`;
+
+    // Battery burn rate scales with flight time and (reqTas / cruiseSpeed)^1.5
+    const powerMultiplier = Math.max(0.75, Math.pow(reqTasKmh / Math.max(25, airframe.cruiseSpeedKmh || 54), 1.45));
+    const legBatteryPct = Math.min(
+      99,
+      Math.max(2, Math.round(((legTimeMinFloat / Math.max(10, aeroPerformance.effectiveEnduranceMin)) * 100) * powerMultiplier))
+    );
+
+    let status = 'ACHIEVABLE';
+    let statusColor = 'bg-safetyGreen/20 border-safetyGreen/40 text-safetyGreen';
+    if (reqTasKmh > maxAirspeedKmh) {
+      status = `EXCEEDS V_MAX (${maxAirspeedKmh} KPH)`;
+      statusColor = 'bg-stopRed/20 border-stopRed/40 text-stopRed';
+    } else if (reqTasGustKmh > maxAirspeedKmh || reqThrottlePct >= 88) {
+      status = 'HIGH POWER / GUST LIMIT';
+      statusColor = 'bg-amberAlert/20 border-amberAlert/40 text-amberAlert';
+    }
+
+    return {
+      vg,
+      vgMs: Number((vg / 3.6).toFixed(1)),
+      vgKts: Number((vg * 0.539957).toFixed(1)),
+      windSpd,
+      gustSpd,
+      windDir,
+      headwindComp: Number(headwindComp.toFixed(1)),
+      crosswindComp: Number(Math.abs(crosswindComp).toFixed(1)),
+      reqTasKmh,
+      reqTasKts: Number((reqTasKmh * 0.539957).toFixed(1)),
+      reqTasGustKmh,
+      reqIasKmh,
+      returnTasKmh,
+      wcaDeg,
+      wcaDir,
+      commandHeadingDeg,
+      maxAirspeedKmh,
+      reqPitchDeg,
+      reqThrottlePct,
+      legTime5kmStr,
+      legBatteryPct,
+      status,
+      statusColor
+    };
+  }, [
+    goalGroundSpeedKmh,
+    calcAltitudeM,
+    altitudeLadder,
+    surfaceWindKmh,
+    surfaceGustKmh,
+    windDirDeg,
+    runwayHeading,
+    atmData.airDensityRatio,
+    airframe.cruiseSpeedKmh,
+    aeroPerformance.estHoverThrottlePct,
+    aeroPerformance.effectiveEnduranceMin
+  ]);
+
   // 4-Sector Multi-Pad Readiness Matrix (Evaluates all 4 pads on Abu Al Abyad Island)
   const sectorReadinessMatrix = useMemo(() => {
     return stationsList.map(st => {
@@ -669,6 +775,7 @@ ${altitudeLadder.map(l => `${l.label.padEnd(15)} ${String(l.speedKmh + ' km/h ('
 * Downwind Groundspeed:    ${aeroPerformance.outboundGroundspeedKmh} km/h | Upwind Return: ${aeroPerformance.returnGroundspeedKmh} km/h
 * Max Safe RTH Radius:     ${aeroPerformance.maxSafeRadiusKm} km (Point of Safe Return)
 * Mandatory RTH Bingo:     ${aeroPerformance.bingoBatteryPct}% Battery Remaining
+* Goal Ground Speed (${groundSpeedSolver.vg} km/h @ ${calcAltitudeM}m AGL): Req TAS ${groundSpeedSolver.reqTasKmh} km/h | Crab ${groundSpeedSolver.wcaDir} (Fly ${groundSpeedSolver.commandHeadingDeg}°) | Throttle ${groundSpeedSolver.reqThrottlePct}% | 5km Leg ${groundSpeedSolver.legTime5kmStr} (${groundSpeedSolver.legBatteryPct}% Bat)
 
 ----------------------------------------------------------------------
 4. DENSITY ALTITUDE, PAYLOAD HOVER & SENSOR DIAGNOSTICS
@@ -1260,15 +1367,135 @@ Range Safety Officer (RSO):     ______________________  Time: __________
 
         </div>
 
-        {/* RIGHT COLUMN (4 Cols): Density Altitude, Thermal Updrafts & C2 RF / EO-IR / LiDAR Diagnostics */}
+        {/* RIGHT COLUMN (4 Cols): Goal Ground Speed Calculator, Density Altitude & Thermal / C2 / EO-IR Diagnostics */}
         <div className="lg:col-span-4 flex flex-col justify-between space-y-2.5 min-h-0 overflow-y-auto no-scrollbar">
           
-          {/* Desert Density Altitude & Rotor Thrust Loss Card */}
+          {/* Interactive Goal Ground Speed Calculator (Wind Triangle & Thrust Solver) */}
           <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
               <div className="flex items-center space-x-1.5">
-                <Gauge className="w-4 h-4 text-amber-400" />
+                <Navigation className="w-4 h-4 text-cyan-400" />
                 <span className="text-[10px] font-black uppercase tracking-wider text-white">
+                  GOAL GROUND SPEED CALCULATOR (VG SOLVER)
+                </span>
+              </div>
+              <span className={`text-[7.5px] font-black uppercase px-1.5 py-0.5 rounded border ${groundSpeedSolver.statusColor}`}>
+                {groundSpeedSolver.status}
+              </span>
+            </div>
+
+            {/* Goal Speed Input Box + Slider + Altitude Selector */}
+            <div className="bg-bgDeepSpace/80 p-2 rounded-lg border border-slate-800 mb-2">
+              <div className="flex items-center justify-between gap-2 mb-1.5">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-[8px] font-black uppercase text-slate-300">GOAL VG:</span>
+                  <input
+                    type="number"
+                    min="5"
+                    max="180"
+                    value={goalGroundSpeedKmh}
+                    onChange={(e) => setGoalGroundSpeedKmh(Math.max(5, Math.min(180, Number(e.target.value) || 0)))}
+                    className="w-14 bg-slate-950 border border-cyan-500/50 rounded px-1.5 py-0.5 text-xs font-mono font-black text-white text-center focus:border-edgeOrange outline-none"
+                  />
+                  <span className="text-[8px] font-mono text-slate-400">
+                    km/h ({groundSpeedSolver.vgMs} m/s • {groundSpeedSolver.vgKts} kt)
+                  </span>
+                </div>
+
+                {/* Altitude Level Selector */}
+                <div className="flex items-center space-x-0.5 bg-slate-950 p-0.5 rounded border border-slate-800">
+                  {[10, 50, 100, 150].map(alt => (
+                    <button
+                      key={alt}
+                      type="button"
+                      onClick={() => setCalcAltitudeM(alt)}
+                      className={`px-1.5 py-0.5 rounded text-[7.5px] font-mono font-black cursor-pointer transition ${
+                        calcAltitudeM === alt
+                          ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/40'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {alt}m
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <input
+                type="range"
+                min="10"
+                max="140"
+                step="1"
+                value={goalGroundSpeedKmh}
+                onChange={(e) => setGoalGroundSpeedKmh(Number(e.target.value))}
+                className="w-full accent-cyan-400 h-1 cursor-pointer"
+              />
+            </div>
+
+            {/* 6-Parameter Computed Output Grid */}
+            <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">REQ. AIRSPEED (TAS)</span>
+                <span className={`text-xs font-black ${
+                  groundSpeedSolver.reqTasKmh > groundSpeedSolver.maxAirspeedKmh ? 'text-stopRed' : 'text-white'
+                }`}>
+                  {groundSpeedSolver.reqTasKmh} km/h
+                </span>
+                <span className="text-[7px] text-slate-400 block">IAS: {groundSpeedSolver.reqIasKmh} kph</span>
+              </div>
+
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">CRAB / FLY HDG</span>
+                <span className="text-xs font-black text-cyan-300">
+                  {groundSpeedSolver.commandHeadingDeg}°
+                </span>
+                <span className="text-[7px] text-amber-400 block">WCA: {groundSpeedSolver.wcaDir}</span>
+              </div>
+
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">THROTTLE / PITCH</span>
+                <span className={`text-xs font-black ${
+                  groundSpeedSolver.reqThrottlePct >= 88 ? 'text-amberAlert' : 'text-safetyGreen'
+                }`}>
+                  {groundSpeedSolver.reqThrottlePct}%
+                </span>
+                <span className="text-[7px] text-slate-400 block">Tilt: -{groundSpeedSolver.reqPitchDeg}°</span>
+              </div>
+
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">GUST PEAK TAS</span>
+                <span className={`text-xs font-black ${
+                  groundSpeedSolver.reqTasGustKmh > groundSpeedSolver.maxAirspeedKmh ? 'text-amberAlert' : 'text-slate-200'
+                }`}>
+                  {groundSpeedSolver.reqTasGustKmh} km/h
+                </span>
+                <span className="text-[7px] text-slate-400 block">Vmax: {groundSpeedSolver.maxAirspeedKmh} kph</span>
+              </div>
+
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">5 KM LEG TIME</span>
+                <span className="text-xs font-black text-white">
+                  {groundSpeedSolver.legTime5kmStr}
+                </span>
+                <span className="text-[7px] text-cyan-300 block">Burn: ~{groundSpeedSolver.legBatteryPct}% Bat</span>
+              </div>
+
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">RETURN LEG TAS</span>
+                <span className="text-xs font-black text-amber-400">
+                  {groundSpeedSolver.returnTasKmh} km/h
+                </span>
+                <span className="text-[7px] text-slate-400 block">Recip. {(runwayHeading + 180) % 360}°</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Desert Density Altitude & Rotor Thrust Loss Card */}
+          <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
+              <div className="flex items-center space-x-1.5">
+                <Gauge className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-white">
                   DENSITY ALTITUDE & ROTOR LIFT EFFICIENCY
                 </span>
               </div>
@@ -1277,118 +1504,88 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 text-center my-0.5">
-              <div className="bg-bgDeepSpace/70 p-2 rounded-lg border border-slate-800">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase block">DENSITY ALTITUDE</span>
-                <span className="text-base font-mono font-black text-white">
-                  {atmData.densityAltitudeFt.toLocaleString()}
+            <div className="grid grid-cols-3 gap-1.5 text-center">
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded-lg border border-slate-800">
+                <span className="text-[7px] font-black text-slate-400 uppercase block">DENSITY ALTITUDE</span>
+                <span className="text-sm font-mono font-black text-white">
+                  {atmData.densityAltitudeFt.toLocaleString()} ft
                 </span>
-                <span className="text-[7.5px] font-mono text-slate-400 block">ft ISA ({atmData.densityAltitudeM}m)</span>
+                <span className="text-[7px] font-mono text-slate-400 block">ISA ({atmData.densityAltitudeM}m)</span>
               </div>
 
-              <div className="bg-bgDeepSpace/70 p-2 rounded-lg border border-slate-800">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase block">ROTOR LIFT EFF.</span>
-                <span className={`text-base font-mono font-black ${
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded-lg border border-slate-800">
+                <span className="text-[7px] font-black text-slate-400 uppercase block">ROTOR LIFT EFF.</span>
+                <span className={`text-sm font-mono font-black ${
                   aeroPerformance.liftEfficiencyPct < 90 ? 'text-amberAlert' : 'text-safetyGreen'
                 }`}>
                   {aeroPerformance.liftEfficiencyPct}%
                 </span>
-                <span className="text-[7.5px] font-mono text-slate-400 block">
+                <span className="text-[7px] font-mono text-slate-400 block">
                   -{aeroPerformance.thrustLossPct}% Thrust Loss
                 </span>
               </div>
 
-              <div className="bg-bgDeepSpace/70 p-2 rounded-lg border border-slate-800">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase block">NET ENDURANCE</span>
-                <span className="text-base font-mono font-black text-cyan-400">
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded-lg border border-slate-800">
+                <span className="text-[7px] font-black text-slate-400 uppercase block">NET ENDURANCE</span>
+                <span className="text-sm font-mono font-black text-cyan-400">
                   {aeroPerformance.effectiveEnduranceMin}m
                 </span>
-                <span className="text-[7.5px] font-mono text-slate-400 block">
+                <span className="text-[7px] font-mono text-slate-400 block">
                   @{aeroPerformance.activePayloadKg}kg load
                 </span>
               </div>
             </div>
-
-            <p className="text-[8px] text-slate-400 mt-1.5 leading-snug">
-              At <strong className="text-white">{tempC.toFixed(1)}°C</strong> ({atmData.airDensity} kg/m³), carrying <strong className="text-white">{aeroPerformance.activePayloadKg} kg</strong> requires <strong className="text-amber-400">{aeroPerformance.estHoverThrottlePct}% hover throttle</strong> and sets RTH Bingo at <strong className="text-cyan-300">{aeroPerformance.bingoBatteryPct}% battery</strong>.
-            </p>
           </div>
 
-          {/* Desert Thermal Updraft & Convection Turbulence Card */}
-          <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
+          {/* Combined Thermal Updraft, C2 RF Link, EO/IR FLIR & LiDAR Diagnostics Card */}
+          <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-2.5 flex flex-col justify-between flex-grow">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1 mb-1.5">
               <div className="flex items-center space-x-1.5">
-                <Sun className="w-4 h-4 text-edgeOrange" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-white">
-                  DESERT THERMAL UPDRAFT & TURBULENCE
+                <Eye className="w-3.5 h-3.5 text-purple-400" />
+                <span className="text-[9.5px] font-black uppercase tracking-wider text-white">
+                  THERMAL, C2 RF LINK & EO/IR / LIDAR DIAGNOSTICS
                 </span>
               </div>
-              <span className="text-[8px] font-mono font-bold text-slate-300">
-                FLUX: {Math.round(solarWm2)} W/m²
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between bg-bgDeepSpace/70 p-2 rounded-lg border border-slate-800 mb-1.5">
-              <div>
-                <span className="text-[7.5px] font-black text-slate-400 uppercase block">CONVECTIVE UPDRAFT STATUS</span>
-                <span className={`text-xs font-black uppercase ${aeroPerformance.thermalColor}`}>
-                  {aeroPerformance.thermalRisk}
-                </span>
-              </div>
-              <div className="text-right font-mono">
-                <span className="text-[7.5px] text-slate-400 block uppercase">THERMAL INDEX</span>
-                <span className="text-sm font-black text-white">{aeroPerformance.thermalIndex}</span>
-              </div>
-            </div>
-
-            <p className="text-[8px] text-slate-300 leading-snug">
-              {aeroPerformance.thermalDesc}
-            </p>
-          </div>
-
-          {/* EO/IR FLIR Polarity, LiDAR Extinction & Coastal C2 RF Ducting Card */}
-          <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-3 flex flex-col justify-between flex-grow">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
-              <div className="flex items-center space-x-1.5">
-                <Eye className="w-4 h-4 text-purple-400" />
-                <span className="text-[10px] font-black uppercase tracking-wider text-white">
-                  C2 RF LINK, EO/IR FLIR & LIDAR DIAGNOSTICS
-                </span>
-              </div>
-              <span className={`text-[8px] font-black uppercase ${aeroPerformance.flirColor}`}>
+              <span className={`text-[7.5px] font-black uppercase ${aeroPerformance.flirColor}`}>
                 {aeroPerformance.flirStatus}
               </span>
             </div>
 
-            <div className="grid grid-cols-4 gap-1.5 text-center my-auto">
+            <div className="grid grid-cols-5 gap-1 text-center my-auto">
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
-                <span className="text-[7px] font-black text-slate-400 uppercase block">SAND SKIN</span>
-                <span className="text-xs font-mono font-black text-amber-400">
+                <span className="text-[6.5px] font-black text-slate-400 uppercase block">THERMALS</span>
+                <span className={`text-[10px] font-mono font-black ${aeroPerformance.thermalColor}`}>
+                  {aeroPerformance.thermalIndex}
+                </span>
+              </div>
+              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+                <span className="text-[6.5px] font-black text-slate-400 uppercase block">SAND SKIN</span>
+                <span className="text-[10px] font-mono font-black text-amber-400">
                   {aeroPerformance.sandSurfaceTempC}°C
                 </span>
               </div>
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
-                <span className="text-[7px] font-black text-slate-400 uppercase block">FLIR MODE</span>
-                <span className="text-xs font-mono font-black text-purple-300">
+                <span className="text-[6.5px] font-black text-slate-400 uppercase block">FLIR MODE</span>
+                <span className="text-[10px] font-mono font-black text-purple-300">
                   {aeroPerformance.recommendedFlirPolarity}
                 </span>
               </div>
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
-                <span className="text-[7px] font-black text-slate-400 uppercase block">LIDAR LOSS</span>
-                <span className="text-xs font-mono font-black text-cyan-300">
-                  {aeroPerformance.lidarExtinctionDbKm} dB/km
+                <span className="text-[6.5px] font-black text-slate-400 uppercase block">LIDAR LOSS</span>
+                <span className="text-[10px] font-mono font-black text-cyan-300">
+                  {aeroPerformance.lidarExtinctionDbKm}dB
                 </span>
               </div>
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
-                <span className="text-[7px] font-black text-slate-400 uppercase block">C2 2.4/5.8G</span>
-                <span className={`text-[9px] font-mono font-black ${aeroPerformance.rfDuctingColor}`}>
+                <span className="text-[6.5px] font-black text-slate-400 uppercase block">C2 2.4/5.8G</span>
+                <span className={`text-[8.5px] font-mono font-black ${aeroPerformance.rfDuctingColor}`}>
                   {aeroPerformance.rfDuctingStatus === 'NOMINAL LOS' ? 'NOMINAL' : 'DUCTING'}
                 </span>
               </div>
             </div>
 
-            <p className="text-[8px] text-slate-400 mt-1.5 leading-snug">
-              Sand skin temp <strong className="text-white">{aeroPerformance.sandSurfaceTempC}°C</strong> → use <strong className="text-purple-300">{aeroPerformance.recommendedFlirPolarity}</strong> polarity. C2 RF Status: <strong className={aeroPerformance.rfDuctingColor}>{aeroPerformance.rfDuctingStatus}</strong> ({rhPct}% RH).
+            <p className="text-[7.5px] text-slate-400 mt-1 leading-snug">
+              Updraft: <strong className={aeroPerformance.thermalColor}>{aeroPerformance.thermalRisk}</strong> ({Math.round(solarWm2)} W/m²). FLIR: <strong className="text-purple-300">{aeroPerformance.recommendedFlirPolarity}</strong> • C2 RF: <strong className={aeroPerformance.rfDuctingColor}>{aeroPerformance.rfDuctingStatus}</strong>.
             </p>
           </div>
 
