@@ -92,7 +92,7 @@ export const stationsList = [
   }
 ];
 
-export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning, currentTime }) {
+export default function XRangeMap({ apiData, isSimulated, activeStation, setActiveStation, isAutoRotate = true, onToggleAutoRotate, isBackground, hideDetails, showSimulatedStations = false, ncmWarnings, simulatedLightning, onToggleSimulatedLightning, currentTime }) {
   const [activeLayer, setActiveLayer] = useState('none'); // 'none', 'thermal', 'wind', 'vis'
   const [forecastOffset, setForecastOffset] = useState(0); // 0 = LIVE, 1..24 = +1H..+24H
   const [isPlaying, setIsPlaying] = useState(false);
@@ -861,7 +861,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           </span>
         </div>
         <div className="flex items-center space-x-2">
-          {/* WeatherNext 3 5km Microclimate Station Quick Switcher */}
+          {/* WeatherNext 3 5km Microclimate Station Quick Switcher (Auto-Rotates every 30s) */}
           <div className="hidden sm:flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 shadow-inner">
             {stationsList.map(st => {
               const isStActive = currentActive === st.id;
@@ -876,13 +876,28 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                       ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm shadow-orange-950/50'
                       : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/60'
                   }`}
-                  title={`Switch active telemetry to ${st.name} (5km Sector Node)`}
+                  title={`Switch active telemetry to ${st.name} (Auto-rotates every 30s)`}
                 >
                   <span>{st.id.toUpperCase()}</span>
                   {tempVal && <span className="text-[7.5px] opacity-90">{tempVal}</span>}
                 </button>
               );
             })}
+            {onToggleAutoRotate && (
+              <button
+                type="button"
+                onClick={onToggleAutoRotate}
+                className={`ml-0.5 px-1.5 py-0.5 rounded text-[7.5px] font-mono font-black uppercase transition cursor-pointer flex items-center space-x-1 border ${
+                  isAutoRotate
+                    ? 'bg-cyan-950/70 border-cyan-500/40 text-cyan-300'
+                    : 'bg-slate-800/60 border-slate-700 text-slate-500 hover:text-slate-300'
+                }`}
+                title={isAutoRotate ? 'Auto-rotating HQ → NORTH → SOUTH → SEA every 30s (Click to pause)' : '30s Auto-rotation paused (Click to resume)'}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${isAutoRotate ? 'bg-cyan-400 animate-pulse' : 'bg-slate-500'}`} />
+                <span>30s</span>
+              </button>
+            )}
           </div>
 
           {isSimulated && onToggleSimulatedLightning && (

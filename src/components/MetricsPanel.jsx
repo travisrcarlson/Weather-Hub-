@@ -624,7 +624,7 @@ export function HydrationWidget({ data }) {
       <div className="relative z-10 flex justify-between items-start">
         <div>
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
-            Z12 • HYDRATION DIRECTIVE
+            Z12 • HYDRATION DIRECTIVE {data.sectorTitle ? `• ${data.sectorTitle.replace('X-Range ', '').replace('Range ', '').toUpperCase()}` : ''}
           </p>
           <h2 className="text-xs font-bold text-slate-200 leading-none">ADOSH Heat Stress Code</h2>
         </div>

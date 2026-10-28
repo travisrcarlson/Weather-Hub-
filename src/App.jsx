@@ -134,6 +134,7 @@ export default function App() {
   const [isSimulated, setIsSimulated] = useState(false);
   const [simulatedLightning, setSimulatedLightning] = useState(false);
   const [activeStation, setActiveStation] = useState('hq');
+  const [isAutoRotateStations, setIsAutoRotateStations] = useState(true);
   const [viewMode, setViewMode] = useState('ops');
   const [systemTime, setSystemTime] = useState(new Date());
   const [activeProvider, setActiveProviderState] = useState(getActiveProvider());
@@ -290,6 +291,19 @@ export default function App() {
     }, 10000);
     return () => clearInterval(timer);
   }, []);
+
+  // Automatically rotate through HQ -> North -> South -> Sea every 30 seconds
+  useEffect(() => {
+    if (!isAutoRotateStations) return;
+    const stationOrder = ['hq', 'north', 'south', 'sea'];
+    const rotationTimer = setInterval(() => {
+      setActiveStation(prev => {
+        const idx = stationOrder.indexOf(prev);
+        return stationOrder[(idx + 1) % stationOrder.length];
+      });
+    }, 30000);
+    return () => clearInterval(rotationTimer);
+  }, [activeStation, isAutoRotateStations]);
 
   const activeTime = isSimulated ? new Date('2026-06-15T11:30:00') : systemTime;
 
@@ -1107,6 +1121,8 @@ export default function App() {
                   isSimulated={isSimulated} 
                   activeStation={activeStation}
                   setActiveStation={setActiveStation}
+                  isAutoRotate={isAutoRotateStations}
+                  onToggleAutoRotate={() => setIsAutoRotateStations(prev => !prev)}
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
@@ -1170,6 +1186,8 @@ export default function App() {
                   isSimulated={isSimulated} 
                   activeStation={activeStation}
                   setActiveStation={setActiveStation}
+                  isAutoRotate={isAutoRotateStations}
+                  onToggleAutoRotate={() => setIsAutoRotateStations(prev => !prev)}
                   isBackground={false}
                   hideDetails={true}
                   showSimulatedStations={false}
