@@ -27,7 +27,7 @@ const UAV_AIRFRAMES = [
     maxCrosswindKmh: 25,
     maxTempC: 45,
     nominalEnduranceMin: 42,
-    ceilingM: 120,
+    ceilingM: 500,
     cruiseSpeedKmh: 54,
     emptyWeightKg: 6.5,
     maxPayloadKg: 2.7,
@@ -35,15 +35,15 @@ const UAV_AIRFRAMES = [
   },
   {
     id: 'CLASS_2',
-    name: 'Class II: Heavy-Lift / Tethered ISR',
-    models: 'Heavy Payload Octocopter / Tethered EO-IR Mast',
+    name: 'Class II: Heavy-Lift / VTOL ISR',
+    models: 'Heavy Payload Octocopter / Hybrid VTOL ISR',
     type: 'HEAVY_ROTOR',
     maxSustainedWindKmh: 38,
     maxGustKmh: 50,
     maxCrosswindKmh: 32,
     maxTempC: 48,
     nominalEnduranceMin: 55,
-    ceilingM: 150,
+    ceilingM: 1200,
     cruiseSpeedKmh: 48,
     emptyWeightKg: 18.0,
     maxPayloadKg: 12.0,
@@ -59,7 +59,7 @@ const UAV_AIRFRAMES = [
     maxCrosswindKmh: 28,
     maxTempC: 50,
     nominalEnduranceMin: 180,
-    ceilingM: 200,
+    ceilingM: 2500,
     cruiseSpeedKmh: 110,
     emptyWeightKg: 35.0,
     maxPayloadKg: 15.0,
@@ -75,7 +75,7 @@ const UAV_AIRFRAMES = [
     maxCrosswindKmh: 26,
     maxTempC: 46,
     nominalEnduranceMin: 45,
-    ceilingM: 150,
+    ceilingM: 2500,
     cruiseSpeedKmh: 60,
     emptyWeightKg: 12.0,
     maxPayloadKg: 10.0,
@@ -120,9 +120,10 @@ export default function PilotConsole({
   const [runwayHeading, setRunwayHeading] = useState(310);
   const [selectedRunwayId, setSelectedRunwayId] = useState('RAIL_310');
 
-  // Goal Ground Speed Calculator state
+  // Goal Ground Speed Calculator & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
-  const [calcAltitudeM, setCalcAltitudeM] = useState(100);
+  const [calcAltitudeM, setCalcAltitudeM] = useState(300);
+  const [altitudeBand, setAltitudeBand] = useState('LOW'); // 'LOW' (10m-300m) or 'HIGH' (300m-2500m)
 
   // RPIC Pre-Flight Safety Gate Checklist state
   const [checkedItems, setCheckedItems] = useState({
@@ -198,31 +199,45 @@ export default function PilotConsole({
     [tempC, rhPct, pressureHpa]
   );
 
-  // Multi-tier Vertical Boundary Layer Wind Ladder (10m, 50m, 100m, 150m, 200m AGL)
-  const altitudeLadder = useMemo(() => {
+  // Compute meteorological & aerodynamic profile at any altitude (10m up to 3000m AGL)
+  const computeAltProfile = useMemo(() => {
     const alpha = surfaceWindKmh > 0.5
-      ? Math.max(0.14, Math.min(0.38, Math.log(shearData.boundaryWind100mKmh / surfaceWindKmh) / Math.log(10)))
-      : 0.24;
+      ? Math.max(0.14, Math.min(0.36, Math.log(shearData.boundaryWind100mKmh / surfaceWindKmh) / Math.log(10)))
+      : 0.22;
+    const gustFactor10m = surfaceWindKmh > 0 ? (surfaceGustKmh / surfaceWindKmh) : 1.35;
 
-    const levels = [
-      { altM: 200, altFt: 656, label: '200m AGL (656 ft)', zone: 'Upper Flight Ceiling' },
-      { altM: 150, altFt: 492, label: '150m AGL (492 ft)', zone: 'Standard ISR Loiter' },
-      { altM: 100, altFt: 328, label: '100m AGL (328 ft)', zone: 'WN3 Boundary Layer' },
-      { altM: 50, altFt: 164, label: '50m AGL (164 ft)', zone: 'Approach & Transition' },
-      { altM: 10, altFt: 33, label: '10m AGL (33 ft)', zone: 'Surface / Launch Pad' }
-    ];
-
-    return levels.map(lvl => {
-      const scale = Math.pow(lvl.altM / 10, alpha);
+    return (altM, zoneLabel = '') => {
+      const z = Math.max(10, Math.min(3000, Number(altM) || 100));
+      // Boundary layer (<=300m): power law; Free troposphere (>300m): logarithmic geostrophic transition
+      const scale300 = Math.pow(300 / 10, alpha);
+      const scale = z <= 300
+        ? Math.pow(z / 10, alpha)
+        : scale300 * (1 + 0.14 * Math.log(z / 300));
       const speedKmh = Number((surfaceWindKmh * scale).toFixed(1));
-      const gustFactor = surfaceWindKmh > 0 ? (surfaceGustKmh / surfaceWindKmh) : 1.35;
-      // Gustiness slightly dampens with altitude while sustained speed increases
-      const altGustFactor = 1 + (gustFactor - 1) * Math.pow(10 / lvl.altM, 0.12);
+
+      // Mechanical surface turbulence dampens with height
+      const altGustFactor = 1 + (gustFactor10m - 1) * Math.pow(10 / z, 0.14);
       const gustKmh = Number((speedKmh * altGustFactor).toFixed(1));
       const speedKts = Math.round(speedKmh * 0.539957);
       const gustKts = Math.round(gustKmh * 0.539957);
-      // Ekman spiral: slight clockwise wind veering with height in Northern Hemisphere
-      const dirDeg = Math.round((windDirDeg + ((lvl.altM - 10) / 50) * 2.5) % 360);
+
+      // Ekman spiral: clockwise wind veering in Northern Hemisphere (up to ~30° in free atmosphere)
+      const veerDeg = z <= 300
+        ? ((z - 10) / 50) * 2.2
+        : 12.8 + Math.min(18, Math.log(z / 300) * 8.5);
+      const dirDeg = Math.round((windDirDeg + veerDeg) % 360);
+
+      // Upper-air temperature lapse (-6.5°C per 1000m) and barometric pressure drop
+      const altTempC = Number((tempC - 0.0065 * z).toFixed(1));
+      const altPressureHpa = Number(
+        (pressureHpa * Math.pow(1 - (0.0065 * z) / (tempC + 273.15), 5.255)).toFixed(1)
+      );
+      const altAtm = calculateAtmosphericDensity({
+        temperatureC: altTempC,
+        relativeHumidity: Math.max(15, rhPct - (z / 1000) * 8),
+        stationPressureHpa: altPressureHpa,
+        altitudeM: z
+      });
 
       let status = 'GO';
       if (speedKmh >= airframe.maxSustainedWindKmh || gustKmh >= airframe.maxGustKmh) {
@@ -234,17 +249,45 @@ export default function PilotConsole({
         status = 'CAUTION';
       }
 
+      const altFt = Math.round(z * 3.28084);
       return {
-        ...lvl,
+        altM: z,
+        altFt,
+        label: `${z}m (${altFt.toLocaleString()} ft)`,
+        zone: zoneLabel,
         speedKmh,
         gustKmh,
         speedKts,
         gustKts,
         dirDeg,
+        altTempC,
+        altPressureHpa,
+        airDensity: altAtm.airDensity,
+        airDensityRatio: altAtm.airDensityRatio,
         status
       };
-    });
-  }, [surfaceWindKmh, surfaceGustKmh, shearData.boundaryWind100mKmh, windDirDeg, airframe]);
+    };
+  }, [surfaceWindKmh, surfaceGustKmh, shearData.boundaryWind100mKmh, windDirDeg, tempC, pressureHpa, rhPct, airframe]);
+
+  // Multi-tier Vertical Wind Ladder (Supports LOW 10m-300m and HIGH 300m-2500m bands)
+  const altitudeLadder = useMemo(() => {
+    const lowLevels = [
+      { altM: 300, zone: 'Low ISR / Target' },
+      { altM: 200, zone: 'Upper Multirotor' },
+      { altM: 100, zone: 'WN3 Boundary Layer' },
+      { altM: 50, zone: 'Approach & Transition' },
+      { altM: 10, zone: 'Surface / Launch Pad' }
+    ];
+    const highLevels = [
+      { altM: 2500, zone: 'Class III Ceiling (8.2k ft)' },
+      { altM: 1500, zone: 'High ISR Loiter (4.9k ft)' },
+      { altM: 1000, zone: 'Medium Tactical (3.3k ft)' },
+      { altM: 600, zone: 'VTOL / Heavy Transit' },
+      { altM: 300, zone: 'Low ISR / Target' }
+    ];
+    const activeSet = altitudeBand === 'HIGH' ? highLevels : lowLevels;
+    return activeSet.map(l => computeAltProfile(l.altM, l.zone));
+  }, [altitudeBand, computeAltProfile]);
 
   // Runway / Launch Rail Crosswind & Headwind Resolver
   const runwayAnalysis = useMemo(() => {
@@ -414,13 +457,14 @@ export default function PilotConsole({
     rhPct
   ]);
 
-  // Goal Ground Speed Calculator (Wind Triangle, Crab Angle, Required TAS/IAS, Throttle & 5km Leg Burn)
+  // Goal Ground Speed Calculator (Wind Triangle, Crab Angle, Required TAS/IAS, Throttle & 5km Leg Burn at any altitude 10m-3000m)
   const groundSpeedSolver = useMemo(() => {
-    const vg = Math.max(5, Math.min(180, Number(goalGroundSpeedKmh) || 45));
-    const altObj = altitudeLadder.find(l => l.altM === calcAltitudeM) || altitudeLadder[2];
-    const windSpd = altObj?.speedKmh ?? surfaceWindKmh;
-    const gustSpd = altObj?.gustKmh ?? surfaceGustKmh;
-    const windDir = altObj?.dirDeg ?? windDirDeg;
+    const vg = Math.max(5, Math.min(220, Number(goalGroundSpeedKmh) || 45));
+    const altObj = computeAltProfile(calcAltitudeM, 'Selected Flight Level');
+    const windSpd = altObj.speedKmh;
+    const gustSpd = altObj.gustKmh;
+    const windDir = altObj.dirDeg;
+    const altDensityRatio = altObj.airDensityRatio;
 
     // Angle between wind-from direction and desired course track (runwayHeading)
     const deltaRad = (((windDir - runwayHeading) + 360) % 360) * (Math.PI / 180);
@@ -433,7 +477,7 @@ export default function PilotConsole({
     // Wind Triangle: V_air_vector = (Vg + W_head, W_cross)
     const reqTasKmh = Number(Math.sqrt(Math.pow(vg + headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
     const reqTasGustKmh = Number(Math.sqrt(Math.pow(vg + gustHeadwind, 2) + Math.pow(gustCrosswind, 2)).toFixed(1));
-    const reqIasKmh = Number((reqTasKmh * Math.sqrt(Math.max(0.7, atmData.airDensityRatio))).toFixed(1));
+    const reqIasKmh = Number((reqTasKmh * Math.sqrt(Math.max(0.55, altDensityRatio))).toFixed(1));
 
     // Reciprocal Return-Leg Required TAS (holding same Vg on opposite track)
     const returnTasKmh = Number(Math.sqrt(Math.pow(vg - headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
@@ -445,13 +489,14 @@ export default function PilotConsole({
     const wcaDir = wcaAbs < 0.4 ? '0°' : wcaDeg > 0 ? `+${wcaAbs}° R` : `-${wcaAbs}° L`;
     const commandHeadingDeg = Math.round((runwayHeading + wcaDeg + 360) % 360);
 
-    // Airframe Max Airspeed & Propulsion Demand
+    // Airframe Max Airspeed & Propulsion Demand (adjusted for altitude air density)
     const maxAirspeedKmh = Math.round((airframe.cruiseSpeedKmh || 54) * 1.32);
     const speedRatio = reqTasKmh / Math.max(25, maxAirspeedKmh);
     const reqPitchDeg = Number(Math.min(38, Math.max(4, speedRatio * 28)).toFixed(1));
+    const densityThrottlePenalty = Math.pow(Math.max(0.6, atmData.airDensityRatio / Math.max(0.55, altDensityRatio)), 0.55);
     const reqThrottlePct = Math.min(
       100,
-      Math.round(aeroPerformance.estHoverThrottlePct * 0.72 + Math.pow(speedRatio, 1.65) * 52)
+      Math.round((aeroPerformance.estHoverThrottlePct * 0.72 + Math.pow(speedRatio, 1.65) * 52) * densityThrottlePenalty)
     );
 
     // 5 km Range Corridor Transit Time & Battery Consumption
@@ -461,7 +506,7 @@ export default function PilotConsole({
     const legTime5kmStr = `${legMin}m ${String(legSec).padStart(2, '0')}s`;
 
     // Battery burn rate scales with flight time and (reqTas / cruiseSpeed)^1.5
-    const powerMultiplier = Math.max(0.75, Math.pow(reqTasKmh / Math.max(25, airframe.cruiseSpeedKmh || 54), 1.45));
+    const powerMultiplier = Math.max(0.75, Math.pow(reqTasKmh / Math.max(25, airframe.cruiseSpeedKmh || 54), 1.45)) * densityThrottlePenalty;
     const legBatteryPct = Math.min(
       99,
       Math.max(2, Math.round(((legTimeMinFloat / Math.max(10, aeroPerformance.effectiveEnduranceMin)) * 100) * powerMultiplier))
@@ -481,6 +526,10 @@ export default function PilotConsole({
       vg,
       vgMs: Number((vg / 3.6).toFixed(1)),
       vgKts: Number((vg * 0.539957).toFixed(1)),
+      altM: altObj.altM,
+      altFt: altObj.altFt,
+      altTempC: altObj.altTempC,
+      altAirDensity: altObj.airDensity,
       windSpd,
       gustSpd,
       windDir,
@@ -505,10 +554,7 @@ export default function PilotConsole({
   }, [
     goalGroundSpeedKmh,
     calcAltitudeM,
-    altitudeLadder,
-    surfaceWindKmh,
-    surfaceGustKmh,
-    windDirDeg,
+    computeAltProfile,
     runwayHeading,
     atmData.airDensityRatio,
     airframe.cruiseSpeedKmh,
@@ -1016,41 +1062,61 @@ Range Safety Officer (RSO):     ______________________  Time: __________
         {/* LEFT COLUMN (4 Cols): Vertical Boundary Layer Wind Ladder & Airframe + Payload Simulator */}
         <div className="lg:col-span-4 flex flex-col justify-between space-y-2.5 min-h-0 overflow-y-auto no-scrollbar">
           
-          {/* Vertical Wind Shear Profile Ladder */}
+          {/* Vertical Wind Shear Profile Ladder (10m up to 2,500m AGL) */}
           <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-3 flex flex-col justify-between flex-grow">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2 gap-1 flex-wrap">
               <div className="flex items-center space-x-1.5">
                 <Layers className="w-4 h-4 text-cyan-400" />
                 <span className="text-[10px] font-black uppercase tracking-wider text-white">
-                  VERTICAL BOUNDARY LAYER WIND LADDER
+                  VERTICAL WIND LADDER (10M–2500M)
                 </span>
               </div>
-              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${
-                shearData.shearRisk === 'HIGH' ? 'bg-stopRed/20 border-stopRed/40 text-stopRed' :
-                shearData.shearRisk === 'MODERATE' ? 'bg-amberAlert/20 border-amberAlert/40 text-amberAlert' :
-                'bg-safetyGreen/20 border-safetyGreen/40 text-safetyGreen'
-              }`}>
-                SHEAR: {shearData.shearRisk} (+{shearData.shearGradient} km/h)
-              </span>
+              <div className="flex items-center space-x-1">
+                <div className="flex bg-slate-950 p-0.5 rounded border border-slate-800 text-[7.5px] font-black uppercase">
+                  <button
+                    type="button"
+                    onClick={() => setAltitudeBand('LOW')}
+                    className={`px-1.5 py-0.5 rounded cursor-pointer transition ${
+                      altitudeBand === 'LOW' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    10–300m
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAltitudeBand('HIGH')}
+                    className={`px-1.5 py-0.5 rounded cursor-pointer transition ${
+                      altitudeBand === 'HIGH' ? 'bg-edgeOrange text-white' : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    300–2500m
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Altitude Slices */}
             <div className="flex flex-col space-y-1.5 my-auto">
               {altitudeLadder.map((lvl) => {
-                const barPct = Math.min(100, Math.round((lvl.speedKmh / 60) * 100));
-                const gustPct = Math.min(100, Math.round((lvl.gustKmh / 60) * 100));
-                const limitPct = Math.min(100, Math.round((airframe.maxSustainedWindKmh / 60) * 100));
+                const barPct = Math.min(100, Math.round((lvl.speedKmh / 75) * 100));
+                const gustPct = Math.min(100, Math.round((lvl.gustKmh / 75) * 100));
+                const limitPct = Math.min(100, Math.round((airframe.maxSustainedWindKmh / 75) * 100));
+                const isSelectedAlt = calcAltitudeM === lvl.altM;
 
                 return (
                   <div
                     key={lvl.altM}
-                    className={`p-1.5 rounded-lg border transition ${
-                      lvl.status === 'NO-GO'
+                    onClick={() => setCalcAltitudeM(lvl.altM)}
+                    className={`p-1.5 rounded-lg border transition cursor-pointer ${
+                      isSelectedAlt
+                        ? 'bg-cyan-950/30 border-cyan-500/60'
+                        : lvl.status === 'NO-GO'
                         ? 'bg-stopRed/10 border-stopRed/40'
                         : lvl.status === 'CAUTION'
                         ? 'bg-amberAlert/10 border-amberAlert/30'
-                        : 'bg-bgDeepSpace/60 border-slate-800/80'
+                        : 'bg-bgDeepSpace/60 border-slate-800/80 hover:border-slate-700'
                     }`}
+                    title="Click to load this altitude into the Goal Ground Speed Calculator"
                   >
                     <div className="flex items-center justify-between text-[9px] mb-1">
                       <div className="flex items-center space-x-1.5">
@@ -1384,17 +1450,17 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            {/* Goal Speed Input Box + Slider + Altitude Selector */}
-            <div className="bg-bgDeepSpace/80 p-2 rounded-lg border border-slate-800 mb-2">
-              <div className="flex items-center justify-between gap-2 mb-1.5">
+            {/* Goal Speed Input Box + Slider + Multi-Altitude Selector (10m to 3,000m AGL) */}
+            <div className="bg-bgDeepSpace/80 p-2 rounded-lg border border-slate-800 mb-2 space-y-1.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center space-x-1.5">
                   <span className="text-[8px] font-black uppercase text-slate-300">GOAL VG:</span>
                   <input
                     type="number"
                     min="5"
-                    max="180"
+                    max="220"
                     value={goalGroundSpeedKmh}
-                    onChange={(e) => setGoalGroundSpeedKmh(Math.max(5, Math.min(180, Number(e.target.value) || 0)))}
+                    onChange={(e) => setGoalGroundSpeedKmh(Math.max(5, Math.min(220, Number(e.target.value) || 0)))}
                     className="w-14 bg-slate-950 border border-cyan-500/50 rounded px-1.5 py-0.5 text-xs font-mono font-black text-white text-center focus:border-edgeOrange outline-none"
                   />
                   <span className="text-[8px] font-mono text-slate-400">
@@ -1402,34 +1468,59 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                   </span>
                 </div>
 
-                {/* Altitude Level Selector */}
-                <div className="flex items-center space-x-0.5 bg-slate-950 p-0.5 rounded border border-slate-800">
-                  {[10, 50, 100, 150].map(alt => (
-                    <button
-                      key={alt}
-                      type="button"
-                      onClick={() => setCalcAltitudeM(alt)}
-                      className={`px-1.5 py-0.5 rounded text-[7.5px] font-mono font-black cursor-pointer transition ${
-                        calcAltitudeM === alt
-                          ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/40'
-                          : 'text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      {alt}m
-                    </button>
-                  ))}
+                {/* Custom Altitude Input (10m - 3000m AGL) */}
+                <div className="flex items-center space-x-1">
+                  <span className="text-[7.5px] font-black uppercase text-slate-400">ALT:</span>
+                  <input
+                    type="number"
+                    min="10"
+                    max="3000"
+                    step="50"
+                    value={calcAltitudeM}
+                    onChange={(e) => setCalcAltitudeM(Math.max(10, Math.min(3000, Number(e.target.value) || 100)))}
+                    className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] font-mono font-black text-cyan-300 text-center focus:border-edgeOrange outline-none"
+                    title="Enter any altitude from 10m to 3,000m AGL"
+                  />
+                  <span className="text-[7.5px] font-mono text-slate-400">m ({groundSpeedSolver.altFt}ft)</span>
                 </div>
               </div>
 
               <input
                 type="range"
                 min="10"
-                max="140"
+                max="160"
                 step="1"
                 value={goalGroundSpeedKmh}
                 onChange={(e) => setGoalGroundSpeedKmh(Number(e.target.value))}
                 className="w-full accent-cyan-400 h-1 cursor-pointer"
               />
+
+              {/* Expanded Quick Altitude Buttons (10m up to 2,500m AGL) + Live Wind at Altitude */}
+              <div className="flex items-center justify-between gap-1 pt-0.5 border-t border-slate-800/80 flex-wrap">
+                <div className="flex items-center space-x-0.5 bg-slate-950 p-0.5 rounded border border-slate-800">
+                  {[10, 100, 300, 600, 1000, 1500, 2500].map(alt => (
+                    <button
+                      key={alt}
+                      type="button"
+                      onClick={() => {
+                        setCalcAltitudeM(alt);
+                        if (alt > 300) setAltitudeBand('HIGH');
+                        else if (alt < 300) setAltitudeBand('LOW');
+                      }}
+                      className={`px-1.5 py-0.5 rounded text-[7px] font-mono font-black cursor-pointer transition ${
+                        calcAltitudeM === alt
+                          ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-500/40'
+                          : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      {alt >= 1000 ? `${alt / 1000}km` : `${alt}m`}
+                    </button>
+                  ))}
+                </div>
+                <span className="text-[7.5px] font-mono text-slate-400">
+                  @{groundSpeedSolver.altM}m: <strong className="text-cyan-300">{groundSpeedSolver.windSpd} kph ({groundSpeedSolver.windDir}°)</strong> • <strong className="text-amber-300">{groundSpeedSolver.altTempC}°C</strong>
+                </span>
+              </div>
             </div>
 
             {/* 6-Parameter Computed Output Grid */}
