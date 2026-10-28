@@ -145,12 +145,20 @@ const UAV_AIRFRAMES = [
   }
 ];
 
-// Standard X-Range Runways & Launch Rails on Abu Al Abyad Island
+// Standard X-Range 3 Runways on Abu Al Abyad Island (All aligned on the 31/13 magnetic axis: 310° NW / 130° SE)
+const XRANGE_RUNWAYS = [
+  { id: 'RWY_1', short: 'RWY 1 (MAIN)', label: 'RWY 1 • Main Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
+  { id: 'RWY_2', short: 'RWY 2 (NORTH)', label: 'RWY 2 • North Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
+  { id: 'RWY_3', short: 'RWY 3 (SOUTH)', label: 'RWY 3 • South Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 }
+];
+
 const RUNWAY_PRESETS = [
-  { id: 'RWY_09', label: 'RWY 09 (Main Strip East)', heading: 90 },
-  { id: 'RWY_27', label: 'RWY 27 (Main Strip West)', heading: 270 },
-  { id: 'RAIL_310', label: 'LAUNCH RAIL 310° (Sea Spit NW)', heading: 310 },
-  { id: 'RAIL_180', label: 'LAUNCH RAIL 180° (South Desert)', heading: 180 }
+  { id: 'RWY_1_31', stripId: 'RWY_1', end: '31', label: 'RWY 1 • 31 (310° NW Main)', heading: 310 },
+  { id: 'RWY_1_13', stripId: 'RWY_1', end: '13', label: 'RWY 1 • 13 (130° SE Main)', heading: 130 },
+  { id: 'RWY_2_31', stripId: 'RWY_2', end: '31', label: 'RWY 2 • 31 (310° NW North)', heading: 310 },
+  { id: 'RWY_2_13', stripId: 'RWY_2', end: '13', label: 'RWY 2 • 13 (130° SE North)', heading: 130 },
+  { id: 'RWY_3_31', stripId: 'RWY_3', end: '31', label: 'RWY 3 • 31 (310° NW South)', heading: 310 },
+  { id: 'RWY_3_13', stripId: 'RWY_3', end: '13', label: 'RWY 3 • 13 (130° SE South)', heading: 130 }
 ];
 
 // 5-Point RPIC Pre-Flight Checklist Items
@@ -178,9 +186,10 @@ export default function PilotConsole({
   const [customMaxCrosswind, setCustomMaxCrosswind] = useState(26);
   const [payloadKg, setPayloadKg] = useState(0.9);
 
-  // Runway / Launch Rail heading state
+  // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: 310° NW / 130° SE)
   const [runwayHeading, setRunwayHeading] = useState(310);
-  const [selectedRunwayId, setSelectedRunwayId] = useState('RAIL_310');
+  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState('RWY_1');
+  const [selectedRunwayId, setSelectedRunwayId] = useState('RWY_1_31');
 
   // Goal Ground Speed Calculator, Platform V_min / V_max & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
@@ -1404,25 +1413,82 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            {/* Preset Runway Buttons */}
-            <div className="grid grid-cols-2 gap-1.5 mb-2">
-              {RUNWAY_PRESETS.map(rwy => (
-                <button
-                  key={rwy.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedRunwayId(rwy.id);
-                    setRunwayHeading(rwy.heading);
-                  }}
-                  className={`px-2 py-1 rounded text-[8px] font-black uppercase border text-left truncate cursor-pointer transition ${
-                    selectedRunwayId === rwy.id && runwayHeading === rwy.heading
-                      ? 'bg-edgeOrange/20 border-edgeOrange text-white'
-                      : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
-                  }`}
-                >
-                  🛫 {rwy.label}
-                </button>
-              ))}
+            {/* 3-Runway Strip Selector (RWY 1, RWY 2, RWY 3 — All 31/13) + 31 (310°) / 13 (130°) Threshold Toggle */}
+            <div className="space-y-1.5 mb-2">
+              <div className="grid grid-cols-3 gap-1">
+                {XRANGE_RUNWAYS.map(strip => {
+                  const isActiveStrip = selectedRunwayStrip === strip.id;
+                  return (
+                    <button
+                      key={strip.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedRunwayStrip(strip.id);
+                        const endCode = runwayHeading === 130 ? '13' : '31';
+                        const nextHdg = endCode === '13' ? 130 : 310;
+                        setRunwayHeading(nextHdg);
+                        setSelectedRunwayId(`${strip.id}_${endCode}`);
+                      }}
+                      className={`px-1.5 py-1 rounded text-[7.5px] font-black uppercase border text-center truncate cursor-pointer transition ${
+                        isActiveStrip
+                          ? 'bg-edgeOrange/20 border-edgeOrange text-white'
+                          : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      🛫 {strip.short} 31/13
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Active Runway End Direction Selector: RWY 31 (310° NW) vs RWY 13 (130° SE) */}
+              {(() => {
+                const delta310 = (((windDirDeg - 310) + 360) % 360) * (Math.PI / 180);
+                const favorsRwy31 = Math.cos(delta310) >= 0;
+                return (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRunwayHeading(310);
+                        setSelectedRunwayId(`${selectedRunwayStrip}_31`);
+                      }}
+                      className={`px-2 py-1 rounded text-[8px] font-black uppercase border flex items-center justify-between cursor-pointer transition ${
+                        runwayHeading === 310
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                          : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>RWY 31 (310° NW)</span>
+                      {favorsRwy31 && (
+                        <span className="text-[7px] font-mono bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40 px-1 rounded">
+                          ★ INTO WIND
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRunwayHeading(130);
+                        setSelectedRunwayId(`${selectedRunwayStrip}_13`);
+                      }}
+                      className={`px-2 py-1 rounded text-[8px] font-black uppercase border flex items-center justify-between cursor-pointer transition ${
+                        runwayHeading === 130
+                          ? 'bg-cyan-500/20 border-cyan-400 text-white'
+                          : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      <span>RWY 13 (130° SE)</span>
+                      {!favorsRwy31 && (
+                        <span className="text-[7px] font-mono bg-safetyGreen/20 text-safetyGreen border border-safetyGreen/40 px-1 rounded">
+                          ★ INTO WIND
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Visual SVG Compass & Vector Readout */}
@@ -1436,9 +1502,12 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                   <text x="70" y="129" fontSize="7" fill="#64748b" fontWeight="bold" textAnchor="middle">S</text>
                   <text x="14" y="72" fontSize="7" fill="#64748b" fontWeight="bold" textAnchor="middle">W</text>
                   <g transform={`rotate(${runwayHeading}, 70, 70)`}>
-                    <rect x="61" y="22" width="18" height="96" rx="2" fill="#1e293b" stroke="#475569" strokeWidth="1" />
-                    <line x1="70" y1="28" x2="70" y2="112" stroke="#f8fafc" strokeWidth="1" strokeDasharray="5,4" opacity="0.7" />
-                    <path d="M 70 30 L 66 38 L 74 38 Z" fill="#f97316" />
+                    <rect x="60" y="20" width="20" height="100" rx="2" fill="#1e293b" stroke="#475569" strokeWidth="1" />
+                    <line x1="70" y1="34" x2="70" y2="104" stroke="#f8fafc" strokeWidth="1" strokeDasharray="5,4" opacity="0.7" />
+                    <path d="M 70 25 L 66 33 L 74 33 Z" fill="#f97316" />
+                    <text x="70" y="115" fontSize="6.5" fill="#f8fafc" fontFamily="monospace" fontWeight="bold" textAnchor="middle">
+                      {runwayHeading === 130 ? '13' : runwayHeading === 310 ? '31' : String(Math.round(runwayHeading / 10)).padStart(2, '0')}
+                    </text>
                   </g>
                   <g transform={`rotate(${windDirDeg}, 70, 70)`}>
                     <line x1="70" y1="12" x2="70" y2="54" stroke="#38bdf8" strokeWidth="2.2" strokeLinecap="round" />
