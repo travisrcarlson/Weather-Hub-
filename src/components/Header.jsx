@@ -45,7 +45,7 @@ export default function Header({
           />
           <div className="flex flex-col">
             <h1 className="text-xs font-black tracking-wider text-textIceWhite uppercase leading-none">
-              XRANGE
+              XRANGE WEATHER HUB
             </h1>
             <span className="text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans leading-none">
               AI POWERED WEATHER SAFETY PORTAL
@@ -131,7 +131,7 @@ export default function Header({
         </div>
         <div className="border-l border-slate-700/50 pl-4">
           <h1 className="text-2xl font-black tracking-widest text-textIceWhite uppercase leading-none">
-            XRANGE SYSTEM
+            XRANGE WEATHER HUB
           </h1>
           <p className="text-xs text-edgeOrange font-bold tracking-[0.2em] uppercase mt-0.5 font-sans">
             AI POWERED WEATHER SAFETY PORTAL
