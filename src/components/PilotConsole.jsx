@@ -146,20 +146,20 @@ const UAV_AIRFRAMES = [
 ];
 
 // Standard X-Range 3 Runways on Abu Al Abyad Island (All aligned on the 31/13 magnetic axis: 310° NW / 130° SE)
-// AF1R = Collocated with HQ | AF2R = Collocated with South Point | EM2R = Collocated with West Point (Sea Boundary)
+// AF1R = Collocated with HQ | AF2R = Collocated with Sea Boundary | EM2R = Collocated with South Pin
 const XRANGE_RUNWAYS = [
   { id: 'AF1R', stationId: 'hq', short: 'AF1R (HQ)', label: 'AF1R • HQ Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
-  { id: 'AF2R', stationId: 'south', short: 'AF2R (SOUTH)', label: 'AF2R • South Point (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
-  { id: 'EM2R', stationId: 'sea', short: 'EM2R (WEST)', label: 'EM2R • West Point (31/13)', rwy31Heading: 310, rwy13Heading: 130 }
+  { id: 'AF2R', stationId: 'sea', short: 'AF2R (SEA)', label: 'AF2R • Sea Boundary (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
+  { id: 'EM2R', stationId: 'south', short: 'EM2R (SOUTH)', label: 'EM2R • South Point (31/13)', rwy31Heading: 310, rwy13Heading: 130 }
 ];
 
 const RUNWAY_PRESETS = [
   { id: 'AF1R_31', stripId: 'AF1R', end: '31', label: 'AF1R • RWY 31 (310° NW — HQ Collocated)', heading: 310 },
   { id: 'AF1R_13', stripId: 'AF1R', end: '13', label: 'AF1R • RWY 13 (130° SE — HQ Collocated)', heading: 130 },
-  { id: 'AF2R_31', stripId: 'AF2R', end: '31', label: 'AF2R • RWY 31 (310° NW — South Point)', heading: 310 },
-  { id: 'AF2R_13', stripId: 'AF2R', end: '13', label: 'AF2R • RWY 13 (130° SE — South Point)', heading: 130 },
-  { id: 'EM2R_31', stripId: 'EM2R', end: '31', label: 'EM2R • RWY 31 (310° NW — West Point)', heading: 310 },
-  { id: 'EM2R_13', stripId: 'EM2R', end: '13', label: 'EM2R • RWY 13 (130° SE — West Point)', heading: 130 }
+  { id: 'AF2R_31', stripId: 'AF2R', end: '31', label: 'AF2R • RWY 31 (310° NW — Sea Boundary)', heading: 310 },
+  { id: 'AF2R_13', stripId: 'AF2R', end: '13', label: 'AF2R • RWY 13 (130° SE — Sea Boundary)', heading: 130 },
+  { id: 'EM2R_31', stripId: 'EM2R', end: '31', label: 'EM2R • RWY 31 (310° NW — South Point)', heading: 310 },
+  { id: 'EM2R_13', stripId: 'EM2R', end: '13', label: 'EM2R • RWY 13 (130° SE — South Point)', heading: 130 }
 ];
 
 // 5-Point RPIC Pre-Flight Checklist Items
@@ -717,7 +717,7 @@ export default function PilotConsole({
 
       return {
         id: st.id,
-        short: st.id === 'hq' ? 'HQ • AF1R' : st.id === 'north' ? 'North Pad' : st.id === 'south' ? 'South • AF2R' : 'West • EM2R',
+        short: st.id === 'hq' ? 'HQ • AF1R' : st.id === 'north' ? 'North Pad' : st.id === 'south' ? 'South • EM2R' : 'Sea • AF2R',
         w10: Math.round(w10),
         w100: Math.round(w100),
         status: padStatus
