@@ -40,11 +40,11 @@ export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex, solarRadiationWm2
   const S = solarRadiationWm2 !== undefined && solarRadiationWm2 !== null ? solarRadiationWm2 : uv * 80;
 
   // 3. Convert wind speed from km/h to m/s
-  const u = (windSpeedKmh || 0) / 3.6;
+  const u = Math.max(0.5, (windSpeedKmh || 0) / 3.6);
 
   // 4. Estimate Globe Temperature (Tg) calibrated for solar irradiance & wind convection
-  let Tg = temp + 0.013 * S - 0.30 * u;
-  if (S === 0 || Tg < temp) {
+  let Tg = temp + (0.0095 * S) / (1 + 0.18 * u);
+  if (S <= 0 || Tg < temp) {
     Tg = temp;
   }
 
@@ -54,11 +54,115 @@ export function calculateWBGT(temp, rh, windSpeedKmh, uvIndex, solarRadiationWm2
   return Number(wbgt.toFixed(1));
 }
 
-export function getWBGTComfort(wbgt) {
-  if (wbgt < 25.9) return { label: "Normal (Green Flag)", color: "text-safetyGreen" };
-  if (wbgt < 27.9) return { label: "Caution (Yellow Flag)", color: "text-yellow-400" };
-  if (wbgt < 30.0) return { label: "High Risk (Amber Flag)", color: "text-amberAlert" };
-  return { label: "Extreme Danger (Red/Black Flag)", color: "text-purple-400 font-bold animate-pulse" };
+// Unified ADOSH CoP 11.0 & ISO 7243 Heat Stress -> Hydration & Work/Rest Engine
+// Evaluates WBGT, Dry-Bulb Shade Temp, and Apparent Temp (Feels Like) together so
+// heat stress always translates directly and consistently into water intake (L/hr).
+export function evaluateHeatStress(temp = 0, rh = 50, windSpeedKmh = 0, uvIndex = 0, solarRadiationWm2 = null, apparentTemp = null) {
+  const wbgt = calculateWBGT(temp, rh, windSpeedKmh, uvIndex, solarRadiationWm2);
+  const dewPoint = calculateDewPoint(temp, rh);
+  const feelsLike = apparentTemp !== null && apparentTemp !== undefined
+    ? apparentTemp
+    : calculateHumidex(temp, dewPoint);
+
+  // Determine unified heat stress severity tier from WBGT, Dry Bulb, or Feels Like
+  if (wbgt >= 30.5 || temp >= 42.0 || feelsLike >= 43.0) {
+    return {
+      wbgt,
+      dewPoint,
+      feelsLike,
+      tier: "SEVERE",
+      level: "SEVERE CAUTION",
+      flagLabel: "Severe Heat (Red Flag)",
+      color: "text-amberAlert font-bold",
+      badgeColor: "text-stopRed border-stopRed/60 bg-stopRed/10",
+      litersPerHour: 1.25,
+      volume: "1.25 L",
+      volumePerHour: "1.25 L/hr",
+      cupSchedule: "250 mL every 12m",
+      workRestRatio: "30m Work / 30m Rest",
+      shortRatio: "30m / 30m",
+      shortNote: "30m Mandatory Shade",
+      law: "ADOSH CoP 11.0 (Severe Heat)",
+      note: "250 mL every 12m + Mandatory Electrolytes."
+    };
+  }
+
+  if (wbgt >= 27.9 || temp >= 38.0 || feelsLike >= 39.0) {
+    return {
+      wbgt,
+      dewPoint,
+      feelsLike,
+      tier: "HIGH",
+      level: "HIGH CAUTION",
+      flagLabel: "High Caution (Amber Flag)",
+      color: "text-amberAlert",
+      badgeColor: "text-amberAlert border-amberAlert/60 bg-amberAlert/10",
+      litersPerHour: 1.00,
+      volume: "1.00 L",
+      volumePerHour: "1.00 L/hr",
+      cupSchedule: "250 mL every 15m",
+      workRestRatio: "40m Work / 20m Rest",
+      shortRatio: "40m / 20m",
+      shortNote: "20m Mandatory Shade",
+      law: "ADOSH CoP 11.0 (High Caution)",
+      note: "250 mL every 15m + Electrolyte mix."
+    };
+  }
+
+  if (wbgt >= 25.9 || temp >= 34.0 || feelsLike >= 35.5) {
+    return {
+      wbgt,
+      dewPoint,
+      feelsLike,
+      tier: "MODERATE",
+      level: "CAUTION",
+      flagLabel: "Caution (Yellow Flag)",
+      color: "text-yellow-400",
+      badgeColor: "text-yellow-400 border-yellow-400/50 bg-yellow-400/10",
+      litersPerHour: 0.75,
+      volume: "0.75 L",
+      volumePerHour: "0.75 L/hr",
+      cupSchedule: "250 mL every 20m",
+      workRestRatio: "50m Work / 10m Rest",
+      shortRatio: "50m / 10m",
+      shortNote: "10m Shade / Hr",
+      law: "ADOSH CoP 11.0 (Caution)",
+      note: "250 mL chilled water every 20 mins."
+    };
+  }
+
+  return {
+    wbgt,
+    dewPoint,
+    feelsLike,
+    tier: "LOW",
+    level: "LOW RISK",
+    flagLabel: "Normal (Green Flag)",
+    color: "text-safetyGreen",
+    badgeColor: "text-safetyGreen border-safetyGreen/50 bg-safetyGreen/10",
+    litersPerHour: 0.50,
+    volume: "0.50 L",
+    volumePerHour: "0.50 L/hr",
+    cupSchedule: "250 mL every 30m",
+    workRestRatio: "50m Work / 10m Rest",
+    shortRatio: "50m / 10m",
+    shortNote: "Normal Shade Breaks",
+    law: "ADOSH CoP 11.0 (Standard Split)",
+    note: "Routine chilled water (250 mL / 30m)."
+  };
+}
+
+export function getWBGTComfort(wbgt, temp = 0, apparentTemp = null) {
+  if (wbgt >= 30.5 || temp >= 42.0 || (apparentTemp !== null && apparentTemp >= 43.0)) {
+    return { label: "Severe Heat (Red Flag)", color: "text-amberAlert font-bold" };
+  }
+  if (wbgt >= 27.9 || temp >= 38.0 || (apparentTemp !== null && apparentTemp >= 39.0)) {
+    return { label: "High Caution (Amber Flag)", color: "text-amberAlert" };
+  }
+  if (wbgt >= 25.9 || temp >= 34.0 || (apparentTemp !== null && apparentTemp >= 35.5)) {
+    return { label: "Caution (Yellow Flag)", color: "text-yellow-400" };
+  }
+  return { label: "Normal (Green Flag)", color: "text-safetyGreen" };
 }
 
 // MoHRE Midday Work Ban helper: June 15 to September 15, 12:30 to 15:00 GST
@@ -115,7 +219,7 @@ export function evaluateSafety(data) {
   let status = "GREEN";
   
   const temp = data.temperature_2m || 0;
-  const feelsLike = data.apparent_temperature || 0;
+  const feelsLike = data.apparent_temperature ?? null;
   const windSpeed = data.wind_speed_10m || 0;
   const windGusts = data.wind_gusts_10m || 0;
   const rh = data.relative_humidity_2m || 0;
@@ -127,114 +231,115 @@ export function evaluateSafety(data) {
   const pm10 = data.pm10 || 0;
   const wmo = data.weathercode || 0;
   
-  // 1. Sustained Wind (ADOSH Threshold: >=38 km/h RED, 20-37 km/h AMBER)
-  if (windSpeed >= 38) {
+  // 1. Sustained Wind (Grounded: >=45 km/h RED Severe Gale Halt, 22-44.9 km/h AMBER Caution)
+  if (windSpeed >= 45) {
     status = "RED";
-    reasons.push(`Sustained wind speed (${windSpeed} km/h) exceeds safe limit (≥38 km/h).`);
-  } else if (windSpeed >= 20) {
+    reasons.push(`Severe gale wind (${windSpeed} km/h) exceeds critical halt limit (≥45 km/h).`);
+  } else if (windSpeed >= 35) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Elevated sustained wind speed (${windSpeed} km/h).`);
+    reasons.push(`High wind caution (${windSpeed} km/h). Restrict high-altitude UAVs & adjust ballistic windage.`);
+  } else if (windSpeed >= 22) {
+    if (status !== "RED") status = "AMBER";
+    reasons.push(`Elevated sustained wind (${windSpeed} km/h). Monitor crosswind drift.`);
   }
   
-  // 2. Wind Gusts (ADOSH Threshold: >=50 km/h RED, 20-49 km/h AMBER)
-  if (windGusts >= 50) {
+  // 2. Wind Gusts (Grounded: >=60 km/h RED Severe Gust Halt, 32-59.9 km/h AMBER Caution)
+  if (windGusts >= 60) {
     status = "RED";
-    reasons.push(`Wind gust (${windGusts} km/h) exceeds safe limit (≥50 km/h).`);
-  } else if (windGusts >= 20) {
+    reasons.push(`Severe wind gust (${windGusts} km/h) exceeds critical halt limit (≥60 km/h).`);
+  } else if (windGusts >= 45) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Elevated wind gust (${windGusts} km/h) requiring equipment securing.`);
+    reasons.push(`High wind gust caution (${windGusts} km/h). Secure target rigs & loose range gear.`);
+  } else if (windGusts >= 32) {
+    if (status !== "RED") status = "AMBER";
+    reasons.push(`Moderate wind gusts (${windGusts} km/h). Monitor lightweight equipment.`);
   }
   
-  // 3. Visibility (ADOSH Threshold: <1 km RED, 1-5 km AMBER)
-  if (visibilityKm < 1) {
+  // 3. Visibility (Grounded: <0.8 km RED Critical Halt, 0.8-5.0 km AMBER Caution)
+  if (visibilityKm < 0.8) {
     status = "RED";
-    reasons.push(`Visibility (${visibilityKm.toFixed(1)} km) is below safe limit (<1 km) due to fog/sandstorm.`);
+    reasons.push(`Zero/critical visibility (${visibilityKm.toFixed(1)} km < 0.8 km) due to dense fog/sandstorm.`);
   } else if (visibilityKm <= 5) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Reduced visibility (${visibilityKm.toFixed(1)} km) due to haze/dust.`);
+    reasons.push(`Reduced visibility caution (${visibilityKm.toFixed(1)} km) due to haze/dust.`);
   }
   
-  // 4. Air Temperature (ADOSH Threshold: >=43°C RED, 38-43°C AMBER)
-  if (temp >= 43) {
+  // 4 & 5. Unified Heat Stress & Water Intake Evaluation (ADOSH CoP 11.0 & ISO 7243 WBGT)
+  // Translates thermal stress directly into required water intake (L/hr) & work/rest splits as Cautions (AMBER),
+  // reserving RED Critical Halt only for extreme life-safety thermal emergency (Temp >=46°C or WBGT >=34.5°C).
+  const heatStress = evaluateHeatStress(temp, rh, windSpeed, uv, data.solar_radiation ?? null, feelsLike);
+  const wbgt = heatStress.wbgt;
+
+  if (temp >= 46.0 || wbgt >= 34.5) {
     status = "RED";
-    reasons.push(`Extreme temperature (${temp}°C) exceeds safety limit (≥43°C).`);
-  } else if (temp >= 38) {
+    reasons.push(`Extreme Thermal Emergency (${temp.toFixed(1)}°C / WBGT ${wbgt.toFixed(1)}°C). Mandatory range stand-down & ${heatStress.volumePerHour} electrolyte hydration.`);
+  } else if (heatStress.tier === "SEVERE") {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`High temperature (${temp}°C). Heat stress protocols active.`);
+    reasons.push(`Severe Heat Stress Caution (${temp.toFixed(1)}°C / WBGT ${wbgt.toFixed(1)}°C). Enforce ${heatStress.workRestRatio} & ${heatStress.volumePerHour} (${heatStress.cupSchedule}) + Electrolytes.`);
+  } else if (heatStress.tier === "HIGH") {
+    if (status !== "RED") status = "AMBER";
+    reasons.push(`High Heat Stress Caution (WBGT ${wbgt.toFixed(1)}°C / Temp ${temp.toFixed(1)}°C). Enforce ${heatStress.workRestRatio} & ${heatStress.volumePerHour} (${heatStress.cupSchedule}) water intake.`);
+  } else if (heatStress.tier === "MODERATE") {
+    if (status !== "RED") status = "AMBER";
+    reasons.push(`Moderate Heat Caution (WBGT ${wbgt.toFixed(1)}°C). Maintain ${heatStress.volumePerHour} (${heatStress.cupSchedule}) chilled water intake.`);
   }
   
-  // 5. ISO 7243 Wet Bulb Globe Temperature (WBGT) (Threshold: >=30.0°C RED, >=27.9°C AMBER)
-  const wbgt = calculateWBGT(temp, rh, windSpeed, uv, data.solar_radiation ?? null);
-  if (wbgt >= 30.0) {
-    status = "RED";
-    reasons.push(`Extreme Heat Stress (WBGT: ${wbgt.toFixed(1)}°C) exceeds safety limit (≥30.0°C). Suspend all outdoor activities.`);
-  } else if (wbgt >= 27.9) {
-    if (status !== "RED") status = "AMBER";
-    reasons.push(`High Heat Stress (WBGT: ${wbgt.toFixed(1)}°C). Rest break compliance required.`);
-  } else if (wbgt >= 25.9) {
-    if (status !== "RED" && status !== "AMBER") status = "AMBER";
-    reasons.push(`Elevated Heat Stress (WBGT: ${wbgt.toFixed(1)}°C). Monitor personnel hydration.`);
-  }
-  
-  // 6. UV Index (ADOSH Threshold: >=8 AMBER/RED - Master Prompt requires UV>=8 = CAUTION (AMBER))
+  // 6. UV Index (ADOSH Threshold: >=6 AMBER Caution)
   if (uv >= 8) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Extreme UV index (${uv}). Re-schedule outdoor work and wear PPE.`);
+    reasons.push(`Very high UV index (${uv.toFixed(1)}). SPF 50+ & UV eye protection mandatory.`);
   } else if (uv >= 6) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`High UV index (${uv}). Mandatory sunscreen & protective gear.`);
+    reasons.push(`High UV index (${uv.toFixed(1)}). Sunscreen & shade breaks advised.`);
   }
   
-  // 7. Humidity (ADOSH Threshold: >=85% Severe Comfort Index)
+  // 7. Humidity (ADOSH Threshold: >=85% High Maritime Humidity Caution)
   if (rh >= 85) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Extreme humidity (${rh}%). Dew point and heat stroke risk heightened.`);
-  } else if (rh >= 60) {
-    if (status !== "RED" && status !== "AMBER") status = "AMBER";
-    // We don't always add a reason line for 60% as it's common, but we color it
+    reasons.push(`High coastal humidity (${rh}%). Evaporative cooling reduced — maintain ${heatStress.volumePerHour} hydration.`);
   }
   
-  // 8. Precipitation (ADOSH Threshold: >=2 mm/hr RED, 0.1-2 mm/hr AMBER)
-  if (precip >= 2) {
+  // 8. Precipitation (Grounded: >=5 mm/hr RED Halt, 0.1-4.9 mm/hr AMBER Caution)
+  if (precip >= 5) {
     status = "RED";
-    reasons.push(`Moderate/heavy precipitation (${precip} mm/hr). Suspend electrical/range ops.`);
+    reasons.push(`Heavy storm precipitation (${precip} mm/hr). Suspend electrical & live-fire range ops.`);
   } else if (precip > 0) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Precipitation (${precip} mm/hr) requiring surface traction review.`);
+    reasons.push(`Light/moderate precipitation (${precip} mm/hr) requiring surface traction caution.`);
   }
   
-  // 9. Air Quality (ADOSH Threshold: >=200 AQI RED, 101-200 AMBER)
-  if (aqi >= 200) {
+  // 9. Air Quality (Grounded: >=250 AQI RED, 101-249 AMBER Caution)
+  if (aqi >= 250) {
     status = "RED";
-    reasons.push(`Dangerous Air Quality (AQI ${aqi}). N95/FFP3 masks mandatory.`);
+    reasons.push(`Hazardous Air Quality (AQI ${aqi}). Suspend prolonged outdoor exposure.`);
   } else if (aqi >= 101) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Unhealthy Air Quality (AQI ${aqi}) for sensitive groups.`);
+    reasons.push(`Elevated Air Quality Caution (AQI ${aqi}). Particulate masks advised for sensitive personnel.`);
   }
   
-  // 10. Dust PM10 (ADOSH Threshold: >=155 RED, 54-154 AMBER)
-  if (pm10 >= 155) {
+  // 10. Dust PM10 (Grounded: >=250 RED Sandstorm Halt, 65-249 AMBER Caution)
+  if (pm10 >= 250) {
     status = "RED";
-    reasons.push(`Extreme dust/PM10 level (${pm10} µg/m³) - Sandstorm protocol active.`);
-  } else if (pm10 >= 54) {
+    reasons.push(`Severe sandstorm dust level (${pm10} µg/m³) - Critical halt active.`);
+  } else if (pm10 >= 65) {
     if (status !== "RED") status = "AMBER";
-    reasons.push(`Elevated dust/PM10 level (${pm10} µg/m³).`);
+    reasons.push(`Elevated blowing dust (${pm10} µg/m³). Protective eyewear & dust masks advised.`);
   }
   
-  // 11. Lightning (WMO Code 95, 96, 99 triggers RED)
+  // 11. Lightning (WMO Code 95, 96, 99 triggers RED Critical Halt)
   if (wmo === 95 || wmo === 96 || wmo === 99) {
     status = "RED";
     reasons.push(`ACTIVE LIGHTNING AND THUNDERSTORMS (WMO ${wmo}). Evacuate range immediately!`);
   }
   
-  // 12. MoHRE Midday Ban Check
+  // 12. MoHRE Statutory Midday Work Ban Check (June 15 - Sept 15, 12:30 - 15:00 GST)
   const midday = evaluateMiddayBan(data.time);
   if (midday.isActive) {
     status = "RED";
-    reasons.unshift(`MoHRE MIDDAY BAN ACTIVE (${midday.countdownText}). No outdoor work allowed.`);
+    reasons.unshift(`MoHRE MIDDAY BAN ACTIVE (${midday.countdownText}). Mandatory outdoor stand-down.`);
   } else if (midday.isUpcoming) {
-    if (status !== "RED" && status !== "AMBER") status = "AMBER";
-    reasons.push(`MoHRE Midday Work Ban upcoming (${midday.countdownText}). Prepare to suspend.`);
+    if (status !== "RED") status = "AMBER";
+    reasons.push(`MoHRE Midday Work Ban upcoming (${midday.countdownText}). Prepare to transition indoors.`);
   }
   
   // Styling mappings
@@ -339,10 +444,14 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
   // Scan the next 12 hours (excluding current hour for projections)
   const scanHoursCount = 12;
   
-  const tempBreachHours = [];
-  const wbgtBreachHours = [];
-  const windBreachHours = [];
-  const gustBreachHours = [];
+  const tempHaltHours = [];
+  const tempCautionHours = [];
+  const wbgtHaltHours = [];
+  const wbgtCautionHours = [];
+  const windHaltHours = [];
+  const windCautionHours = [];
+  const gustHaltHours = [];
+  const gustCautionHours = [];
   const uvBreachHours = [];
   const visibilityBreachHours = [];
   const rainBreachHours = [];
@@ -366,31 +475,39 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
     const precip = hourlyData.precipitation ? (hourlyData.precipitation[idx] || 0) : 0;
     const aqi = hourlyData.european_aqi ? (hourlyData.european_aqi[idx] || 0) : 0;
 
-    // Check thresholds:
-    if (temp >= 43) {
-      tempBreachHours.push(hour);
+    // Check grounded thresholds:
+    if (temp >= 46) {
+      tempHaltHours.push(hour);
+    } else if (temp >= 38) {
+      tempCautionHours.push(hour);
     }
     const solarRad = hourlyData.solar_radiation ? (hourlyData.solar_radiation[idx] ?? null) : null;
     const wbgt = calculateWBGT(temp, rh, windSpeed, uv, solarRad);
-    if (wbgt >= 30.0) {
-      wbgtBreachHours.push(hour);
+    if (wbgt >= 34.5) {
+      wbgtHaltHours.push(hour);
+    } else if (wbgt >= 27.9) {
+      wbgtCautionHours.push(hour);
     }
-    if (windSpeed >= 38) {
-      windBreachHours.push(hour);
+    if (windSpeed >= 45) {
+      windHaltHours.push(hour);
+    } else if (windSpeed >= 35) {
+      windCautionHours.push(hour);
     }
-    if (windGusts >= 50) {
-      gustBreachHours.push(hour);
+    if (windGusts >= 60) {
+      gustHaltHours.push(hour);
+    } else if (windGusts >= 45) {
+      gustCautionHours.push(hour);
     }
     if (uv >= 8) {
       uvBreachHours.push(hour);
     }
-    if (visibilityKm < 1) {
+    if (visibilityKm < 0.8) {
       visibilityBreachHours.push(hour);
     }
-    if (precip >= 2) {
+    if (precip >= 5) {
       rainBreachHours.push(hour);
     }
-    if (aqi >= 200) {
+    if (aqi >= 250) {
       aqiBreachHours.push(hour);
     }
 
@@ -436,38 +553,62 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
   };
 
   const projected = [];
-  if (tempBreachHours.length > 0) {
+  if (tempHaltHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'Extreme Heat',
-      timeframe: formatHourSegments(tempBreachHours)
+      metric: 'Extreme Heat Halt',
+      timeframe: formatHourSegments(tempHaltHours)
+    });
+  } else if (tempCautionHours.length > 0) {
+    projected.push({
+      type: 'AMBER',
+      metric: 'High Temp Caution',
+      timeframe: formatHourSegments(tempCautionHours)
     });
   }
-  if (wbgtBreachHours.length > 0) {
+  if (wbgtHaltHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'Danger WBGT Heat',
-      timeframe: formatHourSegments(wbgtBreachHours)
+      metric: 'Extreme WBGT Halt',
+      timeframe: formatHourSegments(wbgtHaltHours)
+    });
+  } else if (wbgtCautionHours.length > 0) {
+    projected.push({
+      type: 'AMBER',
+      metric: 'Heat & Hydration Caution',
+      timeframe: formatHourSegments(wbgtCautionHours)
     });
   }
-  if (windBreachHours.length > 0) {
+  if (windHaltHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'High Wind Speed',
-      timeframe: formatHourSegments(windBreachHours)
+      metric: 'Severe Gale Wind Halt',
+      timeframe: formatHourSegments(windHaltHours)
+    });
+  } else if (windCautionHours.length > 0) {
+    projected.push({
+      type: 'AMBER',
+      metric: 'High Wind Caution',
+      timeframe: formatHourSegments(windCautionHours)
     });
   }
-  if (gustBreachHours.length > 0) {
+  if (gustHaltHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'Critical Gusts',
-      timeframe: formatHourSegments(gustBreachHours)
+      metric: 'Severe Gust Halt',
+      timeframe: formatHourSegments(gustHaltHours)
+    });
+  } else if (gustCautionHours.length > 0) {
+    projected.push({
+      type: 'AMBER',
+      metric: 'High Gust Caution',
+      timeframe: formatHourSegments(gustCautionHours)
     });
   }
   if (uvBreachHours.length > 0) {
     projected.push({
       type: 'AMBER',
-      metric: 'Extreme UV Index',
+      metric: 'Very High UV Caution',
       timeframe: formatHourSegments(uvBreachHours)
     });
   }
@@ -488,7 +629,7 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
   if (aqiBreachHours.length > 0) {
     projected.push({
       type: 'RED',
-      metric: 'Dangerous AQI',
+      metric: 'Hazardous AQI',
       timeframe: formatHourSegments(aqiBreachHours)
     });
   }

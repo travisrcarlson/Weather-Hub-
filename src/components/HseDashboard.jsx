@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar, MessageSquare, Phone, Send, Radio, ExternalLink } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
-import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
 import { getActiveHseDirective, getHseDirectiveHistory, getWhatsAppConfig } from '../services/hseBroadcastService';
@@ -125,13 +125,18 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       
       const safetyEval = evaluateSafety(readings);
 
-      // Check for specific threshold breaches to flag
+      // Check for specific threshold breaches / cautions to flag
       const breaches = [];
-      if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
-      if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
-      if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
-      if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
-      if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+      if (temp >= 46) breaches.push(`EXTREME HEAT HALT (${temp.toFixed(1)}°C)`);
+      else if (temp >= 38) breaches.push(`HEAT CAUTION (${temp.toFixed(1)}°C)`);
+      if (wbgt >= 34.5) breaches.push(`EXTREME WBGT HALT (${wbgt.toFixed(1)}°C)`);
+      else if (wbgt >= 27.9) breaches.push(`WBGT CAUTION (${wbgt.toFixed(1)}°C)`);
+      if (wind >= 45) breaches.push(`GALE WIND HALT (${wind.toFixed(0)} km/h)`);
+      else if (wind >= 35) breaches.push(`HIGH WIND CAUTION (${wind.toFixed(0)} km/h)`);
+      if (gusts >= 60) breaches.push(`SEVERE GUST HALT (${gusts.toFixed(0)} km/h)`);
+      else if (gusts >= 45) breaches.push(`GUST CAUTION (${gusts.toFixed(0)} km/h)`);
+      if (visibility < 800) breaches.push(`LOW VIS HALT (${(visibility/1000).toFixed(1)} km)`);
+      else if (visibility <= 5000) breaches.push(`HAZE CAUTION (${(visibility/1000).toFixed(1)} km)`);
       
       // Check for midday work ban compliance (12:30 - 15:00 GST) between June 15 and September 15
       const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
@@ -173,23 +178,23 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
   };
 
   const getWorkRestDirective = (temp, wbgtVal) => {
-    if (wbgtVal >= 30.0 || temp >= 43) {
-      return { ratio: "30m Work / 30m Rest", note: "Rest breaks mandatory in air-conditioned hubs.", limit: "Critical Limit" };
+    if (wbgtVal >= 30.5 || temp >= 42) {
+      return { ratio: "30m Work / 30m Rest", note: "Mandatory shade breaks & 1.25 L/hr electrolyte hydration.", limit: "Severe Heat Caution" };
     }
     if (wbgtVal >= 27.9 || temp >= 38) {
-      return { ratio: "40m Work / 20m Rest", note: "Increased hydration, monitor buddy status.", limit: "High Alert" };
+      return { ratio: "40m Work / 20m Rest", note: "Maintain 1.00 L/hr hydration & monitor buddy status.", limit: "High Heat Caution" };
     }
-    if (wbgtVal >= 25.9) {
-      return { ratio: "50m Work / 10m Rest", note: "Increased rest frequency. Shade available.", limit: "Caution" };
+    if (wbgtVal >= 25.9 || temp >= 34) {
+      return { ratio: "50m Work / 10m Rest", note: "Maintain 0.75 L/hr chilled water intake. Shade available.", limit: "Moderate Caution" };
     }
-    return { ratio: "50m Work / 10m Rest", note: "Standard rest splits. Shade available.", limit: "Standard Split" };
+    return { ratio: "50m Work / 10m Rest", note: "Standard rest splits (0.50 L/hr water).", limit: "Standard Split" };
   };
 
-  const getHydrationVolume = (wbgtVal) => {
-    if (wbgtVal >= 30.0) return "1.25 Liters / hr + Electrolyte mix";
-    if (wbgtVal >= 27.9) return "1.00 Liter / hr + Electrolyte mix";
-    if (wbgtVal >= 25.9) return "0.75 Liters / hr (Chilled water)";
-    return "0.50 Liters / hr (Water)";
+  const getHydrationVolume = (wbgtVal, tempVal = 0) => {
+    if (wbgtVal >= 30.5 || tempVal >= 42) return "1.25 L/hr (250 mL / 12m + Electrolytes)";
+    if (wbgtVal >= 27.9 || tempVal >= 38) return "1.00 L/hr (250 mL / 15m + Electrolytes)";
+    if (wbgtVal >= 25.9 || tempVal >= 34) return "0.75 L/hr (250 mL / 20m Chilled Water)";
+    return "0.50 L/hr (250 mL / 30m Water)";
   };
 
   const getPpeRequirement = (uv, temp) => {
@@ -258,11 +263,15 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
         const safetyEval = evaluateSafety(readings);
 
         const breaches = [];
-        if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
-        if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
-        if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
-        if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
-        if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        if (temp >= 46) breaches.push(`CRITICAL HEAT HALT (${temp.toFixed(1)}°C)`);
+        else if (temp >= 38) breaches.push(`HEAT CAUTION (${temp.toFixed(1)}°C)`);
+        if (wbgt >= 34.5) breaches.push(`CRITICAL WBGT HALT (${wbgt.toFixed(1)}°C)`);
+        else if (wbgt >= 27.9) breaches.push(`WBGT CAUTION (${wbgt.toFixed(1)}°C)`);
+        if (wind >= 45) breaches.push(`CRITICAL GALE HALT (${wind.toFixed(0)} km/h)`);
+        else if (wind >= 25) breaches.push(`HIGH WIND CAUTION (${wind.toFixed(0)} km/h)`);
+        if (gusts >= 60) breaches.push(`CRITICAL GUST HALT (${gusts.toFixed(0)} km/h)`);
+        if (visibility < 800) breaches.push(`CRITICAL VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        else if (visibility < 3000) breaches.push(`VISIBILITY CAUTION (${(visibility/1000).toFixed(1)} km)`);
         
         // Midday work ban compliance
         const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
@@ -532,11 +541,15 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
         
         const safetyEval = evaluateSafety(readings);
         const breaches = [];
-        if (temp >= 43) breaches.push(`HEAT STRESS (${temp.toFixed(1)}°C)`);
-        if (wbgt >= 30.0) breaches.push(`CRITICAL WBGT (${wbgt.toFixed(1)}°C)`);
-        if (wind >= 38) breaches.push(`GALE WIND (${wind.toFixed(0)} km/h)`);
-        if (gusts >= 50) breaches.push(`CRITICAL GUST (${gusts.toFixed(0)} km/h)`);
-        if (visibility < 1000) breaches.push(`LOW VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        if (temp >= 46) breaches.push(`CRITICAL HEAT HALT (${temp.toFixed(1)}°C)`);
+        else if (temp >= 38) breaches.push(`HEAT CAUTION (${temp.toFixed(1)}°C)`);
+        if (wbgt >= 34.5) breaches.push(`CRITICAL WBGT HALT (${wbgt.toFixed(1)}°C)`);
+        else if (wbgt >= 27.9) breaches.push(`WBGT CAUTION (${wbgt.toFixed(1)}°C)`);
+        if (wind >= 45) breaches.push(`CRITICAL GALE HALT (${wind.toFixed(0)} km/h)`);
+        else if (wind >= 25) breaches.push(`HIGH WIND CAUTION (${wind.toFixed(0)} km/h)`);
+        if (gusts >= 60) breaches.push(`CRITICAL GUST HALT (${gusts.toFixed(0)} km/h)`);
+        if (visibility < 800) breaches.push(`CRITICAL VISIBILITY (${(visibility/1000).toFixed(1)} km)`);
+        else if (visibility < 3000) breaches.push(`VISIBILITY CAUTION (${(visibility/1000).toFixed(1)} km)`);
         
         const hour = parseInt(timeStr.split('T')[1].slice(0, 2), 10);
         const minute = parseInt(timeStr.split('T')[1].slice(3, 5), 10);
@@ -779,7 +792,7 @@ Air Quality Index:       ${selectedAudit.aqi.toFixed(0)} AQI (PM10)
 ----------------------------------------------------------------------
 Safety Status Rating:   ${selectedAudit.safety.status}
 Work/Rest Split Code:   ${wr.ratio} (${wr.limit})
-Fluid Intake Guideline: ${getHydrationVolume(selectedAudit.wbgt)}
+Fluid Intake Guideline: ${getHydrationVolume(selectedAudit.wbgt, selectedAudit.temp)}
 Mandatory PPE Gear:     ${getPpeRequirement(selectedAudit.uv, selectedAudit.temp)}
 MOHRE Midday Ban Check: ${selectedAudit.isMiddayBanActive ? "ACTIVE VIOLATION BAN IN FORCE" : "NOT APPLICABLE"}
 
@@ -1417,7 +1430,7 @@ and ADOSH Code of Practice 11.0. Meteorological logs are locked and tamper-proof
                       <span className="text-[7.5px] text-slate-500 uppercase">ADOSH Heat Stress Code</span>
                     </div>
                     <span className="font-mono text-textIceWhite font-black text-right text-[10px]">
-                      {getHydrationVolume(selectedAudit.wbgt)}
+                      {getHydrationVolume(selectedAudit.wbgt, selectedAudit.temp)}
                     </span>
                   </div>
 

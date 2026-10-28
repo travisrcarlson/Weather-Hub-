@@ -1,6 +1,6 @@
 import React from 'react';
 import { Droplets, Eye, Sun, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
-import { calculateDewPoint, calculateHumidex, getHumidexComfort, getTrendIndicator, calculateSunscreenIntervals, calculateWBGT, getWBGTComfort } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateHumidex, getHumidexComfort, getTrendIndicator, calculateSunscreenIntervals, calculateWBGT, getWBGTComfort, evaluateHeatStress } from '../utils/safetyEngine';
 
 // Z4: Humidity, Dew Point & Humidex
 export function HumidityWidget({ data, hourlyData }) {
@@ -11,10 +11,12 @@ export function HumidityWidget({ data, hourlyData }) {
   const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
   const solar = data.solar_radiation ?? null;
+  const feelsLike = data.apparent_temperature ?? null;
 
-  const dewPoint = calculateDewPoint(temp, rh);
-  const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
-  const comfort = getWBGTComfort(wbgt);
+  const heatStress = evaluateHeatStress(temp, rh, wind, uv, solar, feelsLike);
+  const dewPoint = heatStress.dewPoint;
+  const wbgt = heatStress.wbgt;
+  const comfort = getWBGTComfort(wbgt, temp, feelsLike);
 
   // Locate current hour index in hourlyData
   const getCurHourIdx = () => {
@@ -85,36 +87,11 @@ export function HumidityWidget({ data, hourlyData }) {
 
   const forecast = getHumidityForecast();
 
-  const getWorkRestCycle = () => {
-    // Grounded in UAE ADOSH CoP 11.0 guidelines using WBGT standard
-    if (wbgt >= 30.0 || temp >= 43) {
-      return { 
-        ratio: "30m Work / 30m Rest", 
-        color: "text-stopRed animate-pulse",
-        law: "ADOSH CoP 11.0 (Critical Limit)"
-      };
-    } else if (wbgt >= 27.9 || temp >= 38) {
-      return { 
-        ratio: "40m Work / 20m Rest", 
-        color: "text-amberAlert",
-        law: "ADOSH CoP 11.0 (High Alert)"
-      };
-    } else if (wbgt >= 25.9) {
-      return { 
-        ratio: "50m Work / 10m Rest", 
-        color: "text-yellow-400",
-        law: "ADOSH CoP 11.0 (Caution)"
-      };
-    } else {
-      return { 
-        ratio: "50m Work / 10m Rest", 
-        color: "text-safetyGreen",
-        law: "ADOSH CoP 11.0 (Standard Split)"
-      };
-    }
+  const cycle = {
+    ratio: heatStress.workRestRatio,
+    color: heatStress.color,
+    law: heatStress.law
   };
-
-  const cycle = getWorkRestCycle();
 
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl py-3 px-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
@@ -122,11 +99,16 @@ export function HumidityWidget({ data, hourlyData }) {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808006_1px,transparent_1px),linear-gradient(to_bottom,#80808006_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
-          Z4 • HUMIDITY & DEW POINT
-        </p>
-        <h2 className="text-sm font-bold text-slate-200 leading-none">Heat Stress Metrics</h2>
+      <div className="relative z-10 flex items-center justify-between">
+        <div>
+          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
+            Z4 • HUMIDITY & DEW POINT
+          </p>
+          <h2 className="text-sm font-bold text-slate-200 leading-none">Heat Stress Metrics</h2>
+        </div>
+        <span className={`text-[8px] font-black font-mono uppercase px-1.5 py-0.5 rounded border leading-none ${heatStress.badgeColor}`}>
+          💧 {heatStress.volumePerHour}
+        </span>
       </div>
 
       {/* Main Content */}
@@ -161,15 +143,15 @@ export function HumidityWidget({ data, hourlyData }) {
         </div>
       </div>
 
-      {/* UAE MoHRE Work/Rest Split */}
+      {/* UAE MoHRE Work/Rest Split & Translated Water Intake */}
       <div className="border-t border-slate-800/40 pt-1.5 pb-1 relative z-10 flex flex-col space-y-0.5">
         <div className="flex justify-between items-center text-[9px] font-bold uppercase leading-none">
           <span className="text-slate-450">Work/Rest (MoHRE)</span>
           <span className={`${cycle.color} font-black tracking-wide`}>{cycle.ratio}</span>
         </div>
-        <div className="flex justify-between items-center text-[7px] text-slate-500 uppercase leading-none">
+        <div className="flex justify-between items-center text-[7.5px] text-slate-400 uppercase leading-none">
           <span>Comfort: <span className={`font-black uppercase ${comfort.color}`}>{comfort.label}</span></span>
-          <span className="font-extrabold tracking-wide">{cycle.law}</span>
+          <span className="font-mono font-black text-cyan-300">{heatStress.cupSchedule}</span>
         </div>
       </div>
 
@@ -181,7 +163,7 @@ export function HumidityWidget({ data, hourlyData }) {
         </div>
         <div className="text-right">
           <span>Peak WBGT: </span>
-          <span className={`font-mono font-black ${forecast.maxWbgt >= 30.0 ? 'text-stopRed' : forecast.maxWbgt >= 27.9 ? 'text-amberAlert' : 'text-textIceWhite'}`}>
+          <span className={`font-mono font-black ${forecast.maxWbgt >= 30.5 ? 'text-amberAlert' : forecast.maxWbgt >= 27.9 ? 'text-yellow-400' : 'text-textIceWhite'}`}>
             {forecast.maxWbgt.toFixed(1)}°C
           </span>
         </div>
@@ -628,43 +610,10 @@ export function HydrationWidget({ data }) {
   const rh = data.relative_humidity_2m || 0;
   const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
+  const feelsLike = data.apparent_temperature ?? null;
 
-  const wbgt = calculateWBGT(temp, rh, wind, uv, data.solar_radiation ?? null);
-
-  const getHydrationInfo = (wbgtVal) => {
-    if (wbgtVal < 25.9) {
-      return { 
-        volume: "0.50 L", 
-        note: "Routine water intake.", 
-        color: "text-safetyGreen", 
-        level: "LOW RISK" 
-      };
-    }
-    if (wbgtVal < 27.9) {
-      return { 
-        volume: "0.75 L", 
-        note: "Keep chilled water nearby.", 
-        color: "text-yellow-400", 
-        level: "CAUTION" 
-      };
-    }
-    if (wbgtVal < 30.0) {
-      return { 
-        volume: "1.00 L", 
-        note: "Chilled water + Electrolyte mix.", 
-        color: "text-amberAlert", 
-        level: "HIGH RISK" 
-      };
-    }
-    return { 
-      volume: "1.25 L", 
-      note: "Electrolyte mix mandatory.", 
-      color: "text-stopRed font-bold animate-pulse", 
-      level: "EXTREME DANGER" 
-    };
-  };
-
-  const hydration = getHydrationInfo(wbgt);
+  const heatStress = evaluateHeatStress(temp, rh, wind, uv, data.solar_radiation ?? null, feelsLike);
+  const wbgt = heatStress.wbgt;
 
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl py-2 px-3 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
@@ -679,31 +628,39 @@ export function HydrationWidget({ data }) {
           </p>
           <h2 className="text-xs font-bold text-slate-200 leading-none">ADOSH Heat Stress Code</h2>
         </div>
-        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-current leading-none ${hydration.color}`}>
-          {hydration.level}
+        <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border border-current leading-none ${heatStress.color}`}>
+          {heatStress.level}
         </span>
       </div>
 
       {/* Main Content */}
       <div className="flex items-center justify-between my-1 relative z-10">
-        <div className="flex items-center space-x-2">
-          <span className="text-2xl font-black text-textIceWhite tracking-tight leading-none">
-            {hydration.volume}
+        <div className="flex flex-col">
+          <div className="flex items-baseline space-x-1.5">
+            <span className="text-2xl font-black text-textIceWhite tracking-tight leading-none">
+              {heatStress.volume}
+            </span>
+            <span className="text-[9.5px] font-bold text-slate-400 uppercase leading-none">/ Hour</span>
+          </div>
+          <span className="text-[8px] font-mono font-bold text-cyan-300 mt-0.5 leading-none">
+            {heatStress.cupSchedule}
           </span>
-          <span className="text-[9.5px] font-bold text-slate-400 uppercase leading-none mt-0.5">/ Hour</span>
         </div>
         <div className="text-right">
-          <p className="text-[7.5px] text-slate-400 font-bold uppercase leading-none mb-0.5">WBGT Index</p>
+          <p className="text-[7.5px] text-slate-400 font-bold uppercase leading-none mb-0.5">Thermal Load</p>
           <p className="text-xs font-black text-textIceWhite leading-none">
-            {wbgt.toFixed(1)}°C
+            WBGT {wbgt.toFixed(1)}°C
+          </p>
+          <p className="text-[8px] font-mono font-bold text-slate-400 mt-0.5 leading-none">
+            Shade {temp.toFixed(1)}°C
           </p>
         </div>
       </div>
 
       {/* Footer / Advisory Note */}
-      <p className="text-[8.5px] font-semibold text-slate-350 leading-tight relative z-10">
-        💡 {hydration.note}
-      </p>
+      <div className="border-t border-slate-800/50 pt-1 flex items-center justify-between text-[8px] font-semibold text-slate-300 leading-tight relative z-10">
+        <span className="truncate">💡 {heatStress.note}</span>
+      </div>
     </div>
   );
 }

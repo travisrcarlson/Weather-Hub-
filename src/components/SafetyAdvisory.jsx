@@ -1,8 +1,16 @@
 import React from 'react';
 import { ShieldAlert, Droplets, Sun, Wind, CloudLightning, Activity, AlertTriangle, PhoneCall } from 'lucide-react';
-import { calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
 
 export default function SafetyAdvisory({ data, ncmWarnings }) {
+  const heatStress = evaluateHeatStress(
+    data?.temperature_2m || 0,
+    data?.relative_humidity_2m || 50,
+    data?.wind_speed_10m || 0,
+    data?.uv_index ?? 0,
+    data?.solar_radiation ?? null,
+    data?.apparent_temperature ?? null
+  );
   return (
     <div className="w-full h-full text-slate-200 select-none p-3 md:p-5 flex flex-col justify-between overflow-y-auto md:overflow-hidden no-scrollbar">
       {/* Title Header */}
@@ -32,21 +40,30 @@ export default function SafetyAdvisory({ data, ncmWarnings }) {
             
             <div className="space-y-3">
               <div>
-                <p className="text-[9px] text-edgeOrange font-black uppercase tracking-wider mb-1">
-                  Hydration Schedule (Standard Duty)
-                </p>
+                <div className="flex justify-between items-center mb-1">
+                  <p className="text-[9px] text-edgeOrange font-black uppercase tracking-wider">
+                    Hydration Schedule (ADOSH CoP 11.0)
+                  </p>
+                  <span className={`text-[8.5px] px-1.5 py-0.5 rounded border font-mono font-black ${heatStress.badgeColor}`}>
+                    LIVE WBGT {heatStress.wbgt.toFixed(1)}°C • {heatStress.volumePerHour}
+                  </span>
+                </div>
                 <div className="bg-bgDeepSpace/40 rounded border border-slate-800/60 p-2 text-[8px] space-y-1">
-                  <div className="flex justify-between border-b border-slate-800/40 pb-0.5">
-                    <span className="font-bold text-slate-400">Flag Green (&lt;38°C)</span>
-                    <span className="font-mono text-textIceWhite">250ml every 20m</span>
+                  <div className={`flex justify-between border-b border-slate-800/40 pb-0.5 ${heatStress.tier === 'LOW' ? 'bg-emerald-950/30 px-1 rounded' : ''}`}>
+                    <span className="font-bold text-safetyGreen">Flag Green (WBGT &lt;25.9°C / &lt;34°C)</span>
+                    <span className="font-mono text-textIceWhite">0.50 L/hr (250 mL / 30m)</span>
                   </div>
-                  <div className="flex justify-between border-b border-slate-800/40 pb-0.5">
-                    <span className="font-bold text-amberAlert">Flag Amber (38-43°C)</span>
-                    <span className="font-mono text-textIceWhite">500ml every 20m</span>
+                  <div className={`flex justify-between border-b border-slate-800/40 pb-0.5 ${heatStress.tier === 'MODERATE' ? 'bg-yellow-950/30 px-1 rounded' : ''}`}>
+                    <span className="font-bold text-yellow-400">Flag Yellow (WBGT 25.9-27.8°C / 34-37.9°C)</span>
+                    <span className="font-mono text-textIceWhite">0.75 L/hr (250 mL / 20m)</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="font-bold text-stopRed">Flag Red (&ge;43°C)</span>
-                    <span className="font-mono text-textIceWhite">1L every 20m + Electrolytes</span>
+                  <div className={`flex justify-between border-b border-slate-800/40 pb-0.5 ${heatStress.tier === 'HIGH' ? 'bg-amber-950/30 px-1 rounded' : ''}`}>
+                    <span className="font-bold text-amberAlert">Flag Amber (WBGT 27.9-30.4°C / 38-41.9°C)</span>
+                    <span className="font-mono text-textIceWhite">1.00 L/hr (250 mL / 15m + Elec.)</span>
+                  </div>
+                  <div className={`flex justify-between ${heatStress.tier === 'SEVERE' ? 'bg-red-950/30 px-1 rounded' : ''}`}>
+                    <span className="font-bold text-stopRed">Flag Red (WBGT &ge;30.5°C / &ge;42°C)</span>
+                    <span className="font-mono text-textIceWhite">1.25 L/hr (250 mL / 12m + Elec.)</span>
                   </div>
                 </div>
               </div>
@@ -127,15 +144,15 @@ export default function SafetyAdvisory({ data, ncmWarnings }) {
                 </p>
                 <div className="bg-bgDeepSpace/40 rounded border border-slate-800/60 p-2 text-[8px] space-y-1">
                   <div className="flex justify-between border-b border-slate-800/40 pb-0.5">
-                    <span>Normal Conditions</span>
+                    <span>Normal / Yellow Caution (WBGT &lt;27.9°C)</span>
                     <span className="font-mono text-textIceWhite">50m Work / 10m Rest</span>
                   </div>
                   <div className="flex justify-between border-b border-slate-800/40 pb-0.5">
-                    <span className="text-amberAlert">Amber Warning (WBGT &ge;27.9°C)</span>
+                    <span className="text-amberAlert">High Caution (WBGT 27.9-30.4°C / 38-41.9°C)</span>
                     <span className="font-mono text-textIceWhite">40m Work / 20m Rest</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-stopRed">Red Warning (WBGT &ge;30.0°C)</span>
+                    <span className="text-stopRed">Severe Caution (WBGT &ge;30.5°C / &ge;42°C)</span>
                     <span className="font-mono text-textIceWhite">30m Work / 30m Rest</span>
                   </div>
                 </div>
@@ -171,21 +188,21 @@ export default function SafetyAdvisory({ data, ncmWarnings }) {
                 <div className="bg-bgDeepSpace/40 rounded border border-slate-800/60 p-2 text-[8px] space-y-1.5">
                   <div>
                     <div className="flex justify-between font-bold text-slate-300">
-                      <span>Sustained Wind &ge;38 km/h</span>
-                      <span className="text-stopRed font-mono font-black">RED HALT</span>
+                      <span>Sustained Wind 22–44 km/h / Gusts 32–59 km/h</span>
+                      <span className="text-amberAlert font-mono font-black">AMBER CAUTION</span>
                     </div>
                     <p className="text-[7.5px] text-slate-500 leading-normal">
-                      Halt all live firing, ballistics test profiles, and target mechanism movements.
+                      Monitor crosswind drift, secure loose target rigs, and apply ballistic windage corrections.
                     </p>
                   </div>
                   <div className="border-t border-slate-800/40 my-1" />
                   <div>
                     <div className="flex justify-between font-bold text-slate-300">
-                      <span>Wind Gusts &ge;50 km/h</span>
+                      <span>Severe Gale &ge;45 km/h / Gusts &ge;60 km/h</span>
                       <span className="text-stopRed font-mono font-black">RED HALT</span>
                     </div>
                     <p className="text-[7.5px] text-slate-500 leading-normal">
-                      Secure loose instrumentation, cover optics, and move personnel into protective shelter hubs.
+                      Halt all live firing, aerial sorties, and target mechanisms; secure optics and move to shelter hubs.
                     </p>
                   </div>
                 </div>

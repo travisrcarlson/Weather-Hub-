@@ -1,6 +1,6 @@
 import React from 'react';
 import { GlassWater, Sun, Flame, Timer, Moon } from 'lucide-react';
-import { calculateWBGT, calculateSunscreenIntervals } from '../utils/safetyEngine';
+import { calculateWBGT, calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
 
 export default function TvGuidelinesWidget({ data, isMobile = false }) {
   if (!data) return null;
@@ -10,8 +10,10 @@ export default function TvGuidelinesWidget({ data, isMobile = false }) {
   const wind = data.wind_speed_10m || 0;
   const uv = data.uv_index !== undefined ? data.uv_index : 0;
   const solar = data.solar_radiation ?? null;
+  const feelsLike = data.apparent_temperature ?? null;
   
-  const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
+  const heatStress = evaluateHeatStress(temp, rh, wind, uv, solar, feelsLike);
+  const wbgt = heatStress.wbgt;
 
   // 1. Sunscreen & Solar PPE Guidelines
   const getSunscreenInfo = (uvIndex) => {
@@ -81,37 +83,20 @@ export default function TvGuidelinesWidget({ data, isMobile = false }) {
     };
   };
 
-  // 2. Hydration Guidelines (Based on ISO 7243 WBGT standards)
-  const getHydrationInfo = (wbgtVal) => {
-    if (wbgtVal < 25.9) {
-      return { volume: "0.5 Liters / hr", shortVol: "0.5 L/hr", note: "Routine intake. Chilled water recommended.", shortNote: "Routine Chilled Water", color: "text-safetyGreen" };
-    }
-    if (wbgtVal < 27.9) {
-      return { volume: "0.75 Liters / hr", shortVol: "0.75 L/hr", note: "Keep chilled water nearby. Drink constantly.", shortNote: "Drink Every 20m", color: "text-yellow-300" };
-    }
-    if (wbgtVal < 30.0) {
-      return { volume: "1.00 Liter / hr", shortVol: "1.0 L/hr", note: "Chilled water + Electrolyte mix recommended.", shortNote: "Water + Electrolytes", color: "text-amber-400" };
-    }
-    return { volume: "1.25 Liters / hr", shortVol: "1.25 L/hr", note: "Electrolyte mix mandatory. Monitor buddy status.", shortNote: "Mandatory Electrolytes", color: "text-stopRed font-bold animate-pulse" };
-  };
-
-  // 3. Work/Rest Guidelines (ADOSH Heat Stress Safety Advisor based on WBGT flags)
-  const getRestInfo = (wbgtVal) => {
-    if (wbgtVal < 25.9) {
-      return { work: "Continuous", rest: "Normal breaks", ratio: "Continuous Work", shortRatio: "Continuous", shortNote: "Normal Shade Breaks", color: "text-safetyGreen" };
-    }
-    if (wbgtVal < 27.9) {
-      return { work: "50 Minutes", rest: "10 Minutes", ratio: "50m Work / 10m Rest", shortRatio: "50m / 10m", shortNote: "10m Shade / Hr", color: "text-yellow-400" };
-    }
-    if (wbgtVal < 30.0) {
-      return { work: "40 Minutes", rest: "20 Minutes", ratio: "40m Work / 20m Rest", shortRatio: "40m / 20m", shortNote: "20m Mandatory Shade", color: "text-amberAlert" };
-    }
-    return { work: "30 Minutes", rest: "30 Minutes", ratio: "30m Work / 30m Rest", shortRatio: "30m / 30m", shortNote: "30m Mandatory Shade", color: "text-stopRed animate-pulse" };
-  };
-
   const sunscreen = getSunscreenInfo(uv);
-  const hydration = getHydrationInfo(wbgt);
-  const rest = getRestInfo(wbgt);
+  const hydration = {
+    volume: `${heatStress.volumePerHour} (${heatStress.cupSchedule})`,
+    shortVol: heatStress.volumePerHour,
+    note: heatStress.note,
+    shortNote: heatStress.cupSchedule,
+    color: heatStress.color
+  };
+  const rest = {
+    ratio: heatStress.workRestRatio,
+    shortRatio: heatStress.shortRatio,
+    shortNote: heatStress.shortNote,
+    color: heatStress.color
+  };
 
   if (isMobile) {
     return (

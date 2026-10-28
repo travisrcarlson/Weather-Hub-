@@ -186,14 +186,14 @@ export function generateMockNcmWarnings(currentData) {
     });
   }
 
-  // 1. Heat Warnings
-  if (temp >= 43) {
+  // 1. Heat Warnings (Grounded: Critical Red >= 46°C, Amber Caution >= 38°C)
+  if (temp >= 46) {
     warnings.push({
       id: "ncm-w-heat-red",
       type: "RED",
       category: "HEAT",
       title: "EXTREME HEAT EMERGENCY",
-      description: "Official NCM Warning: Extreme heatwave conditions with temperatures exceeding 43°C. Avoid direct sunlight. Suspend all outdoor range activities.",
+      description: "Official NCM Warning: Extreme heatwave conditions with shade temperatures exceeding 46°C. Suspend all outdoor range activities.",
       issued: new Date().toISOString().slice(0, 10) + "T09:00:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T17:00:00+04:00"
     });
@@ -202,23 +202,33 @@ export function generateMockNcmWarnings(currentData) {
       id: "ncm-w-heat-amber",
       type: "AMBER",
       category: "HEAT",
-      title: "HEAT ADVISORY",
-      description: "Official NCM Advisory: High temperatures exceeding 38°C. Implement mandatory rest cycles and hydration procedures.",
+      title: "HEAT STRESS & HYDRATION CAUTION",
+      description: "Official NCM Advisory: High temperatures exceeding 38°C. Enforce ADOSH work/rest splits and elevated water intake (1.00–1.25 L/hr).",
       issued: new Date().toISOString().slice(0, 10) + "T10:00:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T16:00:00+04:00"
     });
   }
 
-  // 2. Wind Warnings
-  if (wind >= 38) {
+  // 2. Wind Warnings (Grounded: Critical Red >= 45 km/h, Amber Caution >= 35 km/h, Yellow >= 25 km/h)
+  if (wind >= 45) {
     warnings.push({
       id: "ncm-w-wind-red",
       type: "RED",
       category: "WIND",
-      title: "GALE WARNING",
-      description: "Official NCM Warning: Severe gale winds exceeding 38 km/h with high gusts. Suspend all ballistics and drone operations.",
+      title: "SEVERE GALE WARNING",
+      description: "Official NCM Warning: Severe gale winds exceeding 45 km/h with hazardous gusts. Suspend all ballistics and drone operations.",
       issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T20:00:00+04:00"
+    });
+  } else if (wind >= 35) {
+    warnings.push({
+      id: "ncm-w-wind-amber",
+      type: "AMBER",
+      category: "WIND",
+      title: "HIGH WIND DRIFT CAUTION",
+      description: "Official NCM Advisory: Sustained high winds (35–44 km/h) causing crosswind ballistic drift and light UAV restriction.",
+      issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
+      expiry: new Date().toISOString().slice(0, 10) + "T19:00:00+04:00"
     });
   } else if (wind >= 25) {
     warnings.push({
@@ -226,30 +236,30 @@ export function generateMockNcmWarnings(currentData) {
       type: "YELLOW",
       category: "WIND",
       title: "STRONG WIND AWARENESS",
-      description: "Official NCM Alert: Strong winds up to 30 km/h expected to cause blowing sand and dust. Reduce speeds and exercise caution.",
+      description: "Official NCM Alert: Fresh winds up to 34 km/h expected to cause blowing sand and dust. Monitor ballistic crosswind.",
       issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T18:00:00+04:00"
     });
   }
 
-  // 3. Sandstorm / Visibility Warnings
-  if (visibility < 1000 || pm10 >= 155) {
+  // 3. Sandstorm / Visibility Warnings (Grounded: Red < 800m or PM10 >= 250, Amber < 4000m or PM10 >= 120)
+  if (visibility < 800 || pm10 >= 250) {
     warnings.push({
       id: "ncm-w-dust-red",
       type: "RED",
       category: "DUST",
       title: "SEVERE DUST STORM WARNING",
-      description: "Official NCM Warning: Severe dust storm causing horizontal visibility to drop below 1000 meters. Halt range movement and secure equipment.",
+      description: "Official NCM Warning: Severe dust storm causing horizontal visibility to drop below 800 meters. Halt range movement and secure equipment.",
       issued: new Date().toISOString().slice(0, 10) + "T07:30:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T15:30:00+04:00"
     });
-  } else if (visibility < 4000) {
+  } else if (visibility < 4000 || pm10 >= 120) {
     warnings.push({
       id: "ncm-w-dust-amber",
       type: "AMBER",
       category: "DUST",
-      title: "BLOWING DUST ADVISORY",
-      description: "Official NCM Alert: Dust suspension causing visibility between 1km and 4km. Avoid long-exposure outdoor duties.",
+      title: "BLOWING DUST CAUTION",
+      description: "Official NCM Alert: Dust suspension causing reduced visibility (0.8–4.0 km). Monitor long-range target lines and respiratory protection.",
       issued: new Date().toISOString().slice(0, 10) + "T08:00:00+04:00",
       expiry: new Date().toISOString().slice(0, 10) + "T16:00:00+04:00"
     });

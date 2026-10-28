@@ -255,15 +255,15 @@ export default function App() {
       const pm10 = isSimulated ? s.pm : (liveStation?.pm10 || 50);
 
       // Check temperature
-      if (temp >= 43) count++;
-      else if (temp >= 40) count++;
+      if (temp >= 46) count++;
+      else if (temp >= 38) count++;
 
       // Check wind / gusts
-      if (wind >= 38 || gusts >= 50) count++;
+      if (wind >= 45 || gusts >= 60) count++;
       else if (wind >= 25 || gusts >= 35) count++;
 
       // Check visibility
-      if (visibility < 1000) count++;
+      if (visibility < 800) count++;
       else if (visibility < 3000) count++;
 
       // Check PM10 AQI
@@ -291,7 +291,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, []);
 
-  const activeTime = isSimulated ? new Date('2026-06-15T12:30:00') : systemTime;
+  const activeTime = isSimulated ? new Date('2026-06-15T11:30:00') : systemTime;
 
   const loadData = async () => {
     try {
@@ -365,99 +365,88 @@ export default function App() {
       });
     }
   }
+  const getActiveStationDisplayData = () => {
+    if (isSimulated) {
+      const simStationProfiles = {
+        hq: {
+          name: 'X-Range HQ',
+          temperature_2m: 41.3,
+          apparent_temperature: 43.1,
+          relative_humidity_2m: 20,
+          wind_speed_10m: 25,
+          wind_gusts_10m: 35,
+          weathercode: simulatedLightning ? 95 : 3,
+          uv_index: 9.0,
+          solar_radiation: 890
+        },
+        north: {
+          name: 'Range North',
+          temperature_2m: 39.5,
+          apparent_temperature: 42.0,
+          relative_humidity_2m: 25,
+          wind_speed_10m: 42,
+          wind_gusts_10m: 53,
+          visibility: 4000,
+          weathercode: simulatedLightning ? 95 : 45,
+          uv_index: 9.0,
+          solar_radiation: 840
+        },
+        south: {
+          name: 'Range South',
+          temperature_2m: 44.5,
+          apparent_temperature: 49.2,
+          relative_humidity_2m: 15,
+          wind_speed_10m: 12,
+          wind_gusts_10m: 18,
+          visibility: 12000,
+          weathercode: simulatedLightning ? 95 : 0,
+          uv_index: 9.8,
+          solar_radiation: 985
+        },
+        sea: {
+          name: 'Sea Boundary',
+          temperature_2m: 34.0,
+          apparent_temperature: 48.0,
+          relative_humidity_2m: 89,
+          wind_speed_10m: 28,
+          wind_gusts_10m: 42,
+          visibility: 2000,
+          weathercode: simulatedLightning ? 95 : 3,
+          uv_index: 8.6,
+          solar_radiation: 820
+        }
+      };
+      const simProfile = simStationProfiles[activeStation] || simStationProfiles.hq;
+      return {
+        ...(data?.stations?.[activeStation]?.current || data?.current),
+        ...simProfile,
+        sectorTitle: simProfile.name
+      };
+    }
+
+    // WeatherNext 3 5km multi-station microclimate grid resolution
+    if (data?.stations && data.stations[activeStation]?.current) {
+      return {
+        ...data.stations[activeStation].current,
+        sectorTitle: data.stations[activeStation].name,
+        name: data.stations[activeStation].name
+      };
+    }
+    return data?.current;
+  };
+
+  const activeDisplayData = getActiveStationDisplayData();
+
   const getCombinedSafety = () => {
     if (!data) return { status: 'GREEN', reasons: [], colors: { banner: 'bg-safetyGreen', pulse: false } };
 
     let globalStatus = 'GREEN';
     const globalReasons = [];
 
-    if (!isSimulated) {
-      const targetCurrent = data?.stations?.[activeStation]?.current || data.current;
-      const evalResult = evaluateSafety(targetCurrent);
-      globalStatus = evalResult.status;
-      evalResult.reasons.forEach(r => globalReasons.push(r));
-    } else {
-      const stations = [
-        {
-          id: 'hq',
-          name: 'X-Range HQ',
-          readings: {
-            ...data.current,
-            temperature_2m: 41.3,
-            apparent_temperature: 43.1,
-            wind_speed_10m: 25,
-            wind_gusts_10m: 35,
-            relative_humidity_2m: 20,
-            weathercode: simulatedLightning ? 95 : 3,
-            uv_index: 9.0
-          }
-        },
-        {
-          id: 'north',
-          name: 'Range North',
-          readings: {
-            ...data.current,
-            temperature_2m: 39.5,
-            apparent_temperature: 42.0,
-            wind_speed_10m: 42,
-            wind_gusts_10m: 53,
-            relative_humidity_2m: 25,
-            visibility: 4000,
-            weathercode: simulatedLightning ? 95 : 45,
-            uv_index: 9.0
-          }
-        },
-        {
-          id: 'south',
-          name: 'Range South',
-          readings: {
-            ...data.current,
-            temperature_2m: 44.5,
-            apparent_temperature: 49.2,
-            wind_speed_10m: 12,
-            wind_gusts_10m: 18,
-            relative_humidity_2m: 15,
-            visibility: 12000,
-            weathercode: simulatedLightning ? 95 : 0,
-            uv_index: 9.0
-          }
-        },
-        {
-          id: 'sea',
-          name: 'Sea Boundary',
-          readings: {
-            ...data.current,
-            temperature_2m: 34.0,
-            apparent_temperature: 48.0,
-            wind_speed_10m: 28,
-            wind_gusts_10m: 42,
-            relative_humidity_2m: 89,
-            visibility: 2000,
-            weathercode: simulatedLightning ? 95 : 3,
-            uv_index: 9.0
-          }
-        }
-      ];
-
-      stations.forEach(s => {
-        const evalResult = evaluateSafety(s.readings);
-        if (evalResult.status === 'RED') {
-          globalStatus = 'RED';
-        } else if (evalResult.status === 'AMBER' && globalStatus !== 'RED') {
-          globalStatus = 'AMBER';
-        }
-
-        evalResult.reasons.forEach(r => {
-          if (r.includes('MIDDAY BAN')) {
-            if (!globalReasons.some(gr => gr.includes('MIDDAY BAN'))) {
-              globalReasons.unshift(r);
-            }
-          } else {
-            globalReasons.push(`${s.name}: ${r}`);
-          }
-        });
-      });
-    }
+    const targetCurrent = activeDisplayData || data?.stations?.[activeStation]?.current || data.current;
+    const evalResult = evaluateSafety(targetCurrent, isSimulated ? activeTime : null);
+    globalStatus = evalResult.status;
+    evalResult.reasons.forEach(r => globalReasons.push(r));
 
     // Incorporate NCM warnings into the safety state
     let isLightningHalt = false;
@@ -524,78 +513,6 @@ export default function App() {
   };
 
   const globalSafety = getCombinedSafety();
-
-  const getActiveStationDisplayData = () => {
-    if (isSimulated) {
-      const simStationProfiles = {
-        hq: {
-          name: 'X-Range HQ',
-          temperature_2m: 41.3,
-          apparent_temperature: 43.1,
-          relative_humidity_2m: 20,
-          wind_speed_10m: 25,
-          wind_gusts_10m: 35,
-          weathercode: simulatedLightning ? 95 : 3,
-          uv_index: 9.0,
-          solar_radiation: 890
-        },
-        north: {
-          name: 'Range North',
-          temperature_2m: 39.5,
-          apparent_temperature: 42.0,
-          relative_humidity_2m: 25,
-          wind_speed_10m: 42,
-          wind_gusts_10m: 53,
-          visibility: 4000,
-          weathercode: simulatedLightning ? 95 : 45,
-          uv_index: 9.0,
-          solar_radiation: 840
-        },
-        south: {
-          name: 'Range South',
-          temperature_2m: 44.5,
-          apparent_temperature: 49.2,
-          relative_humidity_2m: 15,
-          wind_speed_10m: 12,
-          wind_gusts_10m: 18,
-          visibility: 12000,
-          weathercode: simulatedLightning ? 95 : 0,
-          uv_index: 9.8,
-          solar_radiation: 985
-        },
-        sea: {
-          name: 'Sea Boundary',
-          temperature_2m: 34.0,
-          apparent_temperature: 48.0,
-          relative_humidity_2m: 89,
-          wind_speed_10m: 28,
-          wind_gusts_10m: 42,
-          visibility: 2000,
-          weathercode: simulatedLightning ? 95 : 3,
-          uv_index: 8.6,
-          solar_radiation: 820
-        }
-      };
-      const simProfile = simStationProfiles[activeStation] || simStationProfiles.hq;
-      return {
-        ...(data?.stations?.[activeStation]?.current || data.current),
-        ...simProfile,
-        sectorTitle: simProfile.name
-      };
-    }
-
-    // WeatherNext 3 5km multi-station microclimate grid resolution
-    if (data?.stations && data.stations[activeStation]?.current) {
-      return {
-        ...data.stations[activeStation].current,
-        sectorTitle: data.stations[activeStation].name,
-        name: data.stations[activeStation].name
-      };
-    }
-    return data.current;
-  };
-
-  const activeDisplayData = getActiveStationDisplayData();
   const activeHourlyData = data?.stations?.[activeStation]?.hourly || data?.hourly;
 
   const getActiveStationDailyData = () => {

@@ -3,7 +3,7 @@ import {
   X, Bell, AlertTriangle, ShieldCheck, Mail, MessageSquare, Radio, Send, CheckCheck, 
   UserCheck, AlertCircle, Clock, Volume2, ShieldAlert, Check, Lock, ChevronDown, ChevronUp 
 } from 'lucide-react';
-import { evaluateSafety, calculateWBGT } from '../utils/safetyEngine';
+import { evaluateSafety, calculateWBGT, evaluateHeatStress } from '../utils/safetyEngine';
 import { stationsList } from './XRangeMap';
 
 export default function AlertCenter({ 
@@ -173,52 +173,46 @@ export default function AlertCenter({
       const pm10 = readings.pm10 || 50;
       const visibility = readings.visibility || 10000;
 
-      // 1. Temperature Limit
-      if (temp >= 43) {
+      // 1. Heat Stress & Hydration (WBGT + Dry-Bulb Shade Temp + Apparent Temp)
+      const heatStress = evaluateHeatStress(
+        temp,
+        rh,
+        wind,
+        uv,
+        readings.solar_radiation ?? null,
+        readings.apparent_temperature ?? null
+      );
+      if (temp >= 46 || heatStress.wbgt >= 34.5) {
         alerts.push({
           id: `${s.id}-temp-red`,
           station: s.name,
           type: 'RED',
           category: 'HEAT',
-          title: '🔥 CRITICAL HEAT STRESS',
-          message: `Temperature is at ${temp.toFixed(1)}°C. ADOSH outdoor work ban in active effect.`,
+          title: '🔥 CRITICAL EXTREME HEAT HALT',
+          message: `Shade ${temp.toFixed(1)}°C / WBGT ${heatStress.wbgt.toFixed(1)}°C. Suspend open-range duties; mandatory ${heatStress.volumePerHour} (${heatStress.cupSchedule}).`,
           timestamp: new Date().toISOString()
         });
-      } else if (temp >= 40) {
+      } else if (heatStress.tier === 'BLACK' || heatStress.tier === 'RED' || temp >= 38) {
         alerts.push({
-          id: `${s.id}-temp-amber`,
+          id: `${s.id}-heat-amber`,
           station: s.name,
           type: 'AMBER',
           category: 'HEAT',
-          title: '☀️ HIGH TEMPERATURE HAZARD',
-          message: `Temperature is at ${temp.toFixed(1)}°C. Implement strict work/rest splits.`,
+          title: '☀️ HEAT STRESS & HYDRATION CAUTION',
+          message: `Shade ${temp.toFixed(1)}°C / WBGT ${heatStress.wbgt.toFixed(1)}°C. Enforce ${heatStress.workRestRatio} split & ${heatStress.volumePerHour} (${heatStress.cupSchedule}).`,
           timestamp: new Date().toISOString()
         });
       }
 
-      // 2. WBGT Stress
-      const wbgt = calculateWBGT(temp, rh, wind, uv, readings.solar_radiation ?? null);
-      if (wbgt >= 30.0) {
-        alerts.push({
-          id: `${s.id}-wbgt-red`,
-          station: s.name,
-          type: 'RED',
-          category: 'HEAT',
-          title: '🥵 CRITICAL WBGT EXPOSURE',
-          message: `Wet Bulb Globe Temp is ${wbgt.toFixed(1)}°C. Mandate electrolyte rehydration.`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 3. Wind speed & Gust limits
-      if (gusts >= 50 || wind >= 38) {
+      // 2. Wind speed & Gust limits (Grounded: Red >= 45 km/h or Gusts >= 60 km/h, Amber 25-44 km/h or Gusts 35-59 km/h)
+      if (gusts >= 60 || wind >= 45) {
         alerts.push({
           id: `${s.id}-wind-red`,
           station: s.name,
           type: 'RED',
           category: 'WIND',
-          title: '💨 GALE FORCE WIND LIMIT',
-          message: `Wind speed is ${wind.toFixed(0)} km/h with gusts to ${gusts.toFixed(0)} km/h. Firing suspended.`,
+          title: '💨 CRITICAL GALE WIND HALT',
+          message: `Wind speed is ${wind.toFixed(0)} km/h with gusts to ${gusts.toFixed(0)} km/h. Live fire & UAV flights suspended.`,
           timestamp: new Date().toISOString()
         });
       } else if (wind >= 25 || gusts >= 35) {
@@ -227,21 +221,21 @@ export default function AlertCenter({
           station: s.name,
           type: 'AMBER',
           category: 'WIND',
-          title: '💨 HIGH WIND DRIFT WARNING',
-          message: `Wind gusts are ${gusts.toFixed(0)} km/h. Drone sorties & optical targeting at high drift risk.`,
+          title: '💨 HIGH WIND DRIFT CAUTION',
+          message: `Wind ${wind.toFixed(0)} km/h (gusts ${gusts.toFixed(0)} km/h). Apply ballistic crosswind compensation & monitor UAV drift.`,
           timestamp: new Date().toISOString()
         });
       }
 
-      // 4. Visibility limits
-      if (visibility < 1000) {
+      // 3. Visibility limits (Grounded: Red < 800m, Amber < 3000m)
+      if (visibility < 800) {
         alerts.push({
           id: `${s.id}-vis-red`,
           station: s.name,
           type: 'RED',
           category: 'VISIBILITY',
-          title: '🌫️ SEVERE VISIBILITY RESTRICTION',
-          message: `Range visibility drops below 1.0 km. Cease all live fire training.`,
+          title: '🌫️ CRITICAL VISIBILITY HALT',
+          message: `Range visibility drops below 0.8 km (${(visibility/1000).toFixed(1)} km). Cease all live fire training.`,
           timestamp: new Date().toISOString()
         });
       } else if (visibility < 3000) {
@@ -250,21 +244,31 @@ export default function AlertCenter({
           station: s.name,
           type: 'AMBER',
           category: 'VISIBILITY',
-          title: '🌫️ HAZE / DUST RESTRICTION',
+          title: '🌫️ HAZE / DUST CAUTION',
           message: `Range visibility drops to ${(visibility/1000).toFixed(1)} km. Monitor long-range targets.`,
           timestamp: new Date().toISOString()
         });
       }
 
-      // 5. PM10 Air Quality limits
-      if (pm10 >= 150) {
+      // 4. PM10 Air Quality limits (Grounded: Red >= 250, Amber >= 120)
+      if (pm10 >= 250) {
         alerts.push({
           id: `${s.id}-pm10-red`,
           station: s.name,
           type: 'RED',
           category: 'AQI',
-          title: '😷 HAZARDOUS DUST STORM',
-          message: `PM10 particulates are ${pm10} ug/m3. Limit outdoor exposure, use protective filters.`,
+          title: '😷 CRITICAL DUST STORM HALT',
+          message: `PM10 particulates are ${pm10} ug/m3. Suspend outdoor range duties, use respiratory protection.`,
+          timestamp: new Date().toISOString()
+        });
+      } else if (pm10 >= 120) {
+        alerts.push({
+          id: `${s.id}-pm10-amber`,
+          station: s.name,
+          type: 'AMBER',
+          category: 'AQI',
+          title: '😷 ELEVATED DUST CAUTION',
+          message: `PM10 particulates are ${pm10} ug/m3. Limit prolonged dust exposure; N95 masks advised.`,
           timestamp: new Date().toISOString()
         });
       }

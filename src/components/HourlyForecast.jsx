@@ -61,15 +61,16 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
     const mockHourData = {
       time: t,
       temperature_2m: temp,
-      apparent_temperature: temp,
+      apparent_temperature: hourlyData.apparent_temperature ? hourlyData.apparent_temperature[idx] : temp,
       wind_speed_10m: windSpeed,
       wind_gusts_10m: windGusts,
-      relative_humidity_2m: 50,
-      visibility: 10000,
+      relative_humidity_2m: hourlyData.relative_humidity_2m ? hourlyData.relative_humidity_2m[idx] : 50,
+      visibility: hourlyData.visibility ? hourlyData.visibility[idx] : 10000,
       uv_index: uv,
+      solar_radiation: hourlyData.solar_radiation ? hourlyData.solar_radiation[idx] : null,
       precipitation: 0,
-      european_aqi: 50,
-      pm10: 20,
+      european_aqi: hourlyData.european_aqi ? hourlyData.european_aqi[idx] : 50,
+      pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 20,
       weathercode: code
     };
 
