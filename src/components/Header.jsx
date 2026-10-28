@@ -47,8 +47,11 @@ export default function Header({
             <h1 className="text-xs font-black tracking-wider text-textIceWhite uppercase leading-none">
               XRANGE
             </h1>
-            <span className="text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans">
-              SAFETY PORTAL
+            <span className="text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans leading-none">
+              WEATHER SAFETY PORTAL
+            </span>
+            <span className="text-[6.5px] text-cyan-400/90 font-mono font-bold tracking-widest uppercase mt-0.5 leading-none">
+              POWERED BY AI
             </span>
           </div>
         </div>
@@ -133,9 +136,12 @@ export default function Header({
           <h1 className="text-2xl font-black tracking-widest text-textIceWhite uppercase leading-none">
             XRANGE SYSTEM
           </h1>
-          <p className="text-xs text-edgeOrange font-bold tracking-[0.2em] uppercase mt-1 font-sans">
+          <p className="text-xs text-edgeOrange font-bold tracking-[0.2em] uppercase mt-0.5 font-sans leading-none">
             WEATHER SAFETY PORTAL
           </p>
+          <span className="text-[9px] text-cyan-400/90 font-mono font-bold tracking-[0.18em] uppercase mt-1 leading-none">
+            POWERED BY AI
+          </span>
         </div>
       </div>
 
