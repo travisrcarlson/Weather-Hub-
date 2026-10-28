@@ -146,19 +146,20 @@ const UAV_AIRFRAMES = [
 ];
 
 // Standard X-Range 3 Runways on Abu Al Abyad Island (All aligned on the 31/13 magnetic axis: 310° NW / 130° SE)
+// AF1R = Collocated with HQ | AF2R = Collocated with South Point | EM2R = Collocated with West Point (Sea Boundary)
 const XRANGE_RUNWAYS = [
-  { id: 'RWY_1', short: 'RWY 1 (MAIN)', label: 'RWY 1 • Main Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
-  { id: 'RWY_2', short: 'RWY 2 (NORTH)', label: 'RWY 2 • North Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
-  { id: 'RWY_3', short: 'RWY 3 (SOUTH)', label: 'RWY 3 • South Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 }
+  { id: 'AF1R', stationId: 'hq', short: 'AF1R (HQ)', label: 'AF1R • HQ Strip (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
+  { id: 'AF2R', stationId: 'south', short: 'AF2R (SOUTH)', label: 'AF2R • South Point (31/13)', rwy31Heading: 310, rwy13Heading: 130 },
+  { id: 'EM2R', stationId: 'sea', short: 'EM2R (WEST)', label: 'EM2R • West Point (31/13)', rwy31Heading: 310, rwy13Heading: 130 }
 ];
 
 const RUNWAY_PRESETS = [
-  { id: 'RWY_1_31', stripId: 'RWY_1', end: '31', label: 'RWY 1 • 31 (310° NW Main)', heading: 310 },
-  { id: 'RWY_1_13', stripId: 'RWY_1', end: '13', label: 'RWY 1 • 13 (130° SE Main)', heading: 130 },
-  { id: 'RWY_2_31', stripId: 'RWY_2', end: '31', label: 'RWY 2 • 31 (310° NW North)', heading: 310 },
-  { id: 'RWY_2_13', stripId: 'RWY_2', end: '13', label: 'RWY 2 • 13 (130° SE North)', heading: 130 },
-  { id: 'RWY_3_31', stripId: 'RWY_3', end: '31', label: 'RWY 3 • 31 (310° NW South)', heading: 310 },
-  { id: 'RWY_3_13', stripId: 'RWY_3', end: '13', label: 'RWY 3 • 13 (130° SE South)', heading: 130 }
+  { id: 'AF1R_31', stripId: 'AF1R', end: '31', label: 'AF1R • RWY 31 (310° NW — HQ Collocated)', heading: 310 },
+  { id: 'AF1R_13', stripId: 'AF1R', end: '13', label: 'AF1R • RWY 13 (130° SE — HQ Collocated)', heading: 130 },
+  { id: 'AF2R_31', stripId: 'AF2R', end: '31', label: 'AF2R • RWY 31 (310° NW — South Point)', heading: 310 },
+  { id: 'AF2R_13', stripId: 'AF2R', end: '13', label: 'AF2R • RWY 13 (130° SE — South Point)', heading: 130 },
+  { id: 'EM2R_31', stripId: 'EM2R', end: '31', label: 'EM2R • RWY 31 (310° NW — West Point)', heading: 310 },
+  { id: 'EM2R_13', stripId: 'EM2R', end: '13', label: 'EM2R • RWY 13 (130° SE — West Point)', heading: 130 }
 ];
 
 // 5-Point RPIC Pre-Flight Checklist Items
@@ -186,10 +187,10 @@ export default function PilotConsole({
   const [customMaxCrosswind, setCustomMaxCrosswind] = useState(26);
   const [payloadKg, setPayloadKg] = useState(0.9);
 
-  // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: 310° NW / 130° SE)
+  // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: AF1R @ HQ, AF2R @ South, EM2R @ West)
   const [runwayHeading, setRunwayHeading] = useState(310);
-  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState('RWY_1');
-  const [selectedRunwayId, setSelectedRunwayId] = useState('RWY_1_31');
+  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState('AF1R');
+  const [selectedRunwayId, setSelectedRunwayId] = useState('AF1R_31');
 
   // Goal Ground Speed Calculator, Platform V_min / V_max & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
@@ -716,7 +717,7 @@ export default function PilotConsole({
 
       return {
         id: st.id,
-        short: st.id === 'hq' ? 'HQ Pad' : st.id === 'north' ? 'North' : st.id === 'south' ? 'South' : 'Sea Spit',
+        short: st.id === 'hq' ? 'HQ • AF1R' : st.id === 'north' ? 'North Pad' : st.id === 'south' ? 'South • AF2R' : 'West • EM2R',
         w10: Math.round(w10),
         w100: Math.round(w100),
         status: padStatus
@@ -1070,7 +1071,15 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                   <button
                     key={pad.id}
                     type="button"
-                    onClick={() => setActiveStation(pad.id)}
+                    onClick={() => {
+                      setActiveStation(pad.id);
+                      const collocatedStrip = XRANGE_RUNWAYS.find(r => r.stationId === pad.id);
+                      if (collocatedStrip) {
+                        setSelectedRunwayStrip(collocatedStrip.id);
+                        const endCode = runwayHeading === 130 ? '13' : '31';
+                        setSelectedRunwayId(`${collocatedStrip.id}_${endCode}`);
+                      }
+                    }}
                     className={`px-2 py-1 rounded text-[8.5px] font-black uppercase transition cursor-pointer flex items-center space-x-1.5 border ${
                       isSelected
                         ? 'bg-edgeOrange/25 border-edgeOrange text-white'
@@ -1413,7 +1422,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            {/* 3-Runway Strip Selector (RWY 1, RWY 2, RWY 3 — All 31/13) + 31 (310°) / 13 (130°) Threshold Toggle */}
+            {/* 3-Runway Strip Selector (AF1R @ HQ, AF2R @ South, EM2R @ West — All 31/13) + 31 (310°) / 13 (130°) Threshold Toggle */}
             <div className="space-y-1.5 mb-2">
               <div className="grid grid-cols-3 gap-1">
                 {XRANGE_RUNWAYS.map(strip => {
@@ -1428,12 +1437,16 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                         const nextHdg = endCode === '13' ? 130 : 310;
                         setRunwayHeading(nextHdg);
                         setSelectedRunwayId(`${strip.id}_${endCode}`);
+                        if (setActiveStation && strip.stationId) {
+                          setActiveStation(strip.stationId);
+                        }
                       }}
                       className={`px-1.5 py-1 rounded text-[7.5px] font-black uppercase border text-center truncate cursor-pointer transition ${
                         isActiveStrip
                           ? 'bg-edgeOrange/20 border-edgeOrange text-white'
                           : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
                       }`}
+                      title={`${strip.label} — Collocated with ${strip.short}`}
                     >
                       🛫 {strip.short} 31/13
                     </button>
