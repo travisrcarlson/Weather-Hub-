@@ -15,7 +15,7 @@ import {
 import { calculateDewPoint } from '../utils/safetyEngine';
 import { stationsList } from './XRangeMap';
 
-// Standard UAV Airframe Profiles operated at X-Range
+// Standard UAV Airframe & Fixed-Wing Profiles operated at X-Range (with V_min Stall & V_max Dash Speeds)
 const UAV_AIRFRAMES = [
   {
     id: 'CLASS_1',
@@ -28,15 +28,17 @@ const UAV_AIRFRAMES = [
     maxTempC: 45,
     nominalEnduranceMin: 42,
     ceilingM: 500,
+    minAirspeedKmh: 0,
     cruiseSpeedKmh: 54,
+    maxAirspeedKmh: 76,
     emptyWeightKg: 6.5,
     maxPayloadKg: 2.7,
     defaultPayloadKg: 0.9
   },
   {
     id: 'CLASS_2',
-    name: 'Class II: Heavy-Lift / VTOL ISR',
-    models: 'Heavy Payload Octocopter / Hybrid VTOL ISR',
+    name: 'Class II: Heavy-Lift / Hybrid VTOL',
+    models: 'Heavy Payload Octocopter / Quantum Trinity VTOL',
     type: 'HEAVY_ROTOR',
     maxSustainedWindKmh: 38,
     maxGustKmh: 50,
@@ -44,26 +46,84 @@ const UAV_AIRFRAMES = [
     maxTempC: 48,
     nominalEnduranceMin: 55,
     ceilingM: 1200,
-    cruiseSpeedKmh: 48,
+    minAirspeedKmh: 0,
+    cruiseSpeedKmh: 65,
+    maxAirspeedKmh: 95,
     emptyWeightKg: 18.0,
     maxPayloadKg: 12.0,
     defaultPayloadKg: 4.5
   },
   {
-    id: 'CLASS_3',
-    name: 'Class III: Tactical Fixed-Wing & Target',
-    models: 'Banshee Jet 80+ / ScanEagle / Camcopter S-100',
+    id: 'FW_LIGHT',
+    name: 'Fixed-Wing I: Light Electric ISR',
+    models: 'AeroVironment Puma 3 AE / Raven / Skylark',
+    type: 'FIXED_WING',
+    maxSustainedWindKmh: 38,
+    maxGustKmh: 48,
+    maxCrosswindKmh: 24,
+    maxTempC: 48,
+    nominalEnduranceMin: 150,
+    ceilingM: 1000,
+    minAirspeedKmh: 38,
+    cruiseSpeedKmh: 62,
+    maxAirspeedKmh: 85,
+    emptyWeightKg: 6.8,
+    maxPayloadKg: 2.5,
+    defaultPayloadKg: 0.8
+  },
+  {
+    id: 'FW_MED',
+    name: 'Fixed-Wing II: Medium Endurance ISR',
+    models: 'Boeing Insitu ScanEagle / Integrator',
     type: 'FIXED_WING',
     maxSustainedWindKmh: 46,
     maxGustKmh: 60,
-    maxCrosswindKmh: 28,
+    maxCrosswindKmh: 30,
     maxTempC: 50,
-    nominalEnduranceMin: 180,
+    nominalEnduranceMin: 360,
     ceilingM: 2500,
-    cruiseSpeedKmh: 110,
-    emptyWeightKg: 35.0,
-    maxPayloadKg: 15.0,
-    defaultPayloadKg: 5.0
+    minAirspeedKmh: 55,
+    cruiseSpeedKmh: 95,
+    maxAirspeedKmh: 148,
+    emptyWeightKg: 18.0,
+    maxPayloadKg: 6.5,
+    defaultPayloadKg: 3.2
+  },
+  {
+    id: 'FW_MALE',
+    name: 'Fixed-Wing III: Tactical MALE / S-100',
+    models: 'Schiebel Camcopter S-100 / Tactical MALE ISR',
+    type: 'FIXED_WING',
+    maxSustainedWindKmh: 50,
+    maxGustKmh: 65,
+    maxCrosswindKmh: 34,
+    maxTempC: 50,
+    nominalEnduranceMin: 300,
+    ceilingM: 2500,
+    minAirspeedKmh: 45,
+    cruiseSpeedKmh: 130,
+    maxAirspeedKmh: 220,
+    emptyWeightKg: 110.0,
+    maxPayloadKg: 50.0,
+    defaultPayloadKg: 25.0
+  },
+  {
+    id: 'FW_JET',
+    name: 'Fixed-Wing IV: High-Speed Target Jet',
+    models: 'QinetiQ Banshee Jet 80+ / Mirach 40 Target',
+    type: 'FIXED_WING',
+    maxSustainedWindKmh: 56,
+    maxGustKmh: 72,
+    maxCrosswindKmh: 36,
+    maxTempC: 52,
+    nominalEnduranceMin: 90,
+    ceilingM: 3000,
+    minAirspeedKmh: 130,
+    cruiseSpeedKmh: 280,
+    maxAirspeedKmh: 650,
+    emptyWeightKg: 95.0,
+    maxPayloadKg: 40.0,
+    defaultPayloadKg: 15.0
   },
   {
     id: 'CUSTOM',
@@ -74,9 +134,11 @@ const UAV_AIRFRAMES = [
     maxGustKmh: 45,
     maxCrosswindKmh: 26,
     maxTempC: 46,
-    nominalEnduranceMin: 45,
+    nominalEnduranceMin: 60,
     ceilingM: 2500,
-    cruiseSpeedKmh: 60,
+    minAirspeedKmh: 45,
+    cruiseSpeedKmh: 90,
+    maxAirspeedKmh: 160,
     emptyWeightKg: 12.0,
     maxPayloadKg: 10.0,
     defaultPayloadKg: 2.5
@@ -120,8 +182,10 @@ export default function PilotConsole({
   const [runwayHeading, setRunwayHeading] = useState(310);
   const [selectedRunwayId, setSelectedRunwayId] = useState('RAIL_310');
 
-  // Goal Ground Speed Calculator & Altitude Band state
+  // Goal Ground Speed Calculator, Platform V_min / V_max & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
+  const [platformMinSpeedKmh, setPlatformMinSpeedKmh] = useState(0);
+  const [platformMaxSpeedKmh, setPlatformMaxSpeedKmh] = useState(76);
   const [calcAltitudeM, setCalcAltitudeM] = useState(300);
   const [altitudeBand, setAltitudeBand] = useState('LOW'); // 'LOW' (10m-300m) or 'HIGH' (300m-2500m)
 
@@ -158,9 +222,15 @@ export default function PilotConsole({
         ...baseAirframe,
         maxSustainedWindKmh: customMaxWind,
         maxGustKmh: customMaxGust,
-        maxCrosswindKmh: customMaxCrosswind
+        maxCrosswindKmh: customMaxCrosswind,
+        minAirspeedKmh: platformMinSpeedKmh,
+        maxAirspeedKmh: platformMaxSpeedKmh
       }
-    : baseAirframe;
+    : {
+        ...baseAirframe,
+        minAirspeedKmh: platformMinSpeedKmh,
+        maxAirspeedKmh: platformMaxSpeedKmh
+      };
 
   // Extract live meteorological values with safe defaults
   const surfaceWindKmh = Number(stationReadings?.wind_speed_10m ?? 18);
@@ -457,14 +527,17 @@ export default function PilotConsole({
     rhPct
   ]);
 
-  // Goal Ground Speed Calculator (Wind Triangle, Crab Angle, Required TAS/IAS, Throttle & 5km Leg Burn at any altitude 10m-3000m)
+  // Goal Ground Speed Calculator (Wind Triangle, Crab Angle, Platform V_min Stall & V_max Dash Envelopes at 10m-3000m)
   const groundSpeedSolver = useMemo(() => {
-    const vg = Math.max(5, Math.min(220, Number(goalGroundSpeedKmh) || 45));
+    const vMinIasKmh = Math.max(0, Number(platformMinSpeedKmh) || 0);
+    const vMaxTasKmh = Math.max(30, Number(platformMaxSpeedKmh) || airframe.maxAirspeedKmh || 76);
+    const vg = Math.max(5, Math.min(650, Number(goalGroundSpeedKmh) || 45));
     const altObj = computeAltProfile(calcAltitudeM, 'Selected Flight Level');
     const windSpd = altObj.speedKmh;
     const gustSpd = altObj.gustKmh;
     const windDir = altObj.dirDeg;
     const altDensityRatio = altObj.airDensityRatio;
+    const densitySqrt = Math.sqrt(Math.max(0.55, altDensityRatio));
 
     // Angle between wind-from direction and desired course track (runwayHeading)
     const deltaRad = (((windDir - runwayHeading) + 360) % 360) * (Math.PI / 180);
@@ -477,10 +550,27 @@ export default function PilotConsole({
     // Wind Triangle: V_air_vector = (Vg + W_head, W_cross)
     const reqTasKmh = Number(Math.sqrt(Math.pow(vg + headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
     const reqTasGustKmh = Number(Math.sqrt(Math.pow(vg + gustHeadwind, 2) + Math.pow(gustCrosswind, 2)).toFixed(1));
-    const reqIasKmh = Number((reqTasKmh * Math.sqrt(Math.max(0.55, altDensityRatio))).toFixed(1));
+    const reqIasKmh = Number((reqTasKmh * densitySqrt).toFixed(1));
 
-    // Reciprocal Return-Leg Required TAS (holding same Vg on opposite track)
+    // Required True Airspeed at Altitude to maintain V_min (Stall IAS)
+    const vMinTasAtAltKmh = Number((vMinIasKmh / densitySqrt).toFixed(1));
+
+    // Safe Achievable Ground Speed Window (minSafeVgKmh -> maxSafeVgKmh) on current track & altitude
+    const minAlongTrackAirspeed = vMinTasAtAltKmh > Math.abs(crosswindComp)
+      ? Math.sqrt(Math.max(0, Math.pow(vMinTasAtAltKmh, 2) - Math.pow(crosswindComp, 2)))
+      : 0;
+    const minSafeVgKmh = vMinIasKmh > 0
+      ? Math.max(5, Math.ceil(minAlongTrackAirspeed - headwindComp))
+      : 5;
+
+    const maxAlongTrackAirspeed = vMaxTasKmh > Math.abs(crosswindComp)
+      ? Math.sqrt(Math.max(0, Math.pow(vMaxTasKmh, 2) - Math.pow(crosswindComp, 2)))
+      : 0;
+    const maxSafeVgKmh = Math.max(minSafeVgKmh, Math.floor(maxAlongTrackAirspeed - headwindComp));
+
+    // Reciprocal Return-Leg Required TAS & IAS (holding same Vg on opposite track)
     const returnTasKmh = Number(Math.sqrt(Math.pow(vg - headwindComp, 2) + Math.pow(crosswindComp, 2)).toFixed(1));
+    const returnIasKmh = Number((returnTasKmh * densitySqrt).toFixed(1));
 
     // Wind Correction Angle (Crab Angle) & Required Compass Heading to Fly
     const wcaRad = Math.atan2(crosswindComp, vg + headwindComp);
@@ -490,7 +580,7 @@ export default function PilotConsole({
     const commandHeadingDeg = Math.round((runwayHeading + wcaDeg + 360) % 360);
 
     // Airframe Max Airspeed & Propulsion Demand (adjusted for altitude air density)
-    const maxAirspeedKmh = Math.round((airframe.cruiseSpeedKmh || 54) * 1.32);
+    const maxAirspeedKmh = vMaxTasKmh;
     const speedRatio = reqTasKmh / Math.max(25, maxAirspeedKmh);
     const reqPitchDeg = Number(Math.min(38, Math.max(4, speedRatio * 28)).toFixed(1));
     const densityThrottlePenalty = Math.pow(Math.max(0.6, atmData.airDensityRatio / Math.max(0.55, altDensityRatio)), 0.55);
@@ -499,24 +589,34 @@ export default function PilotConsole({
       Math.round((aeroPerformance.estHoverThrottlePct * 0.72 + Math.pow(speedRatio, 1.65) * 52) * densityThrottlePenalty)
     );
 
-    // 5 km Range Corridor Transit Time & Battery Consumption
+    // 5 km Range Corridor Transit Time & Battery/Fuel Consumption
     const legTimeMinFloat = (5 / vg) * 60;
     const legMin = Math.floor(legTimeMinFloat);
     const legSec = Math.round((legTimeMinFloat - legMin) * 60);
     const legTime5kmStr = `${legMin}m ${String(legSec).padStart(2, '0')}s`;
 
-    // Battery burn rate scales with flight time and (reqTas / cruiseSpeed)^1.5
+    // Battery/fuel burn rate scales with flight time and (reqTas / cruiseSpeed)^1.45
     const powerMultiplier = Math.max(0.75, Math.pow(reqTasKmh / Math.max(25, airframe.cruiseSpeedKmh || 54), 1.45)) * densityThrottlePenalty;
     const legBatteryPct = Math.min(
       99,
-      Math.max(2, Math.round(((legTimeMinFloat / Math.max(10, aeroPerformance.effectiveEnduranceMin)) * 100) * powerMultiplier))
+      Math.max(1, Math.round(((legTimeMinFloat / Math.max(10, aeroPerformance.effectiveEnduranceMin)) * 100) * powerMultiplier))
     );
+
+    const isStallRisk = vMinIasKmh > 0 && reqIasKmh < vMinIasKmh;
+    const isNearStall = vMinIasKmh > 0 && !isStallRisk && reqIasKmh < vMinIasKmh * 1.15;
+    const isReturnStallRisk = vMinIasKmh > 0 && returnIasKmh < vMinIasKmh;
 
     let status = 'ACHIEVABLE';
     let statusColor = 'bg-safetyGreen/20 border-safetyGreen/40 text-safetyGreen';
-    if (reqTasKmh > maxAirspeedKmh) {
+    if (isStallRisk) {
+      status = `STALL RISK (IAS < V_MIN ${vMinIasKmh} KPH)`;
+      statusColor = 'bg-stopRed/20 border-stopRed/40 text-stopRed';
+    } else if (reqTasKmh > maxAirspeedKmh) {
       status = `EXCEEDS V_MAX (${maxAirspeedKmh} KPH)`;
       statusColor = 'bg-stopRed/20 border-stopRed/40 text-stopRed';
+    } else if (isNearStall) {
+      status = `LOW IAS / NEAR STALL (${vMinIasKmh} KPH)`;
+      statusColor = 'bg-amberAlert/20 border-amberAlert/40 text-amberAlert';
     } else if (reqTasGustKmh > maxAirspeedKmh || reqThrottlePct >= 88) {
       status = 'HIGH POWER / GUST LIMIT';
       statusColor = 'bg-amberAlert/20 border-amberAlert/40 text-amberAlert';
@@ -539,7 +639,16 @@ export default function PilotConsole({
       reqTasKts: Number((reqTasKmh * 0.539957).toFixed(1)),
       reqTasGustKmh,
       reqIasKmh,
+      vMinIasKmh,
+      vMinTasAtAltKmh,
+      vMaxTasKmh: maxAirspeedKmh,
+      minSafeVgKmh,
+      maxSafeVgKmh,
+      isStallRisk,
+      isNearStall,
+      isReturnStallRisk,
       returnTasKmh,
+      returnIasKmh,
       wcaDeg,
       wcaDir,
       commandHeadingDeg,
@@ -553,11 +662,14 @@ export default function PilotConsole({
     };
   }, [
     goalGroundSpeedKmh,
+    platformMinSpeedKmh,
+    platformMaxSpeedKmh,
     calcAltitudeM,
     computeAltProfile,
     runwayHeading,
     atmData.airDensityRatio,
     airframe.cruiseSpeedKmh,
+    airframe.maxAirspeedKmh,
     aeroPerformance.estHoverThrottlePct,
     aeroPerformance.effectiveEnduranceMin
   ]);
@@ -973,13 +1085,22 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               const nextId = e.target.value;
               setSelectedAirframeId(nextId);
               const nextAf = UAV_AIRFRAMES.find(a => a.id === nextId);
-              if (nextAf) setPayloadKg(nextAf.defaultPayloadKg);
+              if (nextAf) {
+                setPayloadKg(nextAf.defaultPayloadKg);
+                setPlatformMinSpeedKmh(nextAf.minAirspeedKmh ?? 0);
+                setPlatformMaxSpeedKmh(nextAf.maxAirspeedKmh ?? 76);
+                setGoalGroundSpeedKmh(nextAf.cruiseSpeedKmh ?? 54);
+                if (nextAf.ceilingM >= 1500 && calcAltitudeM < 300) {
+                  setCalcAltitudeM(600);
+                  setAltitudeBand('HIGH');
+                }
+              }
             }}
             className="bg-bgDeepSpace border border-slate-700 text-white text-[9.5px] font-black uppercase px-2 py-1.5 rounded-lg focus:border-edgeOrange outline-none cursor-pointer"
           >
             {UAV_AIRFRAMES.map(a => (
               <option key={a.id} value={a.id} className="bg-slate-900 text-white">
-                ✈️ {a.name} (Max {a.maxSustainedWindKmh} km/h)
+                ✈️ {a.name} ({a.minAirspeedKmh}–{a.maxAirspeedKmh} km/h | Wind ≤{a.maxSustainedWindKmh}kph)
               </option>
             ))}
           </select>
@@ -1232,22 +1353,28 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                 </div>
               </div>
             ) : (
-              <div className="grid grid-cols-4 gap-1.5 text-center bg-bgDeepSpace/60 p-1.5 rounded border border-slate-800 text-[8px]">
+              <div className="grid grid-cols-5 gap-1 text-center bg-bgDeepSpace/60 p-1.5 rounded border border-slate-800 text-[7.5px]">
                 <div>
-                  <span className="text-slate-500 block uppercase font-bold">MAX WIND</span>
-                  <span className="font-mono font-black text-white">{airframe.maxSustainedWindKmh} km/h</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block uppercase font-bold">MAX GUST</span>
-                  <span className="font-mono font-black text-white">{airframe.maxGustKmh} km/h</span>
-                </div>
-                <div>
-                  <span className="text-slate-500 block uppercase font-bold">X-WIND</span>
-                  <span className="font-mono font-black text-white">{airframe.maxCrosswindKmh} km/h</span>
+                  <span className="text-slate-500 block uppercase font-bold">V_MIN</span>
+                  <span className="font-mono font-black text-amber-300">
+                    {airframe.minAirspeedKmh > 0 ? `${airframe.minAirspeedKmh} kph` : '0 (HVR)'}
+                  </span>
                 </div>
                 <div>
                   <span className="text-slate-500 block uppercase font-bold">CRUISE</span>
-                  <span className="font-mono font-black text-cyan-300">{airframe.cruiseSpeedKmh} km/h</span>
+                  <span className="font-mono font-black text-cyan-300">{airframe.cruiseSpeedKmh} kph</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block uppercase font-bold">V_MAX</span>
+                  <span className="font-mono font-black text-emerald-300">{airframe.maxAirspeedKmh} kph</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block uppercase font-bold">MAX WIND</span>
+                  <span className="font-mono font-black text-white">{airframe.maxSustainedWindKmh} kph</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block uppercase font-bold">X-WIND</span>
+                  <span className="font-mono font-black text-white">{airframe.maxCrosswindKmh} kph</span>
                 </div>
               </div>
             )}
@@ -1436,7 +1563,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
         {/* RIGHT COLUMN (4 Cols): Goal Ground Speed Calculator, Density Altitude & Thermal / C2 / EO-IR Diagnostics */}
         <div className="lg:col-span-4 flex flex-col justify-between space-y-2.5 min-h-0 overflow-y-auto no-scrollbar">
           
-          {/* Interactive Goal Ground Speed Calculator (Wind Triangle & Thrust Solver) */}
+          {/* Interactive Goal Ground Speed Calculator (Wind Triangle, Stall V_min & Dash V_max Solver) */}
           <div className="bg-cardDarkSlate border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between border-b border-slate-800 pb-1.5 mb-2">
               <div className="flex items-center space-x-1.5">
@@ -1450,21 +1577,21 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            {/* Goal Speed Input Box + Slider + Multi-Altitude Selector (10m to 3,000m AGL) */}
+            {/* Goal Speed + Platform V_min / V_max Envelope + Multi-Altitude Selector (10m to 3,000m AGL) */}
             <div className="bg-bgDeepSpace/80 p-2 rounded-lg border border-slate-800 mb-2 space-y-1.5">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[8px] font-black uppercase text-slate-300">GOAL VG:</span>
+              <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                <div className="flex items-center space-x-1">
+                  <span className="text-[7.5px] font-black uppercase text-slate-300">GOAL VG:</span>
                   <input
                     type="number"
                     min="5"
-                    max="220"
+                    max="650"
                     value={goalGroundSpeedKmh}
-                    onChange={(e) => setGoalGroundSpeedKmh(Math.max(5, Math.min(220, Number(e.target.value) || 0)))}
-                    className="w-14 bg-slate-950 border border-cyan-500/50 rounded px-1.5 py-0.5 text-xs font-mono font-black text-white text-center focus:border-edgeOrange outline-none"
+                    onChange={(e) => setGoalGroundSpeedKmh(Math.max(5, Math.min(650, Number(e.target.value) || 0)))}
+                    className="w-13 bg-slate-950 border border-cyan-500/50 rounded px-1 py-0.5 text-[11px] font-mono font-black text-white text-center focus:border-edgeOrange outline-none"
                   />
-                  <span className="text-[8px] font-mono text-slate-400">
-                    km/h ({groundSpeedSolver.vgMs} m/s • {groundSpeedSolver.vgKts} kt)
+                  <span className="text-[7.5px] font-mono text-slate-400">
+                    kph ({groundSpeedSolver.vgMs}m/s • {groundSpeedSolver.vgKts}kt)
                   </span>
                 </div>
 
@@ -1478,17 +1605,52 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                     step="50"
                     value={calcAltitudeM}
                     onChange={(e) => setCalcAltitudeM(Math.max(10, Math.min(3000, Number(e.target.value) || 100)))}
-                    className="w-14 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] font-mono font-black text-cyan-300 text-center focus:border-edgeOrange outline-none"
+                    className="w-13 bg-slate-950 border border-slate-700 rounded px-1 py-0.5 text-[10px] font-mono font-black text-cyan-300 text-center focus:border-edgeOrange outline-none"
                     title="Enter any altitude from 10m to 3,000m AGL"
                   />
                   <span className="text-[7.5px] font-mono text-slate-400">m ({groundSpeedSolver.altFt}ft)</span>
                 </div>
               </div>
 
+              {/* Platform V_min (Stall) & V_max (Dash) Editable Envelope Strip */}
+              <div className="flex items-center justify-between gap-1.5 bg-slate-950/90 px-2 py-1 rounded border border-slate-800/90 text-[7.5px] flex-wrap">
+                <div className="flex items-center space-x-1">
+                  <span className="text-amber-400 font-black uppercase">V_MIN (STALL):</span>
+                  <input
+                    type="number"
+                    min="0"
+                    max="300"
+                    value={platformMinSpeedKmh}
+                    onChange={(e) => setPlatformMinSpeedKmh(Math.max(0, Math.min(300, Number(e.target.value) || 0)))}
+                    className="w-11 bg-slate-900 border border-amber-500/40 rounded px-1 py-0.5 font-mono font-black text-amber-300 text-center outline-none"
+                    title="Platform Minimum / Stall Airspeed (IAS km/h; 0 for Rotorcraft Hover)"
+                  />
+                  <span className="text-slate-500 font-mono">kph</span>
+                </div>
+
+                <div className="flex items-center space-x-1">
+                  <span className="text-emerald-400 font-black uppercase">V_MAX (DASH):</span>
+                  <input
+                    type="number"
+                    min="30"
+                    max="700"
+                    value={platformMaxSpeedKmh}
+                    onChange={(e) => setPlatformMaxSpeedKmh(Math.max(30, Math.min(700, Number(e.target.value) || 76)))}
+                    className="w-12 bg-slate-900 border border-emerald-500/40 rounded px-1 py-0.5 font-mono font-black text-emerald-300 text-center outline-none"
+                    title="Platform Maximum / Dash Airspeed (TAS km/h)"
+                  />
+                  <span className="text-slate-500 font-mono">kph</span>
+                </div>
+
+                <span className="font-mono text-slate-300">
+                  SAFE VG: <strong className="text-cyan-300">{groundSpeedSolver.minSafeVgKmh}–{groundSpeedSolver.maxSafeVgKmh} kph</strong>
+                </span>
+              </div>
+
               <input
                 type="range"
-                min="10"
-                max="160"
+                min={Math.max(5, Math.floor(groundSpeedSolver.minSafeVgKmh * 0.6))}
+                max={Math.max(120, groundSpeedSolver.vMaxTasKmh)}
                 step="1"
                 value={goalGroundSpeedKmh}
                 onChange={(e) => setGoalGroundSpeedKmh(Number(e.target.value))}
@@ -1525,14 +1687,24 @@ Range Safety Officer (RSO):     ______________________  Time: __________
 
             {/* 6-Parameter Computed Output Grid */}
             <div className="grid grid-cols-3 gap-1.5 text-center font-mono">
-              <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
+              <div className={`bg-bgDeepSpace/70 p-1.5 rounded border ${
+                groundSpeedSolver.isStallRisk || groundSpeedSolver.reqTasKmh > groundSpeedSolver.maxAirspeedKmh
+                  ? 'border-stopRed/60 bg-stopRed/10'
+                  : 'border-slate-800'
+              }`}>
                 <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">REQ. AIRSPEED (TAS)</span>
                 <span className={`text-xs font-black ${
-                  groundSpeedSolver.reqTasKmh > groundSpeedSolver.maxAirspeedKmh ? 'text-stopRed' : 'text-white'
+                  groundSpeedSolver.isStallRisk || groundSpeedSolver.reqTasKmh > groundSpeedSolver.maxAirspeedKmh
+                    ? 'text-stopRed'
+                    : groundSpeedSolver.isNearStall
+                    ? 'text-amberAlert'
+                    : 'text-white'
                 }`}>
                   {groundSpeedSolver.reqTasKmh} km/h
                 </span>
-                <span className="text-[7px] text-slate-400 block">IAS: {groundSpeedSolver.reqIasKmh} kph</span>
+                <span className="text-[7px] text-slate-400 block">
+                  IAS: {groundSpeedSolver.reqIasKmh} {groundSpeedSolver.vMinIasKmh > 0 ? `(Vmin ${groundSpeedSolver.vMinIasKmh})` : 'kph'}
+                </span>
               </div>
 
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
@@ -1560,7 +1732,11 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                 }`}>
                   {groundSpeedSolver.reqTasGustKmh} km/h
                 </span>
-                <span className="text-[7px] text-slate-400 block">Vmax: {groundSpeedSolver.maxAirspeedKmh} kph</span>
+                <span className="text-[7px] text-slate-400 block">
+                  {groundSpeedSolver.vMinIasKmh > 0
+                    ? `Envelope: ${groundSpeedSolver.vMinTasAtAltKmh}–${groundSpeedSolver.maxAirspeedKmh}`
+                    : `Vmax: ${groundSpeedSolver.maxAirspeedKmh} kph`}
+                </span>
               </div>
 
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
@@ -1573,10 +1749,16 @@ Range Safety Officer (RSO):     ______________________  Time: __________
 
               <div className="bg-bgDeepSpace/70 p-1.5 rounded border border-slate-800">
                 <span className="text-[7px] font-sans font-black text-slate-400 uppercase block">RETURN LEG TAS</span>
-                <span className="text-xs font-black text-amber-400">
+                <span className={`text-xs font-black ${
+                  groundSpeedSolver.isReturnStallRisk || groundSpeedSolver.returnTasKmh > groundSpeedSolver.maxAirspeedKmh
+                    ? 'text-stopRed'
+                    : 'text-amber-400'
+                }`}>
                   {groundSpeedSolver.returnTasKmh} km/h
                 </span>
-                <span className="text-[7px] text-slate-400 block">Recip. {(runwayHeading + 180) % 360}°</span>
+                <span className="text-[7px] text-slate-400 block">
+                  {groundSpeedSolver.isReturnStallRisk ? '⚠️ TAILWIND STALL' : `Recip. ${(runwayHeading + 180) % 360}°`}
+                </span>
               </div>
             </div>
           </div>
