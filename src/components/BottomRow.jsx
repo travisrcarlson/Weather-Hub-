@@ -234,6 +234,22 @@ export function getMoonDetails(dateString) {
   };
 }
 
+// Generates an exact SVG path for the illuminated portion of the Moon centered at (0, 0) with radius r
+export function getLunarPhaseSvgPath(agePct = 0.5, r = 5) {
+  const p = ((agePct % 1) + 1) % 1;
+  if (p <= 0.02 || p >= 0.98) {
+    return '';
+  }
+  if (p >= 0.48 && p <= 0.52) {
+    return `M 0 ${-r} A ${r} ${r} 0 1 1 0 ${r} A ${r} ${r} 0 1 1 0 ${-r} Z`;
+  }
+  const phi = 2 * Math.PI * p;
+  const rx = Math.max(0.05, Math.abs(Math.cos(phi)) * r);
+  const outerSweep = p <= 0.5 ? 1 : 0;
+  const innerSweep = (p < 0.25 || (p > 0.5 && p <= 0.75)) ? 0 : 1;
+  return `M 0 ${-r} A ${r} ${r} 0 0 ${outerSweep} 0 ${r} A ${rx.toFixed(2)} ${r} 0 0 ${innerSweep} 0 ${-r} Z`;
+}
+
 export function parseGstDate(str) {
   if (!str) return new Date();
   if (str instanceof Date) return str;
@@ -384,77 +400,93 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
   const waveHeight = marineData?.wave_height ?? currentData?.wave_height ?? null;
   const seaSurfaceTemp = marineData?.sea_surface_temperature ?? currentData?.sea_surface_temperature ?? null;
 
-  // Calculate Sun position
+  // Calculate Sun SVG arc coordinates (viewBox 0 0 120 46, arc center (60,38), rx=46, ry=28)
   const sunTransit = checkTransitPosition(nowDate, sunriseDate, sunsetDate);
-  let sunX = 7.5;
-  let sunY = 0;
-  if (sunTransit.visible) {
-    const theta = Math.PI - sunTransit.progress * Math.PI;
-    sunX = 50 + 42.5 * Math.cos(theta);
-    sunY = 75 * Math.sin(theta);
-  } else {
-    const sunRiseMs = sunriseDate.getTime();
-    sunX = nowDate.getTime() < sunRiseMs ? 7.5 : 92.5;
-    sunY = 0;
-  }
+  const sunTheta = Math.PI * (1 - sunTransit.progress);
+  const sunSvgX = sunTransit.visible
+    ? 60 + 46 * Math.cos(sunTheta)
+    : (nowDate.getTime() < sunriseDate.getTime() ? 14 : 106);
+  const sunSvgY = sunTransit.visible
+    ? 38 - 28 * Math.sin(sunTheta)
+    : 38;
 
-  // Calculate Moon position using astronomical moonrise/moonset
+  // Calculate Moon SVG arc coordinates using astronomical moonrise/moonset
   const moonriseDate = moonTimes.riseDate || new Date(sunriseDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
   const moonsetDate = moonTimes.setDate || new Date(sunsetDate.getTime() + moonDetails.phase * 24 * 60 * 60 * 1000);
   const moonTransit = checkTransitPosition(nowDate, moonriseDate, moonsetDate);
-  
-  let moonX = 7.5;
-  let moonY = 0;
-  if (moonTransit.visible) {
-    const theta = Math.PI - moonTransit.progress * Math.PI;
-    moonX = 50 + 42.5 * Math.cos(theta);
-    moonY = 75 * Math.sin(theta);
-  } else {
-    moonX = nowDate.getTime() < moonriseDate.getTime() ? 7.5 : 92.5;
-    moonY = 0;
-  }
+  const moonTheta = Math.PI * (1 - moonTransit.progress);
+  const moonSvgX = moonTransit.visible
+    ? 60 + 46 * Math.cos(moonTheta)
+    : (nowDate.getTime() < moonriseDate.getTime() ? 14 : 106);
+  const moonSvgY = moonTransit.visible
+    ? 38 - 28 * Math.sin(moonTheta)
+    : 38;
+  const moonPhasePath = getLunarPhaseSvgPath(moonDetails.phase, 5.2);
 
   // Calculate Moonlight Percentage (synodic phase-based illumination)
   const moonlightPct = Math.round(50 * (1 - Math.cos(2 * Math.PI * moonDetails.phase)));
 
   return (
-    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
+    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-2.5 xl:p-3 flex flex-col justify-between select-none relative overflow-hidden backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative z-10 flex justify-between items-center mb-0.5">
+      <div className="relative z-10 flex justify-between items-center mb-0.5 flex-none">
         <div>
-          <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-1">
+          <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-0.5">
             Z11 • CELESTIAL & TIDAL TRANSIT
           </p>
           <h2 className="text-xs xl:text-sm font-black text-white leading-none">Sun, Moon & Tide Cycles</h2>
         </div>
-        <span className="text-[9px] font-mono font-black text-slate-200 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded shadow-sm">
-          {moonDetails.name} • {moonlightPct}%
+        <span className="text-[9px] font-mono font-black text-slate-200 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded shadow-sm flex items-center space-x-1.5">
+          <svg viewBox="-6 -6 12 12" className="w-3 h-3 flex-shrink-0">
+            <circle cx="0" cy="0" r="5.2" fill="#0f172a" stroke="#94a3b8" strokeWidth="0.8" />
+            {moonPhasePath && <path d={moonPhasePath} fill="#f8fafc" />}
+          </svg>
+          <span>{moonDetails.name} • {moonlightPct}%</span>
         </span>
       </div>
 
       {/* Columns: Sun and Moon Side-by-Side */}
-      <div className="grid grid-cols-2 gap-3 flex-grow items-stretch my-1 relative z-10">
+      <div className="grid grid-cols-2 gap-3 flex-grow items-stretch my-0.5 relative z-10 min-h-0">
         {/* Sun Column */}
-        <div className="flex flex-col justify-between border-r border-slate-800/60 pr-1.5">
-          {/* Sun Arc Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-13 w-full mb-0.5">
-            <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
-            <div className="w-[90%] h-[80%] border-t-2 border-t-edgeOrange/60 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
-            <div 
-              className={`absolute text-xl leading-none transition-all duration-500 ${!sunTransit.visible ? 'opacity-25 grayscale' : 'animate-pulse-slow'}`}
-              style={{ 
-                left: `calc(${sunX}% - 10px)`, 
-                bottom: `calc(${sunY}% - 10px)` 
-              }}
-            >
-              ☀️
-            </div>
-            <span className="absolute bottom-0.5 text-[8.5px] font-mono font-black text-slate-300 uppercase tracking-wider">
-              {sunTransit.visible ? `${Math.round(sunTransit.progress * 100)}% Day Arc` : 'Below Horizon'}
-            </span>
+        <div className="flex flex-col justify-between border-r border-slate-800/60 pr-1.5 min-h-0">
+          {/* Sun Arc Visualization (True SVG Semi-Ellipse) */}
+          <div className="w-full h-11 xl:h-12 flex-shrink-0 relative flex items-center justify-center">
+            <svg viewBox="0 0 120 46" className="w-full h-full overflow-visible">
+              {/* Horizon Line */}
+              <line x1="6" y1="38" x2="114" y2="38" stroke="#334155" strokeWidth="1" strokeDasharray="3,3" />
+              {/* Solar Transit Arc */}
+              <path
+                d="M 14 38 A 46 28 0 0 1 106 38"
+                fill="none"
+                stroke="#f97316"
+                strokeOpacity="0.65"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+              {/* Vector Sun Orb */}
+              <g transform={`translate(${sunSvgX.toFixed(1)}, ${sunSvgY.toFixed(1)})`} opacity={sunTransit.visible ? 1 : 0.3}>
+                {sunTransit.visible && (
+                  <circle cx="0" cy="0" r="8.5" fill="#f97316" fillOpacity="0.28" />
+                )}
+                <circle cx="0" cy="0" r="5.2" fill="#f59e0b" />
+                <circle cx="0" cy="0" r="3" fill="#fef08a" />
+              </g>
+              {/* Arc Status Text */}
+              <text
+                x="60"
+                y="35"
+                textAnchor="middle"
+                fontSize="7.5"
+                fontWeight="900"
+                fill="#cbd5e1"
+                className="font-mono uppercase"
+              >
+                {sunTransit.visible ? `${Math.round(sunTransit.progress * 100)}% DAY ARC` : 'BELOW HORIZON'}
+              </text>
+            </svg>
           </div>
 
           {/* Sunrise/Sunset times */}
@@ -476,7 +508,7 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
           </div>
 
           {/* Underneath Sunrise & Sunset: Tide Cycles (High & Low Tide Times) */}
-          <div className="border-t border-slate-800/50 pt-1 mt-1">
+          <div className="border-t border-slate-800/50 pt-1 mt-0.5">
             <div className="flex items-center justify-between mb-1 px-0.5">
               <span className="text-[8px] font-black text-cyan-300 uppercase flex items-center space-x-1">
                 <Waves className="w-2.5 h-2.5 text-cyan-400" />
@@ -502,23 +534,42 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
         </div>
 
         {/* Moon Column */}
-        <div className="flex flex-col justify-between pl-1.5">
-          {/* Moon Arc/Phase Visualization */}
-          <div className="flex flex-col items-center justify-center relative h-13 w-full mb-0.5">
-            <div className="w-full h-0.5 border-t border-dashed border-slate-700/60 absolute bottom-0 rounded-t-full" />
-            <div className="w-[90%] h-[80%] border-t-2 border-t-indigo-400/40 border-r border-r-transparent border-l border-l-transparent rounded-t-full absolute bottom-0" />
-            <div 
-              className={`absolute text-xl leading-none transition-all duration-500 ${!moonTransit.visible ? 'opacity-25 grayscale' : 'animate-pulse-slow'}`}
-              style={{ 
-                left: `calc(${moonX}% - 10px)`, 
-                bottom: `calc(${moonY}% - 10px)` 
-              }}
-            >
-              {moonDetails.emoji}
-            </div>
-            <span className="absolute bottom-0.5 text-[8.5px] font-mono font-black text-slate-300 uppercase tracking-wider">
-              {moonTransit.visible ? `${Math.round(moonTransit.progress * 100)}% Night Arc` : 'Below Horizon'}
-            </span>
+        <div className="flex flex-col justify-between pl-1.5 min-h-0">
+          {/* Moon Arc/Phase Visualization (True SVG Semi-Ellipse + Vector Lunar Phase Disc) */}
+          <div className="w-full h-11 xl:h-12 flex-shrink-0 relative flex items-center justify-center">
+            <svg viewBox="0 0 120 46" className="w-full h-full overflow-visible">
+              {/* Horizon Line */}
+              <line x1="6" y1="38" x2="114" y2="38" stroke="#334155" strokeWidth="1" strokeDasharray="3,3" />
+              {/* Lunar Transit Arc */}
+              <path
+                d="M 14 38 A 46 28 0 0 1 106 38"
+                fill="none"
+                stroke="#818cf8"
+                strokeOpacity="0.6"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+              />
+              {/* Vector Moon Phase Orb */}
+              <g transform={`translate(${moonSvgX.toFixed(1)}, ${moonSvgY.toFixed(1)})`} opacity={moonTransit.visible ? 1 : 0.35}>
+                {moonTransit.visible && (
+                  <circle cx="0" cy="0" r="8.5" fill="#38bdf8" fillOpacity="0.25" />
+                )}
+                <circle cx="0" cy="0" r="5.4" fill="#0f172a" stroke="#94a3b8" strokeWidth="0.8" />
+                {moonPhasePath && <path d={moonPhasePath} fill="#f8fafc" />}
+              </g>
+              {/* Arc Status Text */}
+              <text
+                x="60"
+                y="35"
+                textAnchor="middle"
+                fontSize="7.5"
+                fontWeight="900"
+                fill="#cbd5e1"
+                className="font-mono uppercase"
+              >
+                {moonTransit.visible ? `${Math.round(moonTransit.progress * 100)}% NIGHT ARC` : 'BELOW HORIZON'}
+              </text>
+            </svg>
           </div>
 
           {/* Moonrise/Moonset times */}

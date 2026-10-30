@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
 import { ShieldAlert, Compass, Sun, Droplets, Map, Play, Pause, RotateCcw, Clock } from 'lucide-react';
-import { getMoonDetails, getMoonTimes, checkTransitPosition } from './BottomRow';
+import { getMoonDetails, getMoonTimes, checkTransitPosition, getLunarPhaseSvgPath } from './BottomRow';
 import { getIsNightTime } from '../utils/weatherCodeMap';
 
 // Stations definition matching geographical landmarks
@@ -596,7 +596,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           </g>
         )}
 
-        {/* Glowing Moon Transit Icon */}
+        {/* Glowing Moon Transit Icon (Vector Lunar Phase Disc) */}
         {moonTransit.visible && (
           <g transform={`translate(${moonX}, ${moonY})`}>
             {/* Pulsing lunar halo */}
@@ -604,17 +604,11 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               <animate attributeName="r" values="6;11;6" dur="4s" repeatCount="indefinite" />
               <animate attributeName="opacity" values="0.35;0.1;0.35" dur="4s" repeatCount="indefinite" />
             </circle>
-            {/* Moon emoji */}
-            <text 
-              x="0" 
-              y="2" 
-              fontSize="7.5" 
-              textAnchor="middle" 
-              dominantBaseline="central"
-              className="select-none pointer-events-none"
-            >
-              {moonDetails?.emoji || '🌙'}
-            </text>
+            {/* Dark lunar limb + exact illuminated phase */}
+            <circle cx="0" cy="0" r="5" fill="#0f172a" stroke="#7dd3fc" strokeWidth="0.7" />
+            {moonDetails && getLunarPhaseSvgPath(moonDetails.phase, 4.7) && (
+              <path d={getLunarPhaseSvgPath(moonDetails.phase, 4.7)} fill="#f8fafc" />
+            )}
           </g>
         )}
       </g>
