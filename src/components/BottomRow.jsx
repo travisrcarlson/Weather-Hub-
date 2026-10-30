@@ -36,28 +36,28 @@ export function DailyForecastWidget({ dailyData }) {
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between select-none backdrop-blur-md shadow-lg overflow-hidden">
       <div className="leading-none mb-1.5 flex-none">
-        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
+        <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-0.5">
           Z9 • 5-DAY WEATHER FORECAST
         </p>
-        <h2 className="text-xs sm:text-sm font-bold text-slate-200 leading-none">Operational Outlook</h2>
+        <h2 className="text-xs xl:text-sm font-black text-white leading-none">Operational Outlook</h2>
       </div>
 
       <div className="grid grid-cols-5 gap-1.5 flex-grow min-h-0 items-stretch">
         {days.map((day, i) => (
-          <div key={i} className="min-w-0 overflow-hidden bg-bgDeepSpace/30 border border-slate-700/20 rounded-lg py-1.5 px-1 flex flex-col justify-between items-center h-full hover:border-slate-650 transition-colors">
+          <div key={i} className="min-w-0 overflow-hidden bg-bgDeepSpace/40 border border-slate-700/40 rounded-lg py-1.5 px-1 flex flex-col justify-between items-center h-full hover:border-slate-600 transition-colors">
             <div className="text-center leading-none">
-              <p className="text-[11px] font-black text-slate-300 uppercase leading-none">{day.dayName}</p>
-              <p className="text-[9px] font-bold text-slate-400 uppercase mt-0.5 leading-none">{day.dateStr}</p>
+              <p className="text-xs font-black text-white uppercase leading-none">{day.dayName}</p>
+              <p className="text-[9.5px] font-bold text-slate-300 uppercase mt-0.5 leading-none">{day.dateStr}</p>
             </div>
-            <span className="text-lg sm:text-xl filter drop-shadow leading-none my-0.5">{day.condition.emoji}</span>
-            <div className="text-xs sm:text-sm font-black font-mono text-textIceWhite leading-none whitespace-nowrap">
-              {day.maxTemp.toFixed(0)}°<span className="text-slate-400 font-normal">/{day.minTemp.toFixed(0)}°</span>
+            <span className="text-lg xl:text-xl filter drop-shadow leading-none my-0.5">{day.condition.emoji}</span>
+            <div className="text-xs xl:text-sm font-black font-mono text-white leading-none whitespace-nowrap">
+              {day.maxTemp.toFixed(0)}°<span className="text-slate-300 font-bold">/{day.minTemp.toFixed(0)}°</span>
             </div>
             
             {/* Wind Gust Max */}
-            <div className="flex items-center space-x-0.5 text-[9.5px] font-mono font-bold text-slate-400 leading-none mt-0.5">
-              <Wind className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" />
-              <span className={day.gustMax >= 50 ? 'text-stopRed font-black animate-pulse' : 'text-slate-300 font-black'}>
+            <div className="flex items-center space-x-0.5 text-[10px] xl:text-[10.5px] font-mono font-black text-slate-300 leading-none mt-0.5">
+              <Wind className="w-3 h-3 text-slate-400 flex-shrink-0" />
+              <span className={day.gustMax >= 50 ? 'text-stopRed font-black animate-pulse' : 'text-white font-black'}>
                 {day.gustMax.toFixed(0)}
               </span>
             </div>
@@ -116,13 +116,13 @@ export function AqiWidget({ data, hourlyData }) {
       {/* Header & AQI Summary Row */}
       <div className="relative z-10 flex justify-between items-center">
         <div>
-          <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest leading-none mb-0.5">
+          <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-0.5">
             Z10 • AIR QUALITY & DUST
           </p>
           <div className="flex items-center space-x-1.5">
-            <h2 className="text-sm font-black text-slate-200 leading-none">Particulate Hazards</h2>
+            <h2 className="text-sm font-black text-white leading-none">Particulate Hazards</h2>
             {dust !== null && (
-              <span className="text-[8.5px] font-mono font-bold text-amber-300 bg-amber-950/40 border border-amber-500/30 px-1 py-0.5 rounded leading-none">
+              <span className="text-[9px] font-mono font-black text-amber-200 bg-amber-950/50 border border-amber-500/40 px-1.5 py-0.5 rounded leading-none">
                 DUST {dust.toFixed(0)} µg/m³
               </span>
             )}
@@ -130,55 +130,55 @@ export function AqiWidget({ data, hourlyData }) {
         </div>
         <div className="flex items-center space-x-2">
           <div className="flex items-center space-x-1">
-            <span className="text-2xl font-black text-textIceWhite tracking-tight leading-none">{aqi}</span>
-            <span className="text-[9.5px] font-bold text-slate-400 uppercase leading-none">AQI</span>
+            <span className="text-2xl font-black text-white tracking-tight leading-none">{aqi}</span>
+            <span className="text-[10px] font-black text-slate-300 uppercase leading-none">AQI</span>
           </div>
-          <span className={`text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded border border-current leading-none ${aqiDetails.color}`}>
+          <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded border border-current leading-none ${aqiDetails.color}`}>
             {aqiDetails.label}
           </span>
         </div>
       </div>
 
       {/* PM2.5 and PM10 Vertically Stacked Progress Bars */}
-      <div className="relative z-10 space-y-2 border-t border-slate-700/30 pt-2">
+      <div className="relative z-10 space-y-2 border-t border-slate-700/40 pt-2">
         {/* PM2.5 */}
         <div>
-          <div className="flex justify-between text-[10.5px] font-bold text-slate-400 leading-none mb-1.5">
+          <div className="flex justify-between text-[11px] font-black text-slate-300 leading-none mb-1.5">
             <span>PM2.5 (FINE DUST)</span>
             <span className="flex items-center space-x-0.5">
-              <span className={pm25 >= 25 ? 'text-stopRed font-black' : 'text-slate-200 font-black'}>
+              <span className={pm25 >= 25 ? 'text-stopRed font-black' : 'text-white font-black'}>
                 {pm25.toFixed(1)} µg/m³
               </span>
               {pm25Trend.arrow && pm25Trend.arrow !== ' ' && (
-                <span className={`text-[10.5px] ${pm25Trend.class}`}>{pm25Trend.arrow}</span>
+                <span className={`text-[11px] ${pm25Trend.class}`}>{pm25Trend.arrow}</span>
               )}
             </span>
           </div>
-          <div className="w-full h-2 bg-bgDeepSpace/40 rounded overflow-hidden">
+          <div className="w-full h-2.5 bg-bgDeepSpace/60 rounded overflow-hidden">
             <div 
               style={{ width: `${pm25Pct}%` }}
-              className={`h-full ${pm25 >= 25 ? 'bg-stopRed' : 'bg-slate-400'}`}
+              className={`h-full ${pm25 >= 25 ? 'bg-stopRed' : 'bg-slate-300'}`}
             />
           </div>
         </div>
 
         {/* PM10 */}
         <div>
-          <div className="flex justify-between text-[10.5px] font-bold text-slate-400 leading-none mb-1.5">
+          <div className="flex justify-between text-[11px] font-black text-slate-300 leading-none mb-1.5">
             <span>PM10 (SAND STORM)</span>
             <span className="flex items-center space-x-0.5">
-              <span className={pm10 >= 155 ? 'text-stopRed font-black animate-pulse' : 'text-slate-200 font-black'}>
+              <span className={pm10 >= 155 ? 'text-stopRed font-black animate-pulse' : 'text-white font-black'}>
                 {pm10.toFixed(1)} µg/m³
               </span>
               {pm10Trend.arrow && pm10Trend.arrow !== ' ' && (
-                <span className={`text-[10.5px] ${pm10Trend.class}`}>{pm10Trend.arrow}</span>
+                <span className={`text-[11px] ${pm10Trend.class}`}>{pm10Trend.arrow}</span>
               )}
             </span>
           </div>
-          <div className="w-full h-2 bg-bgDeepSpace/40 rounded overflow-hidden">
+          <div className="w-full h-2.5 bg-bgDeepSpace/60 rounded overflow-hidden">
             <div 
               style={{ width: `${pm10Pct}%` }}
-              className={`h-full ${pm10 >= 155 ? 'bg-stopRed animate-pulse' : 'bg-slate-400'}`}
+              className={`h-full ${pm10 >= 155 ? 'bg-stopRed animate-pulse' : 'bg-slate-300'}`}
             />
           </div>
         </div>
@@ -425,12 +425,12 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
       {/* Header */}
       <div className="relative z-10 flex justify-between items-center mb-0.5">
         <div>
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
+          <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-1">
             Z11 • CELESTIAL & TIDAL TRANSIT
           </p>
-          <h2 className="text-xs font-bold text-slate-200 leading-none">Sun, Moon & Tide Cycles</h2>
+          <h2 className="text-xs xl:text-sm font-black text-white leading-none">Sun, Moon & Tide Cycles</h2>
         </div>
-        <span className="text-[8.5px] font-mono font-bold text-slate-400 bg-slate-900/80 border border-slate-800 px-1.5 py-0.5 rounded shadow-sm">
+        <span className="text-[9px] font-mono font-black text-slate-200 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded shadow-sm">
           {moonDetails.name} • {moonlightPct}%
         </span>
       </div>
@@ -452,7 +452,7 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
             >
               ☀️
             </div>
-            <span className="absolute bottom-0.5 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+            <span className="absolute bottom-0.5 text-[8.5px] font-mono font-black text-slate-300 uppercase tracking-wider">
               {sunTransit.visible ? `${Math.round(sunTransit.progress * 100)}% Day Arc` : 'Below Horizon'}
             </span>
           </div>
@@ -460,42 +460,42 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
           {/* Sunrise/Sunset times */}
           <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1">
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
-                <Sunrise className="w-2.5 h-2.5 text-amber-400" />
+              <span className="text-[8.5px] font-black text-slate-300 uppercase flex items-center space-x-0.5 mb-0.5">
+                <Sunrise className="w-3 h-3 text-amber-400" />
                 <span>RISE</span>
               </span>
-              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{sunrise}</span>
+              <span className="text-xs xl:text-[13px] font-mono font-black text-white tracking-normal leading-none">{sunrise}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
-                <Sunset className="w-2.5 h-2.5 text-edgeOrange" />
+              <span className="text-[8.5px] font-black text-slate-300 uppercase flex items-center space-x-0.5 mb-0.5">
+                <Sunset className="w-3 h-3 text-edgeOrange" />
                 <span>SET</span>
               </span>
-              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{sunset}</span>
+              <span className="text-xs xl:text-[13px] font-mono font-black text-white tracking-normal leading-none">{sunset}</span>
             </div>
           </div>
 
           {/* Underneath Sunrise & Sunset: Tide Cycles (High & Low Tide Times) */}
           <div className="border-t border-slate-800/50 pt-1 mt-1">
             <div className="flex items-center justify-between mb-1 px-0.5">
-              <span className="text-[7.5px] font-black text-cyan-400 uppercase flex items-center space-x-1">
+              <span className="text-[8px] font-black text-cyan-300 uppercase flex items-center space-x-1">
                 <Waves className="w-2.5 h-2.5 text-cyan-400" />
                 <span>TIDE CYCLE</span>
               </span>
-              <span className="text-[7px] font-mono text-cyan-300 font-bold uppercase">
+              <span className="text-[8px] font-mono text-cyan-200 font-black uppercase">
                 {tides.currentFlow} {tides.flowArrow}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-center">
-              <div className="flex flex-col items-center bg-cyan-950/25 rounded py-1 px-1 border border-cyan-500/30 shadow-inner">
-                <span className="text-[7.5px] font-black text-cyan-300 uppercase leading-none mb-0.5">HIGH TIDE</span>
-                <span className="text-xs font-mono font-black text-white leading-none">{tides.high1}</span>
-                <span className="text-[7px] font-mono text-cyan-300/80 mt-0.5 leading-none">{tides.high2}</span>
+              <div className="flex flex-col items-center bg-cyan-950/35 rounded py-1 px-1 border border-cyan-500/40 shadow-inner">
+                <span className="text-[8px] font-black text-cyan-200 uppercase leading-none mb-0.5">HIGH TIDE</span>
+                <span className="text-xs xl:text-[13px] font-mono font-black text-white leading-none">{tides.high1}</span>
+                <span className="text-[8px] font-mono font-bold text-cyan-200/90 mt-0.5 leading-none">{tides.high2}</span>
               </div>
-              <div className="flex flex-col items-center bg-slate-900/50 rounded py-1 px-1 border border-slate-800/80 shadow-inner">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">LOW TIDE</span>
-                <span className="text-xs font-mono font-black text-slate-200 leading-none">{tides.low1}</span>
-                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">{tides.low2}</span>
+              <div className="flex flex-col items-center bg-slate-900/65 rounded py-1 px-1 border border-slate-700/80 shadow-inner">
+                <span className="text-[8px] font-black text-slate-300 uppercase leading-none mb-0.5">LOW TIDE</span>
+                <span className="text-xs xl:text-[13px] font-mono font-black text-white leading-none">{tides.low1}</span>
+                <span className="text-[8px] font-mono font-bold text-slate-300 mt-0.5 leading-none">{tides.low2}</span>
               </div>
             </div>
           </div>
@@ -516,7 +516,7 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
             >
               {moonDetails.emoji}
             </div>
-            <span className="absolute bottom-0.5 text-[7.5px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+            <span className="absolute bottom-0.5 text-[8.5px] font-mono font-black text-slate-300 uppercase tracking-wider">
               {moonTransit.visible ? `${Math.round(moonTransit.progress * 100)}% Night Arc` : 'Below Horizon'}
             </span>
           </div>
@@ -524,48 +524,48 @@ export function SunTransitWidget({ dailyData, currentTime, marineData, currentDa
           {/* Moonrise/Moonset times */}
           <div className="grid grid-cols-2 gap-1.5 text-center border-t border-slate-800/50 pt-1">
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
-                <Sunrise className="w-2.5 h-2.5 text-slate-400" />
+              <span className="text-[8.5px] font-black text-slate-300 uppercase flex items-center space-x-0.5 mb-0.5">
+                <Sunrise className="w-3 h-3 text-slate-300" />
                 <span>RISE</span>
               </span>
-              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.rise}</span>
+              <span className="text-xs xl:text-[13px] font-mono font-black text-white tracking-normal leading-none">{moonTimes.rise}</span>
             </div>
             <div className="flex flex-col items-center">
-              <span className="text-[8px] font-black text-slate-400 uppercase flex items-center space-x-0.5 mb-0.5">
-                <Sunset className="w-2.5 h-2.5 text-slate-400" />
+              <span className="text-[8.5px] font-black text-slate-300 uppercase flex items-center space-x-0.5 mb-0.5">
+                <Sunset className="w-3 h-3 text-slate-300" />
                 <span>SET</span>
               </span>
-              <span className="text-xs font-mono font-black text-textIceWhite tracking-normal leading-none">{moonTimes.set}</span>
+              <span className="text-xs xl:text-[13px] font-mono font-black text-white tracking-normal leading-none">{moonTimes.set}</span>
             </div>
           </div>
 
           {/* Underneath Moonrise & Moonset: Marine Status & Next Tide */}
           <div className="border-t border-slate-800/50 pt-1 mt-1">
             <div className="flex items-center justify-between mb-1 px-0.5">
-              <span className="text-[7.5px] font-black text-indigo-300 uppercase flex items-center space-x-1">
+              <span className="text-[8px] font-black text-indigo-200 uppercase flex items-center space-x-1">
                 <Anchor className="w-2.5 h-2.5 text-indigo-400" />
                 <span>MARINE TIDE</span>
               </span>
-              <span className="text-[7px] font-mono text-slate-400 font-bold uppercase">
+              <span className="text-[8px] font-mono text-slate-300 font-black uppercase">
                 {tides.springNeap}
               </span>
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-center">
-              <div className="flex flex-col items-center bg-indigo-950/25 rounded py-1 px-1 border border-indigo-500/30 shadow-inner">
-                <span className="text-[7.5px] font-black text-indigo-300 uppercase leading-none mb-0.5">NEXT EVENT</span>
-                <span className="text-xs font-mono font-black text-white leading-none">{tides.nextTide.time}</span>
-                <span className="text-[7px] font-mono text-indigo-300/80 mt-0.5 leading-none">
+              <div className="flex flex-col items-center bg-indigo-950/35 rounded py-1 px-1 border border-indigo-500/40 shadow-inner">
+                <span className="text-[8px] font-black text-indigo-200 uppercase leading-none mb-0.5">NEXT EVENT</span>
+                <span className="text-xs xl:text-[13px] font-mono font-black text-white leading-none">{tides.nextTide.time}</span>
+                <span className="text-[8px] font-mono font-bold text-indigo-200/90 mt-0.5 leading-none">
                   {tides.nextTide.type} ({tides.nextTide.eta})
                 </span>
               </div>
-              <div className="flex flex-col items-center bg-slate-900/50 rounded py-1 px-1 border border-slate-800/80 shadow-inner">
-                <span className="text-[7.5px] font-black text-slate-400 uppercase leading-none mb-0.5">
+              <div className="flex flex-col items-center bg-slate-900/65 rounded py-1 px-1 border border-slate-700/80 shadow-inner">
+                <span className="text-[8px] font-black text-slate-300 uppercase leading-none mb-0.5">
                   {waveHeight !== null ? 'WAVE / TIDE' : 'TIDAL RANGE'}
                 </span>
-                <span className="text-xs font-mono font-black text-slate-200 leading-none">
+                <span className="text-xs xl:text-[13px] font-mono font-black text-white leading-none">
                   {waveHeight !== null ? `${Number(waveHeight).toFixed(1)}m • ${tides.range}` : tides.range}
                 </span>
-                <span className="text-[7px] font-mono text-slate-400 mt-0.5 leading-none">
+                <span className="text-[8px] font-mono font-bold text-slate-300 mt-0.5 leading-none">
                   {seaSurfaceTemp !== null ? `SEA ${Number(seaSurfaceTemp).toFixed(1)}°C` : 'ABU AL ABYAD'}
                 </span>
               </div>

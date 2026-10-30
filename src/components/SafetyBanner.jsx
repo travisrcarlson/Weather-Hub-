@@ -145,29 +145,29 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
       </div>
 
       {/* Warning/Halt Reasons (Split into Current and Projected) */}
-      <div className="flex-1 min-w-0 border-l border-white/20 pl-3 xl:pl-4 h-[92%] flex flex-row space-x-3 xl:space-x-4 items-stretch overflow-hidden">
+      <div className="flex-1 min-w-0 border-l border-white/25 pl-3 xl:pl-4 h-[92%] flex flex-row space-x-3 xl:space-x-4 items-stretch overflow-hidden">
         {/* Current Section */}
         <div className="w-1/2 flex flex-col justify-between overflow-hidden">
-          <p className="text-[11px] font-black text-white/85 uppercase tracking-wider mb-1 border-b border-white/10 pb-0.5 leading-none">
+          <p className="text-[11px] xl:text-xs font-black text-white uppercase tracking-wider mb-1 border-b border-white/15 pb-0.5 leading-none">
             Current Alerts
           </p>
           <div className="flex-grow overflow-y-auto no-scrollbar py-0.5">
             {/* Active Directive Notice on TV Console */}
             {activeDirective && (
-              <div className="mb-1.5 p-1.5 rounded bg-black/50 border border-amber-300/40 flex items-start space-x-2 text-white">
-                <span className="bg-amber-500/30 border border-amber-300/60 text-amber-200 px-1.5 py-0.5 rounded text-[7.5px] font-black uppercase font-mono tracking-wider flex-shrink-0">
+              <div className="mb-1.5 p-1.5 rounded bg-black/55 border border-amber-300/50 flex items-start space-x-2 text-white">
+                <span className="bg-amber-500/35 border border-amber-300/70 text-amber-100 px-1.5 py-0.5 rounded text-[8px] font-black uppercase font-mono tracking-wider flex-shrink-0">
                   📢 RSO {activeDirective.severity || 'DIRECTIVE'}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[9.5px] font-black uppercase tracking-wide text-amber-200 leading-snug">
+                  <p className="text-[10px] xl:text-[10.5px] font-black uppercase tracking-wide text-amber-100 leading-snug">
                     {activeDirective.title}
                   </p>
                   {activeDirective.details && (
-                    <p className="text-[8px] text-white/90 leading-tight mt-0.5 line-clamp-1">
+                    <p className="text-[9px] text-white/95 leading-tight mt-0.5 line-clamp-1">
                       {activeDirective.details}
                     </p>
                   )}
-                  <div className="flex items-center space-x-1.5 mt-0.5 text-[7px] font-mono text-white/70">
+                  <div className="flex items-center space-x-1.5 mt-0.5 text-[7.5px] font-mono text-white/80">
                     <span className="truncate">BY: {activeDirective.author}</span>
                     <span>•</span>
                     <span>{new Date(activeDirective.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} GST</span>
@@ -178,14 +178,14 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
             {reasons && reasons.length > 0 ? (
               <ul className="space-y-1 text-left text-white">
                 {reasons.map((reason, idx) => (
-                  <li key={idx} className="text-[10px] font-extrabold uppercase tracking-wide leading-tight flex items-start space-x-1.5">
-                    <span className="text-white/80 font-mono text-[9px] flex-shrink-0 mt-0.5">▶</span>
+                  <li key={idx} className="text-[10.5px] xl:text-[11px] font-black uppercase tracking-wide leading-tight flex items-start space-x-1.5">
+                    <span className="text-white/90 font-mono text-[9.5px] flex-shrink-0 mt-0.5">▶</span>
                     <span>{reason}</span>
                   </li>
                 ))}
               </ul>
             ) : !activeDirective ? (
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-white/60 mt-1">
+              <p className="text-[10.5px] xl:text-[11px] font-black uppercase tracking-wider text-white/85 mt-1">
                 ✓ No active alerts. All sensors safe.
               </p>
             ) : null}
@@ -193,24 +193,24 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
         </div>
 
         {/* Divider */}
-        <div className="w-[1px] bg-white/10 self-stretch my-0.5" />
+        <div className="w-[1px] bg-white/15 self-stretch my-0.5" />
 
         {/* Projected Section */}
         <div className="w-1/2 flex flex-col justify-between overflow-hidden">
-          <p className="text-[11px] font-black text-white/85 uppercase tracking-wider mb-1 border-b border-white/10 pb-0.5 leading-none">
+          <p className="text-[11px] xl:text-xs font-black text-white uppercase tracking-wider mb-1 border-b border-white/15 pb-0.5 leading-none">
             Today's Outlook (12H)
           </p>
           <div className="flex-grow overflow-y-auto no-scrollbar py-0.5">
             {projected && projected.length > 0 ? (
               <ul className="space-y-1 text-left text-white">
                 {projected.map((proj, idx) => (
-                  <li key={idx} className="text-[10px] font-extrabold uppercase tracking-wide leading-snug">
-                    ⚠️ <span className={proj.type === 'RED' ? 'text-red-300' : 'text-amber-200'}>{proj.metric}</span> <span className="font-mono text-white/60 text-[9px]">({proj.timeframe})</span>
+                  <li key={idx} className="text-[10.5px] xl:text-[11px] font-black uppercase tracking-wide leading-snug">
+                    ⚠️ <span className={proj.type === 'RED' ? 'text-red-200' : 'text-amber-100'}>{proj.metric}</span> <span className="font-mono text-white/80 text-[9.5px]">({proj.timeframe})</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-[10px] font-extrabold uppercase tracking-wider text-white/60 mt-1">
+              <p className="text-[10.5px] xl:text-[11px] font-black uppercase tracking-wider text-white/85 mt-1">
                 ✓ No safety breaches projected.
               </p>
             )}

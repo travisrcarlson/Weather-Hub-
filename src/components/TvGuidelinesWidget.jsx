@@ -164,71 +164,71 @@ export default function TvGuidelinesWidget({ data, isMobile = false }) {
   }
 
   return (
-    <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-2xl p-5 backdrop-blur-md shadow-2xl flex flex-col justify-between select-none">
+    <div className="w-full h-full bg-slate-950/75 border border-slate-800/85 rounded-2xl p-3.5 xl:p-4 backdrop-blur-md shadow-2xl flex flex-col justify-between select-none overflow-hidden">
       
       {/* Title */}
-      <div className="border-b border-slate-800/50 pb-2 mb-1.5 flex justify-between items-center">
-        <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
+      <div className="border-b border-slate-800/60 pb-2 mb-1 flex justify-between items-center gap-2 flex-none">
+        <div className="min-w-0">
+          <p className="text-[10px] xl:text-[10.5px] text-slate-300 font-black uppercase tracking-widest leading-none mb-0.5 truncate">
             ADOSH FIELD ADVISORY (ISO 7243 WBGT)
           </p>
-          <h2 className="text-sm font-bold text-slate-200">Actionable Safety Recommendations</h2>
+          <h2 className="text-sm xl:text-base font-black text-white leading-tight truncate">Actionable Safety Recommendations</h2>
         </div>
-        <span className="bg-edgeOrange/20 border border-edgeOrange/30 text-edgeOrange px-2 py-0.5 rounded text-[9px] font-bold uppercase">
+        <span className="bg-edgeOrange/25 border border-edgeOrange/40 text-edgeOrange px-2 py-0.5 rounded text-[9.5px] font-black uppercase flex-shrink-0">
           LIVE DIRECTIVES
         </span>
       </div>
 
       {/* 3 Guideline Sections */}
-      <div className="space-y-4 my-1 flex-grow flex flex-col justify-around">
+      <div className="space-y-2.5 xl:space-y-3.5 my-1 flex-grow flex flex-col justify-around min-h-0">
         
         {/* Sun Protection Block */}
-        <div className="flex items-start space-x-3.5">
-          <div className={`p-2 rounded-lg border mt-0.5 ${sunscreen.isNightUv ? 'bg-sky-500/10 border-sky-500/20 text-sky-400' : 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'}`}>
+        <div className="flex items-start space-x-3">
+          <div className={`p-2 rounded-lg border mt-0.5 flex-shrink-0 ${sunscreen.isNightUv ? 'bg-sky-500/15 border-sky-500/30 text-sky-400' : 'bg-yellow-500/15 border-yellow-500/30 text-yellow-400'}`}>
             {sunscreen.isNightUv ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
           </div>
-          <div className="flex-grow">
-            <div className="flex justify-between items-baseline">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">SUN & OPTICAL PROTECTION</h3>
-              <span className={`text-[9px] font-black uppercase ${sunscreen.color}`}>{sunscreen.level}</span>
+          <div className="flex-grow min-w-0">
+            <div className="flex justify-between items-baseline gap-2">
+              <h3 className="text-[10.5px] xl:text-[11px] font-black text-slate-300 uppercase tracking-wider truncate">SUN & OPTICAL PROTECTION</h3>
+              <span className={`text-[10px] font-black uppercase flex-shrink-0 ${sunscreen.color}`}>{sunscreen.level}</span>
             </div>
-            <p className="text-base font-black text-textIceWhite tracking-wide mt-0.5 leading-none">
+            <p className="text-base xl:text-lg font-black text-white tracking-wide mt-0.5 leading-tight">
               {sunscreen.spf}
             </p>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase flex items-center space-x-1">
-              <Timer className="w-3 h-3 text-slate-500" />
-              <span>{sunscreen.isNightUv ? 'STATUS:' : 'REAPPLY EVERY:'} <span className="text-textIceWhite">{sunscreen.interval}</span></span>
+            <p className="text-[10.5px] xl:text-[11px] font-bold text-slate-200 mt-1 uppercase flex items-center space-x-1 leading-snug">
+              <Timer className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+              <span className="truncate">{sunscreen.isNightUv ? 'STATUS:' : 'REAPPLY EVERY:'} <span className="text-white font-black">{sunscreen.interval}</span></span>
             </p>
           </div>
         </div>
 
         {/* Hydration Directive */}
-        <div className="flex items-start space-x-3.5 border-t border-slate-800/30 pt-3.5">
-          <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 mt-0.5">
+        <div className="flex items-start space-x-3 border-t border-slate-800/50 pt-2.5 xl:pt-3">
+          <div className="p-2 rounded-lg bg-blue-500/15 border border-blue-500/30 text-blue-400 mt-0.5 flex-shrink-0">
             <GlassWater className="w-5 h-5" />
           </div>
-          <div className="flex-grow">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">HYDRATION REQUIREMENT</h3>
-            <p className="text-base font-black text-textIceWhite tracking-wide mt-0.5 leading-none">
+          <div className="flex-grow min-w-0">
+            <h3 className="text-[10.5px] xl:text-[11px] font-black text-slate-300 uppercase tracking-wider">HYDRATION REQUIREMENT</h3>
+            <p className="text-base xl:text-lg font-black text-white tracking-wide mt-0.5 leading-tight">
               {hydration.volume}
             </p>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase leading-snug">
+            <p className="text-[10.5px] xl:text-[11px] font-bold text-slate-200 mt-1 uppercase leading-snug">
               {hydration.note}
             </p>
           </div>
         </div>
 
         {/* Rest Break Split Directive */}
-        <div className="flex items-start space-x-3.5 border-t border-slate-800/30 pt-3.5">
-          <div className="p-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 mt-0.5">
+        <div className="flex items-start space-x-3 border-t border-slate-800/50 pt-2.5 xl:pt-3">
+          <div className="p-2 rounded-lg bg-orange-500/15 border border-orange-500/30 text-orange-400 mt-0.5 flex-shrink-0">
             <Flame className="w-5 h-5" />
           </div>
-          <div className="flex-grow">
-            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WORK / REST RATIO</h3>
-            <p className="text-base font-black text-textIceWhite tracking-wide mt-0.5 leading-none">
+          <div className="flex-grow min-w-0">
+            <h3 className="text-[10.5px] xl:text-[11px] font-black text-slate-300 uppercase tracking-wider">WORK / REST RATIO</h3>
+            <p className="text-base xl:text-lg font-black text-white tracking-wide mt-0.5 leading-tight">
               {rest.ratio}
             </p>
-            <p className="text-[10px] font-bold text-slate-400 mt-1 uppercase leading-snug">
+            <p className="text-[10.5px] xl:text-[11px] font-bold text-slate-200 mt-1 uppercase leading-snug">
               Mandatory rest periods must be taken in <span className="text-edgeOrange font-black">designated shade</span>.
             </p>
           </div>
@@ -237,8 +237,8 @@ export default function TvGuidelinesWidget({ data, isMobile = false }) {
       </div>
 
       {/* Safety Standard Footer Note */}
-      <div className="border-t border-slate-800/40 pt-2 text-center">
-        <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest leading-none">
+      <div className="border-t border-slate-800/50 pt-1.5 text-center flex-none">
+        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">
           REGULATED REGULATORY HEAT SHIELD • ADOSH-SF COMPLIANT
         </p>
       </div>

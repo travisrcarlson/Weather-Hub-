@@ -245,15 +245,15 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
       {/* Title block */}
       <div className="flex justify-between items-center mb-1 flex-none">
         <div>
-          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-0.5">
+          <p className="text-[10px] text-slate-300 font-black uppercase tracking-widest leading-none mb-0.5">
             Z7 • HOURLY PROGRESSION
           </p>
-          <h2 className="text-xs font-bold text-slate-300 leading-none">12-Hour Forecast & Temperature Curve</h2>
+          <h2 className="text-xs xl:text-sm font-black text-white leading-none">12-Hour Forecast & Temperature Curve</h2>
         </div>
-        <div className="flex space-x-2.5 text-[8px] font-bold text-slate-400">
-          <span className="flex items-center"><span className="w-2 h-2 rounded bg-safetyGreen/40 mr-1 inline-block border border-safetyGreen/60"></span>SAFE</span>
-          <span className="flex items-center"><span className="w-2 h-2 rounded bg-amberAlert/20 mr-1 inline-block border border-amberAlert/60"></span>CAUTION</span>
-          <span className="flex items-center"><span className="w-2 h-2 rounded bg-stopRed/30 mr-1 inline-block border border-stopRed/60"></span>HALT</span>
+        <div className="flex space-x-3 text-[9px] font-black text-slate-300">
+          <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-safetyGreen/40 mr-1 inline-block border border-safetyGreen/70"></span>SAFE</span>
+          <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-amberAlert/25 mr-1 inline-block border border-amberAlert/70"></span>CAUTION</span>
+          <span className="flex items-center"><span className="w-2.5 h-2.5 rounded bg-stopRed/35 mr-1 inline-block border border-stopRed/70"></span>HALT</span>
         </div>
       </div>
 
@@ -283,8 +283,9 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
               domain={[0, maxOffset]}
               ticks={ticks}
               tickFormatter={tickFormatter}
-              stroke="#64748B" 
-              fontSize={7} 
+              stroke="#94A3B8" 
+              fontSize={8.5} 
+              fontWeight="bold"
               tickLine={false} 
               axisLine={false}
               dy={2}
@@ -297,7 +298,7 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   return (
-                    <div className="bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] font-mono font-bold text-textIceWhite">
+                    <div className="bg-slate-950 border border-slate-800 rounded px-1.5 py-0.5 text-[9px] font-mono font-bold text-textIceWhite">
                       Temp: {payload[0].value}°C
                     </div>
                   );
@@ -338,8 +339,8 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
                     strokeDasharray="4,4"
                     label={{
                       value: `☀️ SUNRISE (${labelTime})`,
-                      fill: "#eab308",
-                      fontSize: 7,
+                      fill: "#fde047",
+                      fontSize: 8,
                       fontWeight: "black",
                       position: "insideTopLeft",
                       offset: 5
@@ -370,8 +371,8 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
                     strokeDasharray="4,4"
                     label={{
                       value: `🌙 SUNSET (${labelTime})`,
-                      fill: "#a855f7",
-                      fontSize: 7,
+                      fill: "#d8b4fe",
+                      fontSize: 8,
                       fontWeight: "black",
                       position: "insideTopLeft",
                       offset: 5
@@ -387,14 +388,14 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
                 x1={Math.max(0, banStartOffset)} 
                 x2={Math.min(maxOffset, banEndOffset)} 
                 fill="#EF4444" 
-                fillOpacity={0.15} 
+                fillOpacity={0.18} 
                 stroke="#EF4444"
                 strokeWidth={0.5}
                 strokeDasharray="3,3"
                 label={{ 
                   value: "MIDDAY WORK BAN", 
-                  fill: "#EF4444", 
-                  fontSize: 6.5, 
+                  fill: "#FCA5A5", 
+                  fontSize: 7.5, 
                   fontWeight: "bold",
                   position: "insideBottomLeft",
                   offset: 8
@@ -436,10 +437,10 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
                 dataKey="temp" 
                 position="top" 
                 offset={8} 
-                fontSize={7.5} 
-                fill="#E8F4FD" 
+                fontSize={9} 
+                fill="#FFFFFF" 
                 stroke="none"
-                fontWeight="bold" 
+                fontWeight="black" 
               />
             </Area>
           </AreaChart>
@@ -451,20 +452,20 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
         {hours.map((hour, i) => (
           <div
             key={i}
-            className={`flex-none w-[82px] rounded-lg border flex flex-col justify-between py-1 px-1.5 transition-all duration-300 relative overflow-hidden ${getSafetyBg(hour.safetyStatus, hour.isBanned, hour.isNight)} ${getSafetyBorderColor(hour.safetyStatus, hour.isBanned)} ${hour.isHistory ? 'opacity-50 border-dashed border-slate-800' : ''} ${hour.isCurrent ? 'ring-1 ring-edgeOrange/60 bg-edgeOrange/5 shadow-md shadow-edgeOrange/5' : ''}`}
+            className={`flex-none w-[84px] xl:w-[88px] rounded-lg border flex flex-col justify-between py-1 px-1.5 transition-all duration-300 relative overflow-hidden ${getSafetyBg(hour.safetyStatus, hour.isBanned, hour.isNight)} ${getSafetyBorderColor(hour.safetyStatus, hour.isBanned)} ${hour.isHistory ? 'opacity-65 border-dashed border-slate-700' : ''} ${hour.isCurrent ? 'ring-1 ring-edgeOrange/75 bg-edgeOrange/10 shadow-md shadow-edgeOrange/10' : ''}`}
           >
             {/* Time / Status Badge */}
             <div className="flex items-center justify-between w-full leading-none gap-0.5">
-              <span className="text-[9.5px] font-mono font-bold text-slate-300 leading-none">
+              <span className="text-[10.5px] font-mono font-black text-white leading-none">
                 {hour.timeLabel}
               </span>
               {hour.isHistory && (
-                <span className="text-[6.5px] font-black text-slate-500 uppercase tracking-tight leading-none">
+                <span className="text-[7px] font-black text-slate-400 uppercase tracking-tight leading-none">
                   PAST
                 </span>
               )}
               {hour.isCurrent && (
-                <span className="text-[6.5px] font-extrabold text-edgeOrange bg-edgeOrange/15 border border-edgeOrange/30 px-1 py-0.5 rounded uppercase tracking-tight leading-none select-none">
+                <span className="text-[7.5px] font-black text-edgeOrange bg-edgeOrange/20 border border-edgeOrange/40 px-1 py-0.5 rounded uppercase tracking-tight leading-none select-none">
                   NOW
                 </span>
               )}
@@ -472,39 +473,39 @@ export default function HourlyForecast({ hourlyData, currentTime, dailyData }) {
 
             {/* Inline Midday Ban Status Badge */}
             {hour.isBanned && (
-              <span className="text-[6.5px] font-extrabold text-red-400 bg-red-950/85 border border-red-500/45 px-1 py-0.5 rounded text-center uppercase tracking-tight leading-none select-none">
+              <span className="text-[7px] font-black text-red-300 bg-red-950/90 border border-red-500/60 px-1 py-0.5 rounded text-center uppercase tracking-tight leading-none select-none">
                 {hour.rawTime.endsWith('12:00') ? 'BAN 12:30+' : 'BAN ACTIVE'}
               </span>
             )}
 
             {/* Condition Icon + Temperature Side-by-Side to prevent vertical overlap */}
             <div className="flex items-center justify-center space-x-1.5 my-0.5 leading-none">
-              <span className="text-lg filter drop-shadow leading-none flex-shrink-0">
+              <span className="text-lg xl:text-xl filter drop-shadow leading-none flex-shrink-0">
                 {hour.condition.emoji}
               </span>
               <div className="leading-none">
-                <span className="text-sm font-black font-mono text-textIceWhite leading-none">
+                <span className="text-base font-black font-mono text-white leading-none">
                   {hour.temp.toFixed(0)}
                 </span>
-                <span className="text-[10px] text-edgeOrange font-bold leading-none">°</span>
+                <span className="text-[11px] text-edgeOrange font-black leading-none">°</span>
               </div>
             </div>
 
             {/* Bottom Telemetry: Precip% & Wind */}
-            <div className="flex flex-col space-y-0.5 border-t border-slate-800/50 pt-0.5 leading-none">
-              <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-400 leading-none">
+            <div className="flex flex-col space-y-0.5 border-t border-slate-800/60 pt-0.5 leading-none">
+              <div className="flex items-center justify-between text-[9px] xl:text-[9.5px] font-bold text-slate-300 leading-none">
                 <span className="flex items-center space-x-0.5">
                   <Droplets className="w-2.5 h-2.5 text-blue-400 flex-shrink-0" />
                   <span>RAIN</span>
                 </span>
-                <span className="font-mono text-slate-300">{hour.precipProb}%</span>
+                <span className="font-mono font-black text-white">{hour.precipProb}%</span>
               </div>
-              <div className="flex items-center justify-between text-[8.5px] font-bold text-slate-400 leading-none">
+              <div className="flex items-center justify-between text-[9px] xl:text-[9.5px] font-bold text-slate-300 leading-none">
                 <span className="flex items-center space-x-0.5">
-                  <Compass className="w-2.5 h-2.5 text-slate-500 flex-shrink-0" />
+                  <Compass className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
                   <span>WIND</span>
                 </span>
-                <span className="font-mono text-slate-200">{hour.windSpeed.toFixed(0)}<span className="text-[7px] text-slate-500 ml-0.5">k/h</span></span>
+                <span className="font-mono font-black text-white">{hour.windSpeed.toFixed(0)}<span className="text-[7.5px] text-slate-400 ml-0.5">k/h</span></span>
               </div>
             </div>
           </div>

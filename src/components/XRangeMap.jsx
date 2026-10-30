@@ -668,37 +668,43 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
               {/* Text Label */}
               <text
-                y="-8"
+                y="-8.5"
                 textAnchor="middle"
-                fontSize="6.5"
+                fontSize="7.2"
                 fontWeight="black"
-                fill={isSelected ? '#f97316' : '#f8fafc'}
+                fill={isSelected ? '#fb923c' : '#ffffff'}
                 className="uppercase font-sans tracking-wider"
-                style={{ textShadow: '0px 1px 3px rgba(0,0,0,0.95)' }}
+                style={{ textShadow: '0px 1.5px 4px rgba(0,0,0,0.98)' }}
               >
-                {s.id === 'hq' ? 'X-Range HQ' : s.name.replace('Range ', '')}
+                {s.id === 'hq'
+                  ? 'HQ • AF1R'
+                  : s.id === 'south'
+                  ? 'South • EM2R'
+                  : s.id === 'sea'
+                  ? 'Sea • AF2R'
+                  : s.name.replace('Range ', '')}
               </text>
 
               {/* Micro Safety Telemetry Pill under Pin */}
-              <g transform="translate(0, 10)">
+              <g transform="translate(0, 10.5)">
                 <rect
-                  x="-21"
-                  y="-4.2"
-                  width="42"
-                  height="8"
-                  rx="1"
-                  fill="#090d16"
-                  fillOpacity="0.86"
-                  stroke={statusColor}
-                  strokeWidth="0.6"
+                  x="-24"
+                  y="-4.6"
+                  width="48"
+                  height="9.2"
+                  rx="1.5"
+                  fill="#060911"
+                  fillOpacity="0.92"
+                  stroke={isSelected ? '#f97316' : statusColor}
+                  strokeWidth={isSelected ? '0.9' : '0.7'}
                 />
                 <text
                   x="0"
-                  y="1.2"
+                  y="1.5"
                   textAnchor="middle"
-                  fontSize="4.6"
-                  fontWeight="bold"
-                  fill="#f8fafc"
+                  fontSize="5.3"
+                  fontWeight="black"
+                  fill="#ffffff"
                   className="font-mono"
                 >
                   {pinTemp} • {pinWind}
@@ -849,20 +855,20 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       {/* Compact Title Bar */}
       <div className="flex justify-between items-center z-10 w-full border-b border-slate-800/60 pb-1.5 mb-1.5 flex-none">
         <div className="flex items-center space-x-2.5">
-          <span className="text-[10px] text-slate-300 font-black uppercase tracking-widest">
+          <span className="text-[10.5px] text-white font-black uppercase tracking-widest">
             Z12 • XRANGE TACTICAL MAP
           </span>
-          <span className={`text-[8.5px] font-black uppercase tracking-widest flex items-center space-x-1 ${isLightningActive ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>
+          <span className={`text-[9px] font-black uppercase tracking-widest flex items-center space-x-1 ${isLightningActive ? 'text-red-500 animate-pulse' : 'text-emerald-400'}`}>
             <span className={`w-1.5 h-1.5 rounded-full bg-current ${isLightningActive ? 'animate-ping' : ''}`} />
             <span>{isLightningActive ? '🔴 LIVE ALERT' : '🟢 Radar Connected'}</span>
           </span>
-          <span className="text-[8px] text-slate-500 font-bold uppercase tracking-wider">
+          <span className="text-[8.5px] text-slate-400 font-bold uppercase tracking-wider">
             ({isSimulated ? 'Simulated Overlay' : 'Live GPS Grid'})
           </span>
         </div>
         <div className="flex items-center space-x-2">
           {/* WeatherNext 3 5km Microclimate Station Quick Switcher (Auto-Rotates every 30s) */}
-          <div className="hidden sm:flex items-center space-x-0.5 bg-slate-900/90 p-0.5 rounded-lg border border-slate-800 shadow-inner">
+          <div className="hidden sm:flex items-center space-x-0.5 bg-slate-900/95 p-0.5 rounded-lg border border-slate-700/80 shadow-inner">
             {stationsList.map(st => {
               const isStActive = currentActive === st.id;
               const stData = getStationReadingsAtOffset(st.id, forecastOffset);
@@ -871,15 +877,15 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                 <button
                   key={st.id}
                   onClick={() => setActiveStation && setActiveStation(st.id)}
-                  className={`px-2 py-0.5 rounded text-[8.5px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1 ${
+                  className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center space-x-1 ${
                     isStActive
                       ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm shadow-orange-950/50'
-                      : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/60'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                   }`}
                   title={`Switch active telemetry to ${st.name} (Auto-rotates every 30s)`}
                 >
                   <span>{st.id.toUpperCase()}</span>
-                  {tempVal && <span className="text-[7.5px] opacity-90">{tempVal}</span>}
+                  {tempVal && <span className="text-[8.5px] opacity-95 font-mono">{tempVal}</span>}
                 </button>
               );
             })}
