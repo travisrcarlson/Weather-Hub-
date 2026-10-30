@@ -132,11 +132,25 @@ export default function App() {
     new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour12: false })
   );
   const [isOffline, setIsOffline] = useState(false);
-  const [isSimulated, setIsSimulated] = useState(false);
+  const [isSimulated, setIsSimulated] = useState(() => {
+    try { return sessionStorage.getItem('xrange_sim') === 'true'; } catch { return false; }
+  });
   const [simulatedLightning, setSimulatedLightning] = useState(false);
-  const [activeStation, setActiveStation] = useState('hq');
+  const [activeStation, setActiveStation] = useState(() => {
+    try { return sessionStorage.getItem('xrange_station') || 'hq'; } catch { return 'hq'; }
+  });
   const [isAutoRotateStations, setIsAutoRotateStations] = useState(true);
-  const [viewMode, setViewMode] = useState('ops');
+  const [viewMode, setViewMode] = useState(() => {
+    try { return sessionStorage.getItem('xrange_view_mode') || 'ops'; } catch { return 'ops'; }
+  });
+  const [tvAutoReload, setTvAutoReload] = useState(() => {
+    try {
+      const saved = localStorage.getItem('xrange_tv_auto_reload_v1');
+      return saved !== null ? saved === 'true' : true;
+    } catch {
+      return true;
+    }
+  });
   const [systemTime, setSystemTime] = useState(new Date());
   const [activeProvider, setActiveProviderState] = useState(getActiveProvider());
 
@@ -214,6 +228,17 @@ export default function App() {
       }
     ];
   });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('xrange_view_mode', viewMode);
+      sessionStorage.setItem('xrange_station', activeStation);
+      sessionStorage.setItem('xrange_sim', String(isSimulated));
+      localStorage.setItem('xrange_tv_auto_reload_v1', String(tvAutoReload));
+    } catch {
+      // ignore
+    }
+  }, [viewMode, activeStation, isSimulated, tvAutoReload]);
 
   useEffect(() => {
     try {
@@ -1082,6 +1107,8 @@ export default function App() {
         onOpenAlerts={() => setIsAlertCenterOpen(true)}
         activeAlertsCount={activeAlertsCount}
         activeProvider={activeProvider}
+        tvAutoReload={tvAutoReload}
+        onToggleTvAutoReload={() => setTvAutoReload(prev => !prev)}
       />
 
       {/* Main Container */}
@@ -1365,7 +1392,7 @@ export default function App() {
       )}
 
       {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard */}
-      <TvWakeLockGuard enabled={true} />
+      <TvWakeLockGuard enabled={true} autoReload={tvAutoReload} />
     </div>
   );
 }

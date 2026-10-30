@@ -11,15 +11,17 @@ export default function Header({
   isMobile,
   onOpenAlerts,
   activeAlertsCount,
-  activeProvider
+  activeProvider,
+  tvAutoReload = true,
+  onToggleTvAutoReload
 }) {
   const handleTvWakeAndFullscreen = () => {
     try {
+      if (onToggleTvAutoReload) {
+        onToggleTvAutoReload();
+      }
       if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {});
-      }
-      if ('wakeLock' in navigator) {
-        navigator.wakeLock.request('screen').catch(() => {});
       }
     } catch (_e) {
       // Ignore fullscreen errors
@@ -253,10 +255,10 @@ export default function Header({
             type="button"
             onClick={handleTvWakeAndFullscreen}
             className="flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-950/50 transition-colors cursor-pointer border-none"
-            title="TV Anti-Screensaver Active (Video + WakeLock) • Click to enter Fullscreen Kiosk Mode on LG TV"
+            title="LG webOS Anti-Screensaver Active (Full-Screen H.264+AAC Video + 35s Subframe Nav + 110s State-Preserving Reload)"
           >
             <Tv className="w-3 h-3 text-safetyGreen animate-pulse" />
-            <span>WAKE</span>
+            <span>{tvAutoReload ? 'WAKE:MAX' : 'WAKE:VID'}</span>
           </button>
 
           {/* Segment 4: Connection Link Status */}
