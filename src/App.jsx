@@ -1085,19 +1085,19 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="w-full h-[92%] relative select-none overflow-hidden">
+      <main className="w-full h-[91.5%] relative select-none overflow-hidden">
         
         {/* View Mode Switching Overlays */}
         {viewMode === 'tv' && (
           /* TV Display (Simplified lobby mode) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none flex flex-col justify-between space-y-3.5 w-full h-full">
+          <div className="absolute inset-0 px-3.5 xl:px-5 py-2.5 xl:py-3.5 z-10 pointer-events-none flex flex-col justify-between space-y-2.5 xl:space-y-3.5 w-full h-full">
             {/* Z8 Safety Status Banner */}
-            <div className="h-[12%] pointer-events-auto">
+            <div className="h-[13%] pointer-events-auto">
               <SafetyBanner safetyEvaluation={globalSafety} hourlyData={activeHourlyData} currentTime={activeTime} ncmWarnings={combinedNcmWarnings} />
             </div>
 
             {/* 3-Column Split Layout */}
-            <div className="h-[84%] grid grid-cols-10 gap-5 pointer-events-none items-stretch">
+            <div className="h-[85%] grid grid-cols-10 gap-3.5 xl:gap-5 pointer-events-none items-stretch">
               {/* Left Column (Col-span-3): Daily Outlook extremes, Sunrise/Sunset & Hourly Forecast */}
               <div className="col-span-3 h-full pointer-events-auto flex flex-col justify-between space-y-3.5">
                 <div className="h-[17%]">
@@ -1144,7 +1144,7 @@ export default function App() {
 
         {viewMode === 'ops' && (
           /* Operations Console (Complex dashboard view) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-none grid grid-cols-10 gap-4 w-full h-full">
+          <div className="absolute inset-0 px-3.5 xl:px-5 py-2.5 xl:py-3.5 z-10 pointer-events-none grid grid-cols-10 gap-3 xl:gap-4 w-full h-full">
             
              {/* Left Sidebar (Col-span-2): Current, Heat Stress, Hydration, Wind Safety */}
              <div className="col-span-2 h-full flex flex-col justify-between space-y-3 pointer-events-auto">

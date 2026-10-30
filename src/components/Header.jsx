@@ -130,65 +130,66 @@ export default function Header({
   }
 
   return (
-    <header className="w-full h-[8%] bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-6 select-none relative z-50 flex-none">
-      {/* Remaya Logo & Title */}
-      <div className="flex items-center space-x-5">
-        {/* Remaya Corporate Logo Image Badge */}
-        <div className="h-16 bg-white rounded-lg px-2 py-0.5 flex items-center justify-center shadow-md shadow-white/5 border border-white/85">
+    <header className="w-full h-[8.5%] min-h-[52px] max-h-[72px] bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between gap-2 xl:gap-4 px-3.5 xl:px-6 py-1 select-none relative z-50 flex-none">
+      {/* Left: Remaya Logo & Title (Never shrinks, wraps, or clips vertically) */}
+      <div className="flex items-center space-x-2.5 xl:space-x-3.5 flex-shrink-0 whitespace-nowrap">
+        <div className="h-8 xl:h-10 2xl:h-11 bg-white rounded-md px-1.5 py-0.5 flex items-center justify-center shadow-md shadow-white/5 border border-white/85 flex-shrink-0">
           <img 
             src="remaya_logo.png" 
             alt="REMAYA Logo" 
             className="h-full w-auto object-contain" 
           />
         </div>
-        <div className="border-l border-slate-700/50 pl-4">
-          <h1 className="text-2xl font-black tracking-widest text-textIceWhite uppercase leading-none">
+        <div className="border-l border-slate-700/50 pl-2.5 xl:pl-3.5 flex flex-col justify-center flex-shrink-0">
+          <h1 className="text-sm lg:text-base xl:text-lg 2xl:text-xl font-black tracking-wide xl:tracking-wider text-textIceWhite uppercase leading-tight whitespace-nowrap">
             XRANGE WEATHER HUB
           </h1>
-          <p className="text-xs text-edgeOrange font-bold tracking-[0.2em] uppercase mt-0.5 font-sans">
+          <p className="text-[7.5px] xl:text-[9px] 2xl:text-[10.5px] text-edgeOrange font-bold tracking-[0.12em] xl:tracking-[0.16em] uppercase leading-tight mt-0.5 font-sans whitespace-nowrap">
             AI POWERED WEATHER SAFETY PORTAL
           </p>
         </div>
       </div>
 
-      {/* Clock & Date */}
-      <div className="flex items-center space-x-4 flex-shrink-0 whitespace-nowrap">
-        <div className="flex items-center space-x-2.5 text-textIceWhite bg-bgDeepSpace/40 px-4 py-2 rounded-lg border border-slate-700/35 font-sans">
-          <Clock className="w-5 h-5 text-edgeOrange flex-shrink-0" />
-          <span className="text-2xl font-mono font-black tracking-wider">{formatTime(time)}</span>
-          <span className="text-xs text-slate-400 font-bold uppercase pl-1">GST (UTC+4)</span>
-        </div>
-        <div className="text-base font-black text-slate-300 hidden md:block whitespace-nowrap flex-shrink-0">
+      {/* Center: Clock & Date (Compact Single-Line Telemetry Pill) */}
+      <div className="flex items-center space-x-2 flex-shrink-0 whitespace-nowrap bg-bgDeepSpace/50 px-2.5 xl:px-3 py-1 xl:py-1.5 rounded-lg border border-slate-700/40 font-sans">
+        <Clock className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-edgeOrange flex-shrink-0" />
+        <span className="text-sm xl:text-base 2xl:text-lg font-mono font-black tracking-wider text-textIceWhite leading-none">
+          {formatTime(time)}
+        </span>
+        <span className="text-[8.5px] xl:text-[9.5px] text-slate-400 font-bold uppercase leading-none">GST</span>
+        <span className="hidden xl:inline text-slate-600">|</span>
+        <span className="hidden xl:inline text-[11px] 2xl:text-xs font-black text-slate-300 uppercase leading-none">
           {formatDate(time)}
-        </div>
+        </span>
       </div>
 
       {/* Right Controls & Views */}
-      <div className="flex items-center space-x-2.5">
+      <div className="flex items-center space-x-1.5 xl:space-x-2 flex-shrink-0 whitespace-nowrap">
         {/* View Mode Tabs */}
         <div className="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-800/90 shadow-inner">
           {[
-            { id: 'tv', label: 'TV Display' },
-            { id: 'ops', label: 'Tactical Console' },
-            { id: 'pilot', label: 'Drone Pilot' },
-            { id: 'advisory', label: 'Safety Advisory' },
-            { id: 'hse', label: 'HSE Dashboard' },
-            { id: 'planning', label: 'Range Planning' },
-            { id: 'customer', label: 'Customer Portal' },
-            { id: 'backend', label: 'Backend Feeds' }
+            { id: 'tv', label: 'TV Display', short: 'TV' },
+            { id: 'ops', label: 'Tactical Console', short: 'Ops' },
+            { id: 'pilot', label: 'Drone Pilot', short: 'Pilot' },
+            { id: 'advisory', label: 'Safety Advisory', short: 'Safety' },
+            { id: 'hse', label: 'HSE Dashboard', short: 'HSE' },
+            { id: 'planning', label: 'Range Planning', short: 'Plan' },
+            { id: 'customer', label: 'Customer Portal', short: 'Portal' },
+            { id: 'backend', label: 'Backend Feeds', short: 'Feeds' }
           ].map(tab => {
             const isActive = viewMode === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => onViewModeChange(tab.id)}
-                className={`px-3 py-1.5 text-[9.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer ${
+                className={`px-2 xl:px-2.5 2xl:px-3 py-1 xl:py-1.5 text-[8.5px] xl:text-[9px] 2xl:text-[9.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-md whitespace-nowrap ${
                   isActive
                     ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md shadow-orange-950/40'
                     : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/40'
                 }`}
               >
-                {tab.label}
+                <span className="hidden 2xl:inline">{tab.label}</span>
+                <span className="2xl:hidden">{tab.short}</span>
               </button>
             );
           })}
@@ -197,7 +198,7 @@ export default function Header({
         {/* Notification Bell */}
         <button
           onClick={onOpenAlerts}
-          className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 cursor-pointer relative shadow-sm ${
+          className={`flex items-center space-x-1 px-2 py-1 xl:py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 cursor-pointer relative shadow-sm whitespace-nowrap ${
             activeAlertsCount > 0
               ? 'bg-red-500/15 border-red-500/50 text-red-200 shadow-red-500/10'
               : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-textIceWhite hover:border-slate-700'
@@ -205,20 +206,20 @@ export default function Header({
           title="Open Safety Alert Center & Dispatcher"
         >
           <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'text-red-400 animate-bounce' : 'text-slate-400'}`} />
-          <span className="text-[10px] uppercase tracking-wide">Alert Center</span>
+          <span className="hidden 2xl:inline text-[9.5px] uppercase tracking-wide">Alerts</span>
           {activeAlertsCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-600 border border-slate-900 text-[8.5px] font-black text-white px-1.5 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[16px] h-[16px] shadow-sm select-none">
+            <span className="absolute -top-1 -right-1 bg-red-600 border border-slate-900 text-[8px] font-black text-white px-1 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[15px] h-[15px] shadow-sm select-none">
               {activeAlertsCount}
             </span>
           )}
         </button>
 
         {/* Unified System Telemetry Cluster */}
-        <div className="flex items-center bg-slate-900/80 border border-slate-800/90 rounded-lg p-0.5 divide-x divide-slate-800/80 shadow-md">
+        <div className="flex items-center bg-slate-900/80 border border-slate-800/90 rounded-lg p-0.5 divide-x divide-slate-800/80 shadow-md whitespace-nowrap">
           {/* Segment 1: Active Forecast Model */}
           <div 
             onClick={() => onViewModeChange('backend')}
-            className="flex items-center space-x-1.5 px-2.5 py-1 text-[9.5px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800/50 transition-colors"
+            className="hidden xl:flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800/50 transition-colors"
             title={`Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'} • Click to view Backend Feeds`}
           >
             {activeProvider?.startsWith('WEATHERNEXT') ? (
@@ -227,28 +228,16 @@ export default function Header({
               <Cpu className="w-3 h-3 text-slate-400 flex-shrink-0" />
             )}
             <span className={activeProvider?.startsWith('WEATHERNEXT') ? 'text-cyan-300' : 'text-slate-300'}>
-              {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WN3 5km Sim' :
-               activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WN3 Live' :
-               activeProvider === PROVIDERS.UAE_NCM ? 'UAE NCM' : 'Open-Meteo'}
+              {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WN3' :
+               activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WN3' :
+               activeProvider === PROVIDERS.UAE_NCM ? 'NCM' : 'Meteo'}
             </span>
           </div>
 
-          {/* Segment 2: Satellite Ingestion countdown (shown when WeatherNext active) */}
-          {activeProvider?.startsWith('WEATHERNEXT') && (
-            <div 
-              onClick={() => onViewModeChange && onViewModeChange('backend')}
-              className="hidden 2xl:flex items-center space-x-1 px-2 py-1 text-[9px] font-mono font-bold text-sky-300 cursor-pointer hover:bg-slate-800/50 transition-colors"
-              title="Meteosat-11 Radiance assimilation countdown"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping mr-0.5" />
-              <span>SAT:{60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
-            </div>
-          )}
-
-          {/* Segment 3: Simulation Toggle */}
+          {/* Segment 2: Simulation Toggle */}
           <button
             onClick={onToggleSim}
-            className={`flex items-center space-x-1.5 px-2.5 py-1 text-[9.5px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border-none ${
+            className={`flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border-none ${
               isSimulated
                 ? 'bg-edgeOrange/20 text-edgeOrange hover:bg-edgeOrange/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
@@ -259,28 +248,28 @@ export default function Header({
             <span>SIM:{isSimulated ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* Segment 4: LG webOS / Smart TV Anti-Screensaver & Fullscreen Lock */}
+          {/* Segment 3: LG webOS / Smart TV Anti-Screensaver & Fullscreen Lock */}
           <button
             type="button"
             onClick={handleTvWakeAndFullscreen}
-            className="flex items-center space-x-1 px-2 py-1 text-[9px] font-mono font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-950/50 transition-colors cursor-pointer border-none"
+            className="flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-950/50 transition-colors cursor-pointer border-none"
             title="TV Anti-Screensaver Active (Video + WakeLock) • Click to enter Fullscreen Kiosk Mode on LG TV"
           >
             <Tv className="w-3 h-3 text-safetyGreen animate-pulse" />
-            <span>TV WAKE</span>
+            <span>WAKE</span>
           </button>
 
-          {/* Segment 5: Connection Link Status */}
-          <div className="flex items-center space-x-1.5 px-2.5 py-1" title={isOffline ? 'System Offline' : 'Live Data Stream Active'}>
+          {/* Segment 4: Connection Link Status */}
+          <div className="flex items-center space-x-1 px-1.5 py-1" title={isOffline ? 'System Offline' : 'Live Data Stream Active'}>
             {isOffline ? (
               <>
                 <span className="w-2 h-2 rounded-full bg-stopRed" />
-                <span className="text-[9.5px] font-mono font-black text-stopRed tracking-wider uppercase">OFFLINE</span>
+                <span className="hidden xl:inline text-[8.5px] font-mono font-black text-stopRed tracking-wider uppercase">OFF</span>
               </>
             ) : (
               <>
                 <span className="w-2 h-2 rounded-full bg-safetyGreen animate-pulse shadow-sm shadow-emerald-500/50" />
-                <span className="text-[9.5px] font-mono font-black text-safetyGreen tracking-wider uppercase">ONLINE</span>
+                <span className="hidden xl:inline text-[8.5px] font-mono font-black text-safetyGreen tracking-wider uppercase">LIVE</span>
               </>
             )}
           </div>

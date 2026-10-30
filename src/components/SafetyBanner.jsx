@@ -123,13 +123,13 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
   }
 
   return (
-    <div className={`w-full h-full border rounded-xl flex items-center justify-between px-5 transition-all duration-500 select-none ${colors.banner}`}>
+    <div className={`w-full h-full border rounded-xl flex items-center justify-between px-3.5 xl:px-5 py-1.5 transition-all duration-500 select-none ${colors.banner}`}>
       {/* Icon & Title */}
-      <div className="flex items-center space-x-3 w-[24%] flex-shrink-0">
+      <div className="flex items-center space-x-2.5 xl:space-x-3 pr-3 flex-shrink-0">
         <div className="flex-shrink-0">{renderIcon()}</div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center space-x-1.5 flex-wrap gap-y-0.5">
-            <h2 className="text-[16px] font-black tracking-wider uppercase leading-tight whitespace-nowrap">
+        <div className="min-w-0">
+          <div className="flex items-center space-x-1.5">
+            <h2 className="text-xs xl:text-sm 2xl:text-[16px] font-black tracking-wider uppercase leading-tight whitespace-nowrap">
               {compactStatusText}
             </h2>
             {ncmWarnings && ncmWarnings.length > 0 && (
@@ -138,14 +138,14 @@ export default function SafetyBanner({ safetyEvaluation, hourlyData, currentTime
               </span>
             )}
           </div>
-          <p className="text-[7.5px] font-black text-white/80 uppercase tracking-wider mt-0.5 truncate">
+          <p className="text-[7px] xl:text-[7.5px] font-black text-white/80 uppercase tracking-wider mt-0.5 whitespace-nowrap">
             ADOSH & MoHRE POLICY
           </p>
         </div>
       </div>
 
       {/* Warning/Halt Reasons (Split into Current and Projected) */}
-      <div className="flex-1 min-w-0 border-l border-white/20 pl-4 h-[90%] flex flex-row space-x-4 items-stretch overflow-hidden">
+      <div className="flex-1 min-w-0 border-l border-white/20 pl-3 xl:pl-4 h-[92%] flex flex-row space-x-3 xl:space-x-4 items-stretch overflow-hidden">
         {/* Current Section */}
         <div className="w-1/2 flex flex-col justify-between overflow-hidden">
           <p className="text-[11px] font-black text-white/85 uppercase tracking-wider mb-1 border-b border-white/10 pb-0.5 leading-none">
