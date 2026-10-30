@@ -1,4 +1,4 @@
-import { Clock, Wifi, WifiOff, Cpu, Bell, Zap } from 'lucide-react';
+import { Clock, Wifi, WifiOff, Cpu, Bell, Zap, Tv } from 'lucide-react';
 import { PROVIDERS } from '../services/weatherService';
 
 export default function Header({ 
@@ -13,6 +13,18 @@ export default function Header({
   activeAlertsCount,
   activeProvider
 }) {
+  const handleTvWakeAndFullscreen = () => {
+    try {
+      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      }
+      if ('wakeLock' in navigator) {
+        navigator.wakeLock.request('screen').catch(() => {});
+      }
+    } catch (_e) {
+      // Ignore fullscreen errors
+    }
+  };
 
   const formatTime = (date) => {
     return date.toLocaleTimeString('en-US', {
@@ -247,7 +259,18 @@ export default function Header({
             <span>SIM:{isSimulated ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* Segment 4: Connection Link Status */}
+          {/* Segment 4: LG webOS / Smart TV Anti-Screensaver & Fullscreen Lock */}
+          <button
+            type="button"
+            onClick={handleTvWakeAndFullscreen}
+            className="flex items-center space-x-1 px-2 py-1 text-[9px] font-mono font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-950/50 transition-colors cursor-pointer border-none"
+            title="TV Anti-Screensaver Active (Video + WakeLock) • Click to enter Fullscreen Kiosk Mode on LG TV"
+          >
+            <Tv className="w-3 h-3 text-safetyGreen animate-pulse" />
+            <span>TV WAKE</span>
+          </button>
+
+          {/* Segment 5: Connection Link Status */}
           <div className="flex items-center space-x-1.5 px-2.5 py-1" title={isOffline ? 'System Offline' : 'Live Data Stream Active'}>
             {isOffline ? (
               <>

@@ -12,6 +12,7 @@ import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } fr
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
+import TvWakeLockGuard from './components/TvWakeLockGuard';
 import { checkAndDispatchAutoAlerts } from './services/hseBroadcastService';
 import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
 
@@ -1362,6 +1363,9 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard */}
+      <TvWakeLockGuard enabled={true} />
     </div>
   );
 }
