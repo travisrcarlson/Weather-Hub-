@@ -696,6 +696,82 @@ export default function PilotConsole({
     aeroPerformance.effectiveEnduranceMin
   ]);
 
+  // ISO 21384-3:2023 & UAE GCAA CAR-UAS Unmanned Aircraft Contingency Volume, Ground Risk Buffer & Parachute/FTS Drift Solver
+  const iso21384Contingency = useMemo(() => {
+    const altM = Math.max(10, Number(groundSpeedSolver.altM) || 300);
+    const windAtAltKmh = Number(groundSpeedSolver.windSpd) || surfaceWindKmh;
+    const gustAtAltKmh = Number(groundSpeedSolver.gustSpd) || surfaceGustKmh;
+    const windFromDeg = Number(groundSpeedSolver.windDir) || windDirDeg;
+
+    // Downwind drift direction (direction the wind is blowing TOWARD)
+    const driftTowardDeg = Math.round((windFromDeg + 180) % 360);
+    const cardinals = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const driftCardinal = cardinals[Math.round(driftTowardDeg / 45) % 8];
+
+    // Column-integrated mean boundary wind from altM down to 10m surface
+    const colMeanWindKmh = Number(((windAtAltKmh * 0.62) + (surfaceWindKmh * 0.38)).toFixed(1));
+    const colMeanGustKmh = Number(((gustAtAltKmh * 0.62) + (surfaceGustKmh * 0.38)).toFixed(1));
+    const colMeanWindMs = colMeanWindKmh / 3.6;
+    const colMeanGustMs = colMeanGustKmh / 3.6;
+
+    // 1. Parachute Recovery System (PRS) Descent & Drift (ISA 5.2 m/s sink rate scaled by 1/sqrt(airDensityRatio))
+    const densityFactor = Math.sqrt(Math.max(0.65, atmData.airDensityRatio));
+    const prsSinkRateMs = Number((5.2 / densityFactor).toFixed(1));
+    const prsDescentSec = Math.round(altM / prsSinkRateMs);
+    const prsDriftM = Math.round(colMeanWindMs * prsDescentSec);
+    const prsMaxGustDriftM = Math.round(colMeanGustMs * prsDescentSec);
+
+    // 2. Flight Termination System (FTS) Ballistic Free-Fall Throw (SORA / ISO 21384-3)
+    const vCruiseMs = (Number(groundSpeedSolver.vg) || 45) / 3.6;
+    const g = 9.81;
+    const ballisticFallSec = Math.sqrt((2 * altM) / g) * 1.28; // with aerodynamic drag factor
+    const ftsBallisticThrowM = Math.round((vCruiseMs * Math.min(8, ballisticFallSec * 0.55)) + (colMeanWindMs * ballisticFallSec));
+
+    // 3. ISO 21384-3 / SORA Contingency Volume (3s GPS/Pilot reaction + 35° bank stopping distance) + Ground Risk Buffer
+    const vMaxMs = (Number(groundSpeedSolver.vMaxTasKmh) || 76) / 3.6;
+    const reactionBufferM = vMaxMs * 3.0;
+    const stoppingBufferM = Math.pow(vMaxMs, 2) / (2 * g * Math.tan((35 * Math.PI) / 180));
+    const contingencyMarginM = Math.round(reactionBufferM + stoppingBufferM);
+    const groundRiskBufferM = Math.round(contingencyMarginM + Math.max(ftsBallisticThrowM, prsDriftM));
+
+    let containmentStatus = 'CONTAINED IN 5KM SECTOR';
+    let containmentColor = 'text-safetyGreen border-safetyGreen/40 bg-safetyGreen/15';
+    if (groundRiskBufferM >= 1600 || prsDriftM >= 1200) {
+      containmentStatus = 'OFFSET LAUNCH UPWIND / CAP ALT';
+      containmentColor = 'text-stopRed border-stopRed/40 bg-stopRed/15';
+    } else if (groundRiskBufferM >= 800 || prsDriftM >= 550) {
+      containmentStatus = 'CAUTION: WIDE DRIFT FOOTPRINT';
+      containmentColor = 'text-amberAlert border-amberAlert/40 bg-amberAlert/15';
+    }
+
+    return {
+      altM,
+      driftTowardDeg,
+      driftCardinal,
+      colMeanWindKmh,
+      prsSinkRateMs,
+      prsDescentSec,
+      prsDriftM,
+      prsMaxGustDriftM,
+      ftsBallisticThrowM,
+      contingencyMarginM,
+      groundRiskBufferM,
+      containmentStatus,
+      containmentColor
+    };
+  }, [
+    groundSpeedSolver.altM,
+    groundSpeedSolver.windSpd,
+    groundSpeedSolver.gustSpd,
+    groundSpeedSolver.windDir,
+    groundSpeedSolver.vg,
+    groundSpeedSolver.vMaxTasKmh,
+    surfaceWindKmh,
+    surfaceGustKmh,
+    windDirDeg,
+    atmData.airDensityRatio
+  ]);
+
   // 4-Sector Multi-Pad Readiness Matrix (Evaluates all 4 pads on Abu Al Abyad Island)
   const sectorReadinessMatrix = useMemo(() => {
     return stationsList.map(st => {
@@ -1005,6 +1081,8 @@ ${altitudeLadder.map(l => `${l.label.padEnd(15)} ${String(l.speedKmh + ' km/h ('
 * Max Safe RTH Radius:     ${aeroPerformance.maxSafeRadiusKm} km (Point of Safe Return)
 * Mandatory RTH Bingo:     ${aeroPerformance.bingoBatteryPct}% Battery Remaining
 * Goal Ground Speed (${groundSpeedSolver.vg} km/h @ ${calcAltitudeM}m AGL): Req TAS ${groundSpeedSolver.reqTasKmh} km/h | Crab ${groundSpeedSolver.wcaDir} (Fly ${groundSpeedSolver.commandHeadingDeg}°) | Throttle ${groundSpeedSolver.reqThrottlePct}% | 5km Leg ${groundSpeedSolver.legTime5kmStr} (${groundSpeedSolver.legBatteryPct}% Bat)
+* ISO 21384-3 Ground Risk Buffer (@${iso21384Contingency.altM}m): ${iso21384Contingency.groundRiskBufferM} m (${iso21384Contingency.containmentStatus})
+* Parachute (PRS) Drift:   ${iso21384Contingency.prsDriftM} m (Gust max ${iso21384Contingency.prsMaxGustDriftM} m) toward ${iso21384Contingency.driftTowardDeg}° (${iso21384Contingency.driftCardinal}) | Sink ${iso21384Contingency.prsSinkRateMs} m/s (${iso21384Contingency.prsDescentSec}s descent) | FTS Ballistic Throw: ${iso21384Contingency.ftsBallisticThrowM} m
 
 ----------------------------------------------------------------------
 4. DENSITY ALTITUDE, PAYLOAD HOVER & SENSOR DIAGNOSTICS
@@ -1066,6 +1144,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
         <tr><td><strong>Outbound / Return Groundspeed</strong></td><td>${aeroPerformance.outboundGroundspeedKmh} / ${aeroPerformance.returnGroundspeedKmh} km/h</td><td><strong>Est. Flight Endurance</strong></td><td>${aeroPerformance.effectiveEnduranceMin} min (Hover ${aeroPerformance.estHoverThrottlePct}%)</td></tr>
         <tr><td><strong>Density Altitude (DA)</strong></td><td>${atmData.densityAltitudeFt.toLocaleString()} ft (${atmData.airDensity} kg/m³)</td><td><strong>FLIR Polarity / LiDAR</strong></td><td>${aeroPerformance.recommendedFlirPolarity} / ${aeroPerformance.lidarExtinctionDbKm} dB/km</td></tr>
         <tr><td><strong>C2 RF Link Status</strong></td><td>${aeroPerformance.rfDuctingStatus}</td><td><strong>RPIC Safety Gate</strong></td><td>${completedChecksCount}/5 Verified</td></tr>
+        <tr><td><strong>ISO 21384-3 Ground Risk Buffer (@${iso21384Contingency.altM}m)</strong></td><td>${iso21384Contingency.groundRiskBufferM} m (${iso21384Contingency.containmentStatus})</td><td><strong>Parachute (PRS) / FTS Drift</strong></td><td>PRS: ${iso21384Contingency.prsDriftM} m toward ${iso21384Contingency.driftTowardDeg}° (${iso21384Contingency.driftCardinal}) | FTS: ${iso21384Contingency.ftsBallisticThrowM} m</td></tr>
       </table>
     </body></html>`;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
@@ -1640,6 +1719,24 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                     <span className="text-xs font-black text-white">{aeroPerformance.maxSafeRadiusKm} km</span>
                     <span className="text-[7.5px] text-slate-400">
                       Out {aeroPerformance.outboundGroundspeedKmh} / Back {aeroPerformance.returnGroundspeedKmh} kph
+                    </span>
+                  </div>
+                </div>
+
+                {/* ISO 21384-3:2023 & UAE GCAA CAR-UAS Ground Risk Buffer & Parachute/FTS Drift Strip */}
+                <div className="bg-slate-950/95 p-1.5 rounded border border-emerald-500/30">
+                  <div className="flex items-center justify-between text-[7px] font-sans font-black uppercase">
+                    <span className="text-emerald-300">🛡️ ISO 21384-3 / GCAA RISK BUFFER (@{iso21384Contingency.altM}M)</span>
+                    <span className={`px-1 rounded border text-[6.5px] ${iso21384Contingency.containmentColor}`}>
+                      {iso21384Contingency.groundRiskBufferM}M BUFFER
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-0.5 text-[7.5px] font-mono">
+                    <span className="text-white" title={`Parachute sink rate ${iso21384Contingency.prsSinkRateMs} m/s (${iso21384Contingency.prsDescentSec}s descent), gust max ${iso21384Contingency.prsMaxGustDriftM}m`}>
+                      🪂 PRS Drift: <strong className="text-cyan-300">{iso21384Contingency.prsDriftM}m → {iso21384Contingency.driftTowardDeg}° {iso21384Contingency.driftCardinal}</strong>
+                    </span>
+                    <span className="text-slate-400">
+                      FTS: <strong className="text-amber-300">{iso21384Contingency.ftsBallisticThrowM}m</strong>
                     </span>
                   </div>
                 </div>

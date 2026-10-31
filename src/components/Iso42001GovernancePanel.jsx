@@ -62,15 +62,15 @@ const MODEL_CARDS = [
   },
   {
     id: 'UAV-ENVELOPE-V3',
-    name: 'UAV / Fixed-Wing Flight Envelope & Runway 31/13 Solver',
-    version: 'v3.1-OMAB-31/13',
-    type: 'Aerodynamic Wind-Triangle, ISA Density-Altitude & RTH Safe-Radius Solver',
-    isoClass: 'Class I — Aviation & Unmanned Aircraft Flight Safety',
+    name: 'UAV / Fixed-Wing Flight Envelope, Runway 31/13 & ISO 21384-3 Contingency Solver',
+    version: 'v3.2-ISO21384-GCAA',
+    type: 'Aerodynamic Wind-Triangle, ISA Density-Altitude, SORA / ISO 21384-3 Ground Risk Buffer & Parachute Drift Solver',
+    isoClass: 'Class I — Aviation & Unmanned Aircraft Flight Safety (ISO 21384-3:2023 / UAE GCAA CAR-UAS)',
     inputs: '10m–2500m AGL Logarithmic Wind Profile, Station Pressure (QNH), Temp, Airframe V_min / V_max / Crosswind Limits',
-    outputs: 'Simultaneous AF1R / AF2R / EM2R (31/13) Runway Clearance, Required TAS/IAS, Crab Angle (WCA), RTH Bingo Battery %',
-    uncertainty: '±1.5 kt TAS | ±4% Battery Endurance Estimation',
+    outputs: 'AF1R / AF2R / EM2R (31/13) Runway Clearance, Required TAS/IAS, Crab Angle, ISO 21384-3 Ground Risk Buffer (m), PRS Parachute Drift & FTS Ballistic Throw',
+    uncertainty: '±1.5 kt TAS | ±4% Battery Endurance | ±12% Parachute Downwind Drift Radius',
     limitations: 'Power-law wind profile above 100m AGL is extrapolated when radiosonde upper-air soundings are unavailable.',
-    hitlMandate: 'Mandatory 5-Point RPIC Pre-Flight Safety Gate sign-off required before launch clearance.'
+    hitlMandate: 'Mandatory 5-Point RPIC Pre-Flight Safety Gate sign-off and ISO 21384-3 Ground Risk Buffer perimeter check required before launch clearance.'
   }
 ];
 
