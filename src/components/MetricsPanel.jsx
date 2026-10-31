@@ -419,14 +419,14 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   };
 
   let dotCx = 0;
-  let dotCy = 64;
+  let dotCy = 65;
   let dotVal = 0;
 
   if (duration > 0) {
     if (isDaylight) {
       dotCx = ((currentMins - sunriseTime.totalMinutes) / duration) * 100;
       dotVal = getInterpolatedUv(currentMins, pointsList);
-      dotCy = 64 - (Math.min(13, dotVal) / 13) * 42;
+      dotCy = 65 - (Math.min(13, dotVal) / 13) * 33;
     } else {
       if (currentMins < sunriseTime.totalMinutes) {
         dotCx = 0;
@@ -434,23 +434,23 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         dotCx = 100;
       }
       dotVal = 0;
-      dotCy = 64;
+      dotCy = 65;
     }
   }
 
   const points = pointsList.map(pt => {
     const x = duration > 0 ? ((pt.t - sunriseTime.totalMinutes) / duration) * 100 : 0;
-    const y = 64 - (Math.min(13, pt.uv) / 13) * 42;
+    const y = 65 - (Math.min(13, pt.uv) / 13) * 33;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
 
   const pathD = `M ${points.join(' L ')}`;
-  const areaD = `${pathD} L 100,64 L 0,64 Z`;
+  const areaD = `${pathD} L 100,65 L 0,65 Z`;
 
   const dynamicIntervals = calculateSunscreenIntervals(uv);
   const clampedDotX = Math.max(4, Math.min(96, dotCx));
-  const dotTopPct = Math.max(18, Math.min(92, (dotCy / 70) * 100));
-  const pillTranslateX = clampedDotX < 16 ? '-15%' : clampedDotX > 84 ? '-85%' : '-50%';
+  const dotTopPct = Math.max(38, Math.min(93, (dotCy / 70) * 100));
+  const pillTranslateX = clampedDotX < 20 ? '-10%' : clampedDotX > 80 ? '-90%' : '-50%';
 
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
@@ -463,66 +463,72 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
             Z6 • UV RADIATION
           </p>
-          <h2 className="text-xs font-bold text-slate-200 leading-none">Skin Safety Monitor</h2>
-        </div>
-        <div className="flex items-center space-x-2">
-          <div className="text-right leading-none">
-            <span className="text-[7.5px] text-slate-400 font-bold uppercase block">Today&apos;s Peak</span>
-            <span className="text-xs font-mono font-black text-amber-400">{maxUv.toFixed(1)}</span>
-          </div>
-          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
+          <h2 className="text-xs font-bold text-slate-200 leading-none mb-1.5">Skin Safety Monitor</h2>
+          <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
             {details.label}
+          </span>
+        </div>
+        <div className="text-right leading-none">
+          <p className="text-[8.5px] text-slate-300 font-bold uppercase leading-none mb-1">Today&apos;s Peak</p>
+          <span className="text-2xl font-black text-amber-400 leading-none tracking-tight">
+            {maxUv.toFixed(1)}
           </span>
         </div>
       </div>
 
-      {/* Main Content with Progressive Sparkline & Curve-Following Current UV Marker */}
+      {/* Main Content with Progressive Sparkline & Curve-Following Current UV Level */}
       <div className="flex flex-col my-1 relative z-10 flex-grow justify-end">
         {/* Refined Progressive Chart with Non-Scaling Stroke */}
-        <div className="w-full h-[105px] flex flex-col justify-end relative select-none">
+        <div className="w-full h-[110px] flex flex-col justify-end relative select-none">
           <div className="w-full flex-grow relative flex items-end">
             <div className="flex-1 h-full relative overflow-visible">
               <svg className="w-full h-full overflow-visible" viewBox="0 0 100 70" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="uvChartFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.24" />
+                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
                     <stop offset="85%" stopColor="#f97316" stopOpacity="0.03" />
                     <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
-                {/* Subtle Reference Thresholds mapped to 64 - (uv / 13) * 42 */}
-                <line x1="0" y1="54.3" x2="100" y2="54.3" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="52.5" fill="#eab308" fontSize="2.5" fontWeight="bold" opacity="0.6">MOD (3)</text>
-
-                <line x1="0" y1="38.2" x2="100" y2="38.2" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="36.4" fill="#ef4444" fontSize="2.5" fontWeight="bold" opacity="0.6">V.HIGH (8)</text>
-
-                <line x1="0" y1="28.5" x2="100" y2="28.5" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="26.7" fill="#c084fc" fontSize="2.5" fontWeight="bold" opacity="0.6">EXT (11)</text>
+                {/* Subtle Reference Threshold Lines mapped to 65 - (uv / 13) * 33 */}
+                <line x1="0" y1="57.4" x2="100" y2="57.4" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
+                <line x1="0" y1="44.7" x2="100" y2="44.7" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
+                <line x1="0" y1="37.1" x2="100" y2="37.1" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
 
                 <path d={areaD} fill="url(#uvChartFill)" />
                 {/* Soft ambient glow line underneath */}
                 <path d={pathD} fill="none" stroke="#ea580c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" vectorEffect="non-scaling-stroke" />
                 {/* Crisp refined foreground line */}
-                <path d={pathD} fill="none" stroke="#f97316" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                <path d={pathD} fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
               </svg>
 
-              {/* Curve-Following Dot + Compact Floating Current UV Badge */}
+              {/* Crisp Unstretched HTML Threshold Labels */}
+              <span className="absolute left-1 top-[47%] -translate-y-full text-[8.5px] font-mono font-bold text-purple-300/80 pointer-events-none leading-none">
+                EXT 11
+              </span>
+              <span className="absolute left-1 top-[61%] -translate-y-full text-[8.5px] font-mono font-bold text-red-400/80 pointer-events-none leading-none">
+                V.HIGH 8
+              </span>
+              <span className="absolute left-1 top-[80%] -translate-y-full text-[8.5px] font-mono font-bold text-yellow-400/80 pointer-events-none leading-none">
+                MOD 3
+              </span>
+
+              {/* Curve-Following Dot + Large Readable Current UV Number */}
               <div 
-                className="absolute pointer-events-none"
+                className="absolute pointer-events-none z-20"
                 style={{ left: `${clampedDotX}%`, top: `${dotTopPct}%` }}
               >
-                {/* Floating Current UV Exposure Number Following the Dot Along the Curve */}
+                {/* Floating Current UV Exposure Number (Slightly smaller than old text-4xl -> text-2xl/3xl) */}
                 <div
-                  className="absolute bottom-2.5 flex items-center space-x-1 bg-slate-950/95 border border-orange-500/60 px-1.5 py-0.5 shadow-md whitespace-nowrap"
+                  className="absolute bottom-3 flex items-baseline space-x-1 bg-slate-950/90 border border-orange-500/50 rounded-lg px-2 py-0.5 shadow-[0_4px_12px_rgba(0,0,0,0.85)] whitespace-nowrap backdrop-blur-sm"
                   style={{ transform: `translateX(${pillTranslateX})` }}
                 >
-                  <span className={`text-xs xl:text-sm font-mono font-black leading-none ${details.textColor}`}>
+                  <span className={`text-2xl xl:text-3xl font-black tracking-tight leading-none ${details.textColor}`}>
                     {uv.toFixed(1)}
                   </span>
                   {uvTrend.arrow && uvTrend.arrow !== '→' && (
-                    <span className={`text-[8px] font-black leading-none ${uvTrend.class}`}>
+                    <span className={`text-xs font-black leading-none ${uvTrend.class}`}>
                       {uvTrend.arrow}
                     </span>
                   )}
@@ -531,27 +537,27 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
                 {/* Round Dot on the Curve */}
                 <div className="-translate-x-1/2 -translate-y-1/2 relative">
                   {isDaylight && (
-                    <div className="w-3.5 h-3.5 rounded-full bg-orange-500/30 animate-ping absolute inset-0 -m-0.5" />
+                    <div className="w-4 h-4 rounded-full bg-orange-500/35 animate-ping absolute inset-0 -m-0.5" />
                   )}
-                  <div className="w-2.5 h-2.5 rounded-full bg-orange-500 border border-white shadow-sm relative" />
+                  <div className="w-3 h-3 rounded-full bg-orange-500 border-2 border-white shadow-md relative" />
                 </div>
               </div>
             </div>
           </div>
           
           {/* X-Axis Labels */}
-          <div className="w-full flex flex-row items-center pt-0.5 text-[7.5px] font-bold text-slate-400 relative border-t border-slate-800/60 mt-0.5">
+          <div className="w-full flex flex-row items-center pt-1 text-[9.5px] font-bold text-slate-300 relative border-t border-slate-800/60 mt-0.5">
             <div className="flex-1 h-4 relative">
               {/* Sunrise label */}
               {dotCx >= 15 && (
-                <span className="absolute left-0 top-0 text-slate-500 font-mono">
+                <span className="absolute left-0 top-0 text-slate-400 font-mono font-bold">
                   {sunriseLabel}
                 </span>
               )}
               
               {/* Dynamic NOW tracker label */}
               <span 
-                className="absolute top-0 text-edgeOrange font-mono font-black text-[8px] whitespace-nowrap" 
+                className="absolute top-0 text-edgeOrange font-mono font-black text-[10px] whitespace-nowrap" 
                 style={{ left: `${dotCx}%`, transform: 'translateX(-50%)' }}
               >
                 {isDaylight ? nowLabel : 'NIGHT'}
@@ -559,7 +565,7 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
               
               {/* Sunset label */}
               {dotCx <= 85 && (
-                <span className="absolute right-0 top-0 text-slate-500 font-mono">
+                <span className="absolute right-0 top-0 text-slate-400 font-mono font-bold">
                   {sunsetLabel}
                 </span>
               )}
@@ -571,25 +577,25 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
       {/* Structured SPF Application Guidelines (3-Column Tactical Badges) */}
       <div className="bg-bgDeepSpace/50 border border-slate-800/80 rounded-lg p-2 text-[9px] select-none z-10 space-y-1 mt-1">
         <div className="flex justify-between items-center border-b border-slate-800/40 pb-1">
-          <span className="text-[8px] text-edgeOrange font-black uppercase tracking-wider">SPF Reapplication Interval</span>
+          <span className="text-[8.5px] text-edgeOrange font-black uppercase tracking-wider">SPF Reapplication Interval</span>
           {uv >= 3 && (
-            <span className="text-[7.5px] text-amber-400 bg-amber-950/40 border border-amber-500/30 px-1 py-0.2 rounded font-black tracking-wide uppercase">
+            <span className="text-[8px] text-amber-400 bg-amber-950/40 border border-amber-500/30 px-1 py-0.2 rounded font-black tracking-wide uppercase">
               Heavy Solar Load
             </span>
           )}
         </div>
         <div className="grid grid-cols-3 gap-1.5 text-center">
           <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
-            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 10</span>
-            <span className="text-[11px] font-mono font-black text-slate-200">{dynamicIntervals.spf10}m</span>
+            <span className="text-[8px] text-slate-300 font-bold uppercase">SPF 10</span>
+            <span className="text-xs font-mono font-black text-slate-100">{dynamicIntervals.spf10}m</span>
           </div>
           <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
-            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 30</span>
-            <span className="text-[11px] font-mono font-black text-amber-400">{dynamicIntervals.spf30}m</span>
+            <span className="text-[8px] text-slate-300 font-bold uppercase">SPF 30</span>
+            <span className="text-xs font-mono font-black text-amber-400">{dynamicIntervals.spf30}m</span>
           </div>
           <div className="bg-slate-900/60 border border-slate-800/60 rounded px-1 py-0.5 flex flex-col">
-            <span className="text-[7.5px] text-slate-400 font-bold uppercase">SPF 50+</span>
-            <span className="text-[11px] font-mono font-black text-orange-400">{dynamicIntervals.spf50}m</span>
+            <span className="text-[8px] text-slate-300 font-bold uppercase">SPF 50+</span>
+            <span className="text-xs font-mono font-black text-orange-400">{dynamicIntervals.spf50}m</span>
           </div>
         </div>
       </div>
