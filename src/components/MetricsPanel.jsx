@@ -419,14 +419,14 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   };
 
   let dotCx = 0;
-  let dotCy = 68;
+  let dotCy = 64;
   let dotVal = 0;
 
   if (duration > 0) {
     if (isDaylight) {
       dotCx = ((currentMins - sunriseTime.totalMinutes) / duration) * 100;
       dotVal = getInterpolatedUv(currentMins, pointsList);
-      dotCy = 68 - (dotVal / 12) * 24;
+      dotCy = 64 - (Math.min(13, dotVal) / 13) * 42;
     } else {
       if (currentMins < sunriseTime.totalMinutes) {
         dotCx = 0;
@@ -434,20 +434,23 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         dotCx = 100;
       }
       dotVal = 0;
-      dotCy = 68;
+      dotCy = 64;
     }
   }
 
   const points = pointsList.map(pt => {
     const x = duration > 0 ? ((pt.t - sunriseTime.totalMinutes) / duration) * 100 : 0;
-    const y = 68 - (pt.uv / 12) * 24;
+    const y = 64 - (Math.min(13, pt.uv) / 13) * 42;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
 
   const pathD = `M ${points.join(' L ')}`;
-  const areaD = `${pathD} L 100,68 L 0,68 Z`;
+  const areaD = `${pathD} L 100,64 L 0,64 Z`;
 
   const dynamicIntervals = calculateSunscreenIntervals(uv);
+  const clampedDotX = Math.max(4, Math.min(96, dotCx));
+  const dotTopPct = Math.max(18, Math.min(92, (dotCy / 70) * 100));
+  const pillTranslateX = clampedDotX < 16 ? '-15%' : clampedDotX > 84 ? '-85%' : '-50%';
 
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
@@ -462,63 +465,41 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
           </p>
           <h2 className="text-xs font-bold text-slate-200 leading-none">Skin Safety Monitor</h2>
         </div>
-        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
-          {details.label}
-        </span>
+        <div className="flex items-center space-x-2">
+          <div className="text-right leading-none">
+            <span className="text-[7.5px] text-slate-400 font-bold uppercase block">Today&apos;s Peak</span>
+            <span className="text-xs font-mono font-black text-amber-400">{maxUv.toFixed(1)}</span>
+          </div>
+          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
+            {details.label}
+          </span>
+        </div>
       </div>
 
-      {/* Main Content with Progressive Sparkline Stacked */}
-      <div className="flex flex-col my-1 relative z-10 flex-grow justify-between">
-        {/* Top Metric Stats */}
-        <div className="flex justify-between items-end w-full mb-1">
-          {/* Current Index */}
-          <div className="flex flex-col">
-            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">Current Index</p>
-            <div className="flex items-baseline leading-none">
-              <span className={`text-4xl font-black tracking-tight ${details.textColor}`}>
-                {uv.toFixed(1)}
-              </span>
-              {uvTrend.arrow && uvTrend.arrow !== '→' && (
-                <span className={`text-[9px] ml-1.5 flex items-center space-x-0.5 ${uvTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1 py-0.5 rounded`}>
-                  <span>{uvTrend.arrow}</span>
-                  <span className="text-[7.5px] font-black uppercase">{uvTrend.text}</span>
-                </span>
-              )}
-            </div>
-          </div>
-          {/* Projected Peak */}
-          <div className="text-right">
-            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">Today's Peak</p>
-            <div className="flex items-baseline justify-end leading-none">
-              <span className="text-2xl font-black text-amber-400">
-                {maxUv.toFixed(1)}
-              </span>
-            </div>
-          </div>
-        </div>
-
+      {/* Main Content with Progressive Sparkline & Curve-Following Current UV Marker */}
+      <div className="flex flex-col my-1 relative z-10 flex-grow justify-end">
         {/* Refined Progressive Chart with Non-Scaling Stroke */}
-        <div className="w-full h-[80px] flex flex-col justify-end relative select-none">
+        <div className="w-full h-[105px] flex flex-col justify-end relative select-none">
           <div className="w-full flex-grow relative flex items-end">
             <div className="flex-1 h-full relative overflow-visible">
               <svg className="w-full h-full overflow-visible" viewBox="0 0 100 70" preserveAspectRatio="none">
                 <defs>
                   <linearGradient id="uvChartFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.22" />
-                    <stop offset="85%" stopColor="#f97316" stopOpacity="0.02" />
+                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.24" />
+                    <stop offset="85%" stopColor="#f97316" stopOpacity="0.03" />
                     <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
-                {/* Subtle Reference Thresholds */}
-                <line x1="0" y1="62" x2="100" y2="62" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="60" fill="#eab308" fontSize="2.5" fontWeight="bold" opacity="0.6">MOD (3)</text>
+                {/* Subtle Reference Thresholds mapped to 64 - (uv / 13) * 42 */}
+                <line x1="0" y1="54.3" x2="100" y2="54.3" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="52.5" fill="#eab308" fontSize="2.5" fontWeight="bold" opacity="0.6">MOD (3)</text>
 
-                <line x1="0" y1="52" x2="100" y2="52" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="50" fill="#ef4444" fontSize="2.5" fontWeight="bold" opacity="0.6">V.HIGH (8)</text>
+                <line x1="0" y1="38.2" x2="100" y2="38.2" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="36.4" fill="#ef4444" fontSize="2.5" fontWeight="bold" opacity="0.6">V.HIGH (8)</text>
 
-                <line x1="0" y1="46" x2="100" y2="46" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                <text x="1.5" y="44" fill="#c084fc" fontSize="2.5" fontWeight="bold" opacity="0.6">EXT (11)</text>
+                <line x1="0" y1="28.5" x2="100" y2="28.5" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.25" vectorEffect="non-scaling-stroke" />
+                <text x="1.5" y="26.7" fill="#c084fc" fontSize="2.5" fontWeight="bold" opacity="0.6">EXT (11)</text>
 
                 <path d={areaD} fill="url(#uvChartFill)" />
                 {/* Soft ambient glow line underneath */}
@@ -527,16 +508,34 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
                 <path d={pathD} fill="none" stroke="#f97316" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
               </svg>
 
-              {/* HTML Position Marker to guarantee a perfectly round circle on any aspect ratio */}
-              {isDaylight && (
-                <div 
-                  className="absolute pointer-events-none -translate-x-1/2 -translate-y-1/2"
-                  style={{ left: `${Math.max(2, Math.min(98, dotCx))}%`, top: `${Math.max(5, Math.min(95, (dotCy / 70) * 100))}%` }}
+              {/* Curve-Following Dot + Compact Floating Current UV Badge */}
+              <div 
+                className="absolute pointer-events-none"
+                style={{ left: `${clampedDotX}%`, top: `${dotTopPct}%` }}
+              >
+                {/* Floating Current UV Exposure Number Following the Dot Along the Curve */}
+                <div
+                  className="absolute bottom-2.5 flex items-center space-x-1 bg-slate-950/95 border border-orange-500/60 px-1.5 py-0.5 shadow-md whitespace-nowrap"
+                  style={{ transform: `translateX(${pillTranslateX})` }}
                 >
-                  <div className="w-3.5 h-3.5 rounded-full bg-orange-500/30 animate-ping absolute inset-0 -m-0.5" />
+                  <span className={`text-xs xl:text-sm font-mono font-black leading-none ${details.textColor}`}>
+                    {uv.toFixed(1)}
+                  </span>
+                  {uvTrend.arrow && uvTrend.arrow !== '→' && (
+                    <span className={`text-[8px] font-black leading-none ${uvTrend.class}`}>
+                      {uvTrend.arrow}
+                    </span>
+                  )}
+                </div>
+
+                {/* Round Dot on the Curve */}
+                <div className="-translate-x-1/2 -translate-y-1/2 relative">
+                  {isDaylight && (
+                    <div className="w-3.5 h-3.5 rounded-full bg-orange-500/30 animate-ping absolute inset-0 -m-0.5" />
+                  )}
                   <div className="w-2.5 h-2.5 rounded-full bg-orange-500 border border-white shadow-sm relative" />
                 </div>
-              )}
+              </div>
             </div>
           </div>
           
