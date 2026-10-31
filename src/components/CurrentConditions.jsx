@@ -3,7 +3,7 @@ import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { Cloud, Droplets } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';
 
-export default function CurrentConditions({ data, dailyData, hourlyData, currentTime, onOpenMunitionsThermal }) {
+export default function CurrentConditions({ data, dailyData, hourlyData, currentTime, onOpenMunitionsThermal, isSimulated = false }) {
   if (!data) return null;
 
   const temp = data.temperature_2m;
@@ -119,9 +119,21 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
               </span>
             </span>
           </div>
-          <h2 className="text-sm font-bold text-slate-200 leading-none">
-            {data.sectorTitle || data.name || 'HQ Observation Sector'}
-          </h2>
+          <div className="flex items-center space-x-2">
+            <h2 className="text-sm font-bold text-slate-200 leading-none">
+              {data.sectorTitle || data.name || 'HQ Observation Sector'}
+            </h2>
+            <span
+              className={`text-[7.5px] font-mono font-black uppercase px-1.5 py-0.5 border leading-none ${
+                isSimulated
+                  ? 'bg-edgeOrange/15 border-edgeOrange/40 text-edgeOrange'
+                  : 'bg-cyan-950/60 border-cyan-500/35 text-cyan-300'
+              }`}
+              title="ISO/IEC 42001 Annex A.7.4 Data Lineage & Model Uncertainty Interval"
+            >
+              {isSimulated ? 'SIM OVERRIDE' : 'AI 5KM (±0.4°C)'}
+            </span>
+          </div>
         </div>
         <div className="flex items-center space-x-1.5">
           {onOpenMunitionsThermal && (

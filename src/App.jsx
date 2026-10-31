@@ -13,7 +13,7 @@ import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
 import TvWakeLockGuard from './components/TvWakeLockGuard';
-import { checkAndDispatchAutoAlerts } from './services/hseBroadcastService';
+import { checkAndDispatchAutoAlerts, appendIso42001AuditEntry } from './services/hseBroadcastService';
 import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
 
 const SafetyAdvisory = lazy(() => import('./components/SafetyAdvisory'));
@@ -131,6 +131,7 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(() =>
     new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Dubai', hour12: false })
   );
+  const [lastUpdatedMs, setLastUpdatedMs] = useState(() => Date.now());
   const [isOffline, setIsOffline] = useState(false);
   const [isSimulated, setIsSimulated] = useState(() => {
     try { return sessionStorage.getItem('xrange_sim') === 'true'; } catch { return false; }
@@ -382,6 +383,7 @@ export default function App() {
       setApiMeta(meta);
       const now = new Date();
       setLastUpdated(now.toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Dubai' }));
+      setLastUpdatedMs(Date.now());
       setIsOffline(false);
     } catch (err) {
       console.error("Fetch failed, using cached fallback data.", err);
@@ -627,8 +629,9 @@ export default function App() {
   };
 
   const activeDailyData = getActiveStationDailyData();
+  const dataAgeMinutes = Math.max(0, Math.floor((Date.now() - lastUpdatedMs) / 60000));
 
-  // Automated HSE WhatsApp & Directive Dispatcher
+  // Automated HSE WhatsApp & Directive Dispatcher + ISO/IEC 42001 Tamper-Evident Audit Logging
   useEffect(() => {
     if (globalSafety && activeDisplayData) {
       checkAndDispatchAutoAlerts(globalSafety, activeDisplayData, simulatedLightning);
@@ -640,6 +643,24 @@ export default function App() {
     activeDisplayData?.temperature_2m, 
     activeDisplayData?.wind_speed_10m
   ]);
+
+  useEffect(() => {
+    if (!globalSafety?.status) return;
+    appendIso42001AuditEntry({
+      isoControl: 'A.5.2 / A.6.2.8',
+      eventType: isSimulated ? 'HITL_SIMULATION_EVALUATION' : 'AI_SAFETY_EVALUATION',
+      actor: isSimulated ? 'Simulation Override (Operator)' : 'ADOSH Safety Engine v4.0',
+      modelProvider: isSimulated ? 'SIMULATION_OVERRIDE' : (activeProvider || 'WEATHERNEXT_3'),
+      sector: activeDisplayData?.sectorTitle || activeStation.toUpperCase(),
+      decision: globalSafety.status,
+      rationale: globalSafety.reasons?.[0] || 'All sector meteorological parameters within operational safety thresholds.',
+      telemetrySnapshot: {
+        tempC: activeDisplayData?.temperature_2m,
+        windKmh: activeDisplayData?.wind_speed_10m,
+        gustKmh: activeDisplayData?.wind_gusts_10m
+      }
+    });
+  }, [globalSafety?.status, isSimulated, activeProvider]);
 
   // Calculate projected extremes for the next 12 hours using active station data
   const getTvProjectedExtremes = () => {
@@ -850,6 +871,7 @@ export default function App() {
                   hourlyData={activeHourlyData} 
                   currentTime={activeTime} 
                   onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
+                  isSimulated={isSimulated}
                 />
               </div>
 
@@ -1018,6 +1040,8 @@ export default function App() {
                   activeStation={activeStation}
                   setActiveStation={setActiveStation}
                   onRefreshFeeds={loadData}
+                  dataAgeMinutes={dataAgeMinutes}
+                  activeDisplayData={activeDisplayData}
                 />
               </Suspense>
             </div>
@@ -1224,6 +1248,7 @@ export default function App() {
                    hourlyData={activeHourlyData} 
                    currentTime={activeTime} 
                    onOpenMunitionsThermal={() => setIsMunitionsThermalModalOpen(true)}
+                   isSimulated={isSimulated}
                  />
                </div>
                <div className="h-[18%]">
@@ -1458,6 +1483,8 @@ export default function App() {
                 activeStation={activeStation}
                 setActiveStation={setActiveStation}
                 onRefreshFeeds={loadData}
+                dataAgeMinutes={dataAgeMinutes}
+                activeDisplayData={activeDisplayData}
               />
             </Suspense>
           </div>

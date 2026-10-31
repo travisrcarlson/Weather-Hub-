@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Database, Network, Activity, Cpu, Code, Copy, Check, ShieldAlert, Wifi, Globe, MapPin, ExternalLink, Sliders, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Database, Network, Activity, Cpu, Code, Copy, Check, ShieldAlert, ShieldCheck, Wifi, Globe, MapPin, ExternalLink, Sliders, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
 import XRangeMap from './XRangeMap';
 import HseWebhookDispatcher from './HseWebhookDispatcher';
+import Iso42001GovernancePanel from './Iso42001GovernancePanel';
 import { 
   PROVIDERS, 
   getActiveProvider, 
@@ -11,7 +12,7 @@ import {
   setGoogleWeatherApiKey 
 } from '../services/weatherService';
 
-export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData, activeStation, setActiveStation, onRefreshFeeds }) {
+export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData, activeStation, setActiveStation, onRefreshFeeds, dataAgeMinutes = 0, activeDisplayData }) {
   const [expandedFeed, setExpandedFeed] = useState('weathernext');
   const [copied, setCopied] = useState(null);
   const [subTab, setSubTab] = useState('telemetry');
@@ -383,6 +384,17 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
             <ShieldAlert className="w-3.5 h-3.5" />
             <span>HSE & WhatsApp Dispatcher</span>
           </button>
+          <button
+            onClick={() => setSubTab('iso-42001')}
+            className={`px-4 py-2 text-xs font-black uppercase tracking-wider transition-all border-b-2 cursor-pointer flex items-center space-x-1.5 ${
+              subTab === 'iso-42001'
+                ? 'border-safetyGreen text-safetyGreen bg-safetyGreen/10'
+                : 'border-transparent text-emerald-400/80 hover:text-emerald-300'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-safetyGreen" />
+            <span>ISO 42001 AI Governance</span>
+          </button>
         </div>
 
         {/* Sync Button & Zero-Cost Safeguard Status Badge */}
@@ -718,6 +730,17 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
             isBackground={false}
             hideDetails={false}
             showSimulatedStations={true}
+          />
+        </div>
+      ) : subTab === 'iso-42001' ? (
+        <div className="flex-grow h-[88%] w-full min-h-0 overflow-hidden">
+          <Iso42001GovernancePanel
+            activeProvider={currentProvider}
+            isSimulated={isSimulated}
+            isOffline={isOffline}
+            dataAgeMinutes={dataAgeMinutes}
+            activeStation={activeStation}
+            activeDisplayData={activeDisplayData}
           />
         </div>
       ) : (

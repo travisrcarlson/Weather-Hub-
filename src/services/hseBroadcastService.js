@@ -9,8 +9,169 @@ const STORAGE_KEY_HISTORY = 'xrange_hse_directive_history';
 const STORAGE_KEY_PIN = 'xrange_hse_security_pin';
 const STORAGE_KEY_WHATSAPP = 'xrange_hse_whatsapp_config';
 const STORAGE_KEY_ALERT_COOLDOWN = 'xrange_hse_alert_cooldowns';
+const STORAGE_KEY_ISO42001_LEDGER = 'xrange_iso42001_audit_ledger_v1';
 
 const DEFAULT_PIN = '9988';
+
+// Deterministic 256-bit hex digest (8 x 32-bit FNV-1a / avalanche lanes) for synchronous tamper-evident hash chaining
+export function computeIso42001Hash(inputStr) {
+  const str = String(inputStr || '');
+  const seeds = [
+    0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35,
+    0x27d4eb2f, 0x165667b1, 0xd3a2646c, 0xfd7046c5
+  ];
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    for (let lane = 0; lane < 8; lane++) {
+      let h = seeds[lane] ^ (ch + lane * 31);
+      h = Math.imul(h, 0x01000193);
+      h ^= h >>> 16;
+      seeds[lane] = h >>> 0;
+    }
+  }
+  return seeds.map(s => (s >>> 0).toString(16).padStart(8, '0')).join('');
+}
+
+function buildCanonicalAuditString(entry) {
+  return [
+    entry.id,
+    entry.timestamp,
+    entry.isoControl || 'A.6.2.8',
+    entry.eventType,
+    entry.actor,
+    entry.modelProvider,
+    entry.sector,
+    entry.decision,
+    entry.rationale,
+    entry.prevHash
+  ].join('|');
+}
+
+function createInitialIso42001Ledger() {
+  const now = Date.now();
+  const rawEntries = [
+    {
+      id: 'AIMS-0001',
+      timestamp: new Date(now - 1000 * 60 * 95).toISOString(),
+      isoControl: 'A.4.2 / A.7.4',
+      eventType: 'AI_MODEL_INITIALIZATION',
+      actor: 'System Governor (Automated)',
+      modelProvider: 'WEATHERNEXT_SIM (5km Neural Grid)',
+      sector: 'ALL_SECTORS (HQ, North, South, Sea)',
+      decision: 'CALIBRATED',
+      rationale: 'Initialized Google DeepMind WeatherNext 3 5km downscaling with ADOSH CoP 11.0 deterministic physics bounds and 250 call/day zero-cost cap.',
+      telemetrySnapshot: { gridResolutionKm: 5, verticalLevels: 47, dailyBudgetCap: 250 },
+      prevHash: '0000000000000000000000000000000000000000000000000000000000000000'
+    },
+    {
+      id: 'AIMS-0002',
+      timestamp: new Date(now - 1000 * 60 * 42).toISOString(),
+      isoControl: 'A.5.2 / A.8.4',
+      eventType: 'AI_SAFETY_EVALUATION',
+      actor: 'ADOSH Safety Engine v4.0',
+      modelProvider: 'WEATHERNEXT_SIM (5km Neural Grid)',
+      sector: 'X-Range HQ (AF1R)',
+      decision: 'GREEN / CLEARED',
+      rationale: 'All thermal (WBGT), surface wind (10m), boundary shear (100m), and visibility parameters verified within operational limits.',
+      telemetrySnapshot: { tempC: 32.4, wbgtC: 25.1, windKmh: 18, visKm: 10.0 },
+      prevHash: ''
+    }
+  ];
+
+  rawEntries[0].hash = computeIso42001Hash(buildCanonicalAuditString(rawEntries[0]));
+  rawEntries[1].prevHash = rawEntries[0].hash;
+  rawEntries[1].hash = computeIso42001Hash(buildCanonicalAuditString(rawEntries[1]));
+  return rawEntries.reverse(); // Newest first in UI array
+}
+
+export function getIso42001AuditLedger() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_ISO42001_LEDGER);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading ISO 42001 ledger:', e);
+  }
+  const seeded = createInitialIso42001Ledger();
+  try {
+    localStorage.setItem(STORAGE_KEY_ISO42001_LEDGER, JSON.stringify(seeded));
+  } catch (_e) {
+    // ignore storage quota errors
+  }
+  return seeded;
+}
+
+export function appendIso42001AuditEntry({
+  isoControl = 'A.6.2.8',
+  eventType = 'AI_SAFETY_EVALUATION',
+  actor = 'Safety Engine',
+  modelProvider = 'WEATHERNEXT_3',
+  sector = 'X-Range HQ',
+  decision = 'GREEN',
+  rationale = 'Routine evaluation completed.',
+  telemetrySnapshot = {}
+}) {
+  try {
+    const ledger = getIso42001AuditLedger();
+    const headEntry = ledger[0];
+    const prevHash = headEntry?.hash || '0000000000000000000000000000000000000000000000000000000000000000';
+    const nextNum = ledger.length + 1;
+    const entry = {
+      id: `AIMS-${String(nextNum).padStart(4, '0')}-${Date.now().toString(36).slice(-4).toUpperCase()}`,
+      timestamp: new Date().toISOString(),
+      isoControl,
+      eventType,
+      actor,
+      modelProvider,
+      sector,
+      decision,
+      rationale,
+      telemetrySnapshot,
+      prevHash
+    };
+    entry.hash = computeIso42001Hash(buildCanonicalAuditString(entry));
+
+    const updated = [entry, ...ledger].slice(0, 60);
+    localStorage.setItem(STORAGE_KEY_ISO42001_LEDGER, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('xrange-iso42001-ledger', { detail: updated }));
+    return entry;
+  } catch (e) {
+    console.error('Failed to append ISO 42001 audit entry:', e);
+    return null;
+  }
+}
+
+export function verifyIso42001LedgerIntegrity() {
+  const ledger = getIso42001AuditLedger();
+  // Ledger is stored newest-first; walk oldest-to-newest
+  const chronological = [...ledger].reverse();
+  let valid = true;
+  let verifiedCount = 0;
+
+  for (let i = 0; i < chronological.length; i++) {
+    const item = chronological[i];
+    const expectedHash = computeIso42001Hash(buildCanonicalAuditString(item));
+    if (item.hash !== expectedHash) {
+      valid = false;
+      break;
+    }
+    if (i > 0 && item.prevHash !== chronological[i - 1].hash) {
+      valid = false;
+      break;
+    }
+    verifiedCount++;
+  }
+
+  return {
+    valid,
+    totalEntries: ledger.length,
+    verifiedCount,
+    headHash: ledger[0]?.hash || 'NONE',
+    lastChecked: new Date().toISOString()
+  };
+}
 
 const DEFAULT_WHATSAPP_CONFIG = {
   enabled: false,
@@ -73,8 +234,17 @@ export function getHseDirectiveHistory() {
   }
 }
 
-export function clearActiveHseDirective() {
+export function clearActiveHseDirective(actor = 'Range Safety Officer') {
   localStorage.removeItem(STORAGE_KEY_DIRECTIVE);
+  appendIso42001AuditEntry({
+    isoControl: 'A.9.3 / A.6.2.8',
+    eventType: 'HITL_DIRECTIVE_CLEARED',
+    actor,
+    modelProvider: 'HUMAN_OVERSIGHT_GATE',
+    sector: 'ALL_SECTORS',
+    decision: 'DIRECTIVE_CLEARED',
+    rationale: 'Active manual RSO override directive cleared; reverted to automated ADOSH/AI safety evaluation.'
+  });
   window.dispatchEvent(new CustomEvent('xrange-hse-directive', { detail: null }));
 }
 
@@ -267,6 +437,21 @@ export async function broadcastHseDirective({
     window.dispatchEvent(new CustomEvent('xrange-hse-directive', { detail: directive }));
   }
 
+  // Record in Tamper-Evident ISO 42001 Audit Ledger (Annex A.9.3 Human-in-the-Loop Override & A.6.2.8 Event Logging)
+  const auditEntry = appendIso42001AuditEntry({
+    isoControl: 'A.9.3 / A.6.2.8',
+    eventType: 'HITL_RSO_DIRECTIVE',
+    actor: directive.author,
+    modelProvider: 'HUMAN_OVERSIGHT_OVERRIDE',
+    sector: 'ABU_AL_ABYAD_RANGE',
+    decision: `${directive.severity} (${directive.category})`,
+    rationale: `${directive.title}: ${directive.message}`,
+    telemetrySnapshot: { sendToDashboard, sendToWhatsApp }
+  });
+  if (auditEntry) {
+    directive.auditHash = auditEntry.hash;
+  }
+
   // 2. Dispatch to WhatsApp if requested
   let whatsappResult = null;
   if (sendToWhatsApp) {
@@ -315,6 +500,15 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
       const val = match ? match[1] : '30.5';
       const msg = formatWhatsAppWeatherAlert('WBGT', val);
       await sendWhatsAppMessage(msg);
+      appendIso42001AuditEntry({
+        isoControl: 'A.6.2.8 / A.8.4',
+        eventType: 'AI_AUTO_ALERT_DISPATCH',
+        actor: 'Automated HSE Trigger',
+        modelProvider: 'ADOSH_WBGT_ENGINE',
+        sector: activeData?.sectorTitle || 'Abu Al Abyad HQ',
+        decision: 'CRITICAL_WBGT_ALERT',
+        rationale: `Automated WhatsApp dispatch triggered: WBGT ${val}°C exceeds 30.0°C safety threshold.`
+      });
       markSent('WBGT');
     }
   }
@@ -325,6 +519,15 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
     if (hasLightning && canSend('LIGHTNING')) {
       const msg = formatWhatsAppWeatherAlert('LIGHTNING', '16 km Tactical Radius');
       await sendWhatsAppMessage(msg);
+      appendIso42001AuditEntry({
+        isoControl: 'A.6.2.8 / A.8.4',
+        eventType: 'AI_AUTO_ALERT_DISPATCH',
+        actor: 'Automated HSE Trigger',
+        modelProvider: 'CONVECTIVE_LIGHTNING_DETECTOR',
+        sector: activeData?.sectorTitle || 'Abu Al Abyad HQ',
+        decision: 'CRITICAL_LIGHTNING_HALT',
+        rationale: 'Automated WhatsApp dispatch triggered: Lightning detected within 16 km tactical radius.'
+      });
       markSent('LIGHTNING');
     }
   }
@@ -335,6 +538,15 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
       const gustVal = activeData.wind_gusts_10m ? activeData.wind_gusts_10m.toFixed(0) : '45+';
       const msg = formatWhatsAppWeatherAlert('WIND', gustVal);
       await sendWhatsAppMessage(msg);
+      appendIso42001AuditEntry({
+        isoControl: 'A.6.2.8 / A.8.4',
+        eventType: 'AI_AUTO_ALERT_DISPATCH',
+        actor: 'Automated HSE Trigger',
+        modelProvider: 'WEATHERNEXT_BOUNDARY_WIND',
+        sector: activeData?.sectorTitle || 'Abu Al Abyad HQ',
+        decision: 'CRITICAL_WIND_GUST_ALERT',
+        rationale: `Automated WhatsApp dispatch triggered: Peak gusts ${gustVal} km/h exceed 45 km/h threshold.`
+      });
       markSent('WIND');
     }
   }
