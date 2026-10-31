@@ -141,8 +141,44 @@ export default function App() {
   });
   const [isAutoRotateStations, setIsAutoRotateStations] = useState(true);
   const [viewMode, setViewMode] = useState(() => {
-    try { return sessionStorage.getItem('xrange_view_mode') || 'ops'; } catch { return 'ops'; }
+    try {
+      const saved = sessionStorage.getItem('xrange_view_mode');
+      if (!saved || saved === 'tv') return 'ops';
+      if (saved === 'advisory') return 'hse';
+      if (saved === 'customer') return 'planning';
+      return saved;
+    } catch {
+      return 'ops';
+    }
   });
+  const [hseSubTab, setHseSubTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('xrange_view_mode') === 'advisory' ? 'sops' : 'compliance';
+    } catch {
+      return 'compliance';
+    }
+  });
+  const [planningSubTab, setPlanningSubTab] = useState(() => {
+    try {
+      return sessionStorage.getItem('xrange_view_mode') === 'customer' ? 'portal' : 'windows';
+    } catch {
+      return 'windows';
+    }
+  });
+
+  const handleViewModeChange = (nextMode) => {
+    if (!nextMode || nextMode === 'tv') {
+      setViewMode('ops');
+    } else if (nextMode === 'advisory') {
+      setViewMode('hse');
+      setHseSubTab('sops');
+    } else if (nextMode === 'customer') {
+      setViewMode('planning');
+      setPlanningSubTab('portal');
+    } else {
+      setViewMode(nextMode);
+    }
+  };
   const [tvAutoReload, setTvAutoReload] = useState(() => {
     try {
       const saved = localStorage.getItem('xrange_tv_auto_reload_v1');
@@ -155,7 +191,7 @@ export default function App() {
   const [activeProvider, setActiveProviderState] = useState(getActiveProvider());
 
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileTab, setMobileTab] = useState('live'); // 'live', 'map', 'forecast', 'alerts'
+  const [mobileTab, setMobileTab] = useState('live'); // 'live', 'pilot', 'map', 'forecast', or command sub-tabs
 
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
   const [isBallisticsModalOpen, setIsBallisticsModalOpen] = useState(false);
@@ -674,7 +710,7 @@ export default function App() {
       { id: 'sea', short: 'SEA', label: 'Sea Boundary' }
     ];
 
-    const isCommandTab = ['pilot', 'hse', 'planning', 'customer', 'backend'].includes(mobileTab);
+    const isCommandTab = ['hse', 'alerts', 'planning', 'customer', 'backend'].includes(mobileTab);
 
     return (
       <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-15 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
@@ -686,7 +722,7 @@ export default function App() {
           onToggleSim={handleToggleSim}
           viewMode={viewMode}
           onViewModeChange={(mode) => {
-            setViewMode(mode);
+            handleViewModeChange(mode);
             setMobileTab(mode);
           }}
           time={activeTime}
@@ -758,8 +794,8 @@ export default function App() {
         {isCommandTab && (
           <div className="w-full bg-slate-900/95 border-b border-slate-800 px-3 py-1.5 grid grid-cols-5 gap-1 flex-none z-30">
             {[
-              { id: 'pilot', label: '✈️ UAV Pilot' },
               { id: 'hse', label: '🛡️ HSE Audit' },
+              { id: 'alerts', label: '📋 Field SOPs' },
               { id: 'planning', label: '🗓️ Range Plan' },
               { id: 'customer', label: '💼 R&D Portal' },
               { id: 'backend', label: '⚡ Data Feeds' }
@@ -942,7 +978,7 @@ export default function App() {
           )}
 
           {mobileTab === 'pilot' && (
-            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
+            <div className="pb-4">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <PilotConsole
                   data={data}
@@ -1003,6 +1039,18 @@ export default function App() {
           </button>
 
           <button 
+            onClick={() => setMobileTab('pilot')}
+            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
+              mobileTab === 'pilot'
+                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
+                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
+            }`}
+          >
+            <span className="text-base">✈️</span>
+            <span className="text-[9px] uppercase tracking-wider">Flight</span>
+          </button>
+
+          <button 
             onClick={() => setMobileTab('map')}
             className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
               mobileTab === 'map'
@@ -1024,18 +1072,6 @@ export default function App() {
           >
             <span className="text-base">📅</span>
             <span className="text-[9px] uppercase tracking-wider">12H / 5D</span>
-          </button>
-
-          <button 
-            onClick={() => setMobileTab('alerts')}
-            className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
-              mobileTab === 'alerts'
-                ? 'border-edgeOrange text-edgeOrange font-black bg-slate-900/60'
-                : 'border-transparent text-slate-400 font-bold hover:text-slate-200'
-            }`}
-          >
-            <span className={`text-base ${globalSafety.status === 'RED' ? 'text-stopRed animate-pulse' : globalSafety.status === 'AMBER' ? 'text-amberAlert' : ''}`}>📋</span>
-            <span className="text-[9px] uppercase tracking-wider">SOPs</span>
           </button>
 
           <button 
@@ -1102,7 +1138,7 @@ export default function App() {
         isSimulated={isSimulated}
         onToggleSim={handleToggleSim}
         viewMode={viewMode}
-        onViewModeChange={setViewMode}
+        onViewModeChange={handleViewModeChange}
         time={activeTime}
         onOpenAlerts={() => setIsAlertCenterOpen(true)}
         activeAlertsCount={activeAlertsCount}
@@ -1277,50 +1313,130 @@ export default function App() {
           </div>
         )}
 
-        {viewMode === 'advisory' && (
-          /* Safety Advisory (Standard Operating Procedures & Survival Guidelines) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <Suspense fallback={<ViewLoadingFallback />}>
-              <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
-            </Suspense>
+        {(viewMode === 'hse' || viewMode === 'advisory') && (
+          /* Consolidated HSE & Safety Suite (HSE Compliance Dashboard + Field Safety SOPs & Survival Guidelines) */
+          <div className="absolute inset-0 px-5 py-3 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px] flex flex-col space-y-2.5">
+            {/* Inline Sub-View Switcher Bar */}
+            <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2 shrink-0 shadow-md">
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-edgeOrange">
+                  🛡️ X-RANGE HSE & SAFETY COMMAND SUITE
+                </span>
+                <span className="text-slate-600 hidden md:inline">•</span>
+                <span className="text-[9.5px] font-bold text-slate-400 hidden md:inline">
+                  ADOSH Compliance, Automated Directives & Field Survival SOPs
+                </span>
+              </div>
+              <div className="flex items-center bg-bgDeepSpace p-0.5 rounded-lg border border-slate-800 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('hse');
+                    setHseSubTab('compliance');
+                  }}
+                  className={`px-3 py-1 rounded-md text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition ${
+                    hseSubTab === 'compliance' && viewMode !== 'advisory'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  🛡️ HSE Command & Compliance
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('hse');
+                    setHseSubTab('sops');
+                  }}
+                  className={`px-3 py-1 rounded-md text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition ${
+                    hseSubTab === 'sops' || viewMode === 'advisory'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  📋 Field Safety SOPs & Survival
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-grow min-h-0 overflow-hidden">
+              <Suspense fallback={<ViewLoadingFallback />}>
+                {hseSubTab === 'sops' || viewMode === 'advisory' ? (
+                  <SafetyAdvisory data={activeDisplayData} ncmWarnings={combinedNcmWarnings} />
+                ) : (
+                  <HseDashboard 
+                    data={data} 
+                    hourlyData={activeHourlyData} 
+                    currentTime={activeTime} 
+                    activeStation={activeStation} 
+                    isSimulated={isSimulated} 
+                    onViewModeChange={handleViewModeChange}
+                  />
+                )}
+              </Suspense>
+            </div>
           </div>
         )}
 
-        {viewMode === 'hse' && (
-          /* HSE Dashboard (Compliance & Historical Auditing) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <Suspense fallback={<ViewLoadingFallback />}>
-              <HseDashboard 
-                data={data} 
-                hourlyData={activeHourlyData} 
-                currentTime={activeTime} 
-                activeStation={activeStation} 
-                isSimulated={isSimulated} 
-                onViewModeChange={setViewMode}
-              />
-            </Suspense>
-          </div>
-        )}
+        {(viewMode === 'planning' || viewMode === 'customer') && (
+          /* Consolidated Mission Planning Suite (Range Mission Windows + Customer R&D Trial Portal) */
+          <div className="absolute inset-0 px-5 py-3 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px] flex flex-col space-y-2.5">
+            {/* Inline Sub-View Switcher Bar */}
+            <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 rounded-xl px-3.5 py-2 shrink-0 shadow-md">
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-edgeOrange">
+                  🗓️ MISSION PLANNING & R&D TRIAL SUITE
+                </span>
+                <span className="text-slate-600 hidden md:inline">•</span>
+                <span className="text-[9.5px] font-bold text-slate-400 hidden md:inline">
+                  7-Day Tactical Windows, Climatology & Customer Trial Readiness
+                </span>
+              </div>
+              <div className="flex items-center bg-bgDeepSpace p-0.5 rounded-lg border border-slate-800 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('planning');
+                    setPlanningSubTab('windows');
+                  }}
+                  className={`px-3 py-1 rounded-md text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition ${
+                    planningSubTab === 'windows' && viewMode !== 'customer'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  🗓️ Range Mission Windows
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('planning');
+                    setPlanningSubTab('portal');
+                  }}
+                  className={`px-3 py-1 rounded-md text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition ${
+                    planningSubTab === 'portal' || viewMode === 'customer'
+                      ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  💼 Customer R&D Trial Portal
+                </button>
+              </div>
+            </div>
 
-        {viewMode === 'planning' && (
-          /* Range Planning (Historical & Climatological Modeling & Tactical Mission Windows) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <Suspense fallback={<ViewLoadingFallback />}>
-              <PlanningDashboard 
-                isSimulated={isSimulated} 
-                hourlyData={activeHourlyData}
-                dailyData={activeDailyData}
-              />
-            </Suspense>
-          </div>
-        )}
-
-        {viewMode === 'customer' && (
-          /* Customer Portal (Climate Projections & R&D Simulation) */
-          <div className="absolute inset-0 px-5 py-3.5 z-10 pointer-events-auto w-full h-full bg-slate-950/60 backdrop-blur-[4px]">
-            <Suspense fallback={<ViewLoadingFallback />}>
-              <CustomerPortal />
-            </Suspense>
+            <div className="flex-grow min-h-0 overflow-hidden">
+              <Suspense fallback={<ViewLoadingFallback />}>
+                {planningSubTab === 'portal' || viewMode === 'customer' ? (
+                  <CustomerPortal />
+                ) : (
+                  <PlanningDashboard 
+                    isSimulated={isSimulated} 
+                    hourlyData={activeHourlyData}
+                    dailyData={activeDailyData}
+                  />
+                )}
+              </Suspense>
+            </div>
           </div>
         )}
 

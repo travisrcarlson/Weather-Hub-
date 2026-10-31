@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Plane, Wind, Compass, Gauge, BatteryCharging, Thermometer,
   Eye, ShieldAlert, ShieldCheck, AlertTriangle, Download,
@@ -187,10 +187,22 @@ export default function PilotConsole({
   const [customMaxCrosswind, setCustomMaxCrosswind] = useState(26);
   const [payloadKg, setPayloadKg] = useState(0.9);
 
-  // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: AF1R @ HQ, AF2R @ South, EM2R @ West)
+  // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: AF1R @ HQ, AF2R @ Sea, EM2R @ South)
   const [runwayHeading, setRunwayHeading] = useState(310);
-  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState('AF1R');
+  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState(() => {
+    const match = XRANGE_RUNWAYS.find(r => r.stationId === activeStation);
+    return match ? match.id : 'AF1R';
+  });
   const [selectedRunwayId, setSelectedRunwayId] = useState('AF1R_31');
+
+  useEffect(() => {
+    const match = XRANGE_RUNWAYS.find(r => r.stationId === activeStation);
+    if (match && match.id !== selectedRunwayStrip) {
+      setSelectedRunwayStrip(match.id);
+      const endCode = runwayHeading === 130 ? '13' : '31';
+      setSelectedRunwayId(`${match.id}_${endCode}`);
+    }
+  }, [activeStation, runwayHeading, selectedRunwayStrip]);
 
   // Goal Ground Speed Calculator, Platform V_min / V_max & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
@@ -721,6 +733,55 @@ export default function PilotConsole({
         w10: Math.round(w10),
         w100: Math.round(w100),
         status: padStatus
+      };
+    });
+  }, [data, isSimulated, airframe]);
+
+  // Simultaneous 3-Runway (AF1R @ HQ, AF2R @ Sea, EM2R @ South — 31/13) Flight Line Matrix
+  const allRunwaysMatrix = useMemo(() => {
+    return XRANGE_RUNWAYS.map(strip => {
+      const st = stationsList.find(s => s.id === strip.stationId) || stationsList[0];
+      const r = isSimulated && st.getReadings && data?.current
+        ? st.getReadings(data.current)
+        : (data?.stations?.[strip.stationId]?.current || data?.current || {});
+      const w10 = Number(r.wind_speed_10m ?? 18);
+      const g10 = Number(r.wind_gusts_10m ?? (w10 * 1.35));
+      const wDir = Number(r.wind_direction_10m ?? 315);
+
+      const delta310 = (((wDir - 310) + 360) % 360) * (Math.PI / 180);
+      const favors31 = Math.cos(delta310) >= 0;
+      const recEnd = favors31 ? '31' : '13';
+      const recHeading = favors31 ? 310 : 130;
+
+      const deltaRec = (((wDir - recHeading) + 360) % 360) * (Math.PI / 180);
+      const headwindKmh = Math.round(Math.abs(w10 * Math.cos(deltaRec)));
+      const crosswindKmh = Number(Math.abs(w10 * Math.sin(deltaRec)).toFixed(1));
+      const gustCrosswindKmh = Number(Math.abs(g10 * Math.sin(deltaRec)).toFixed(1));
+
+      let rwyStatus = 'GO';
+      if (
+        crosswindKmh >= airframe.maxCrosswindKmh ||
+        gustCrosswindKmh >= airframe.maxCrosswindKmh * 1.25 ||
+        w10 >= airframe.maxSustainedWindKmh ||
+        g10 >= airframe.maxGustKmh
+      ) {
+        rwyStatus = 'NO-GO';
+      } else if (
+        crosswindKmh >= airframe.maxCrosswindKmh * 0.75 ||
+        w10 >= airframe.maxSustainedWindKmh * 0.8
+      ) {
+        rwyStatus = 'CAUTION';
+      }
+
+      return {
+        ...strip,
+        recEnd,
+        recHeading,
+        headwindKmh,
+        crosswindKmh: Math.round(crosswindKmh),
+        w10: Math.round(w10),
+        g10: Math.round(g10),
+        status: rwyStatus
       };
     });
   }, [data, isSimulated, airframe]);
@@ -1422,33 +1483,45 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               </span>
             </div>
 
-            {/* 3-Runway Strip Selector (AF1R @ HQ, AF2R @ South, EM2R @ West — All 31/13) + 31 (310°) / 13 (130°) Threshold Toggle */}
+            {/* Simultaneous 3-Runway Flight Line Matrix (AF1R @ HQ, AF2R @ Sea, EM2R @ South — All 31/13) + 31 (310°) / 13 (130°) Threshold Toggle */}
             <div className="space-y-1.5 mb-2">
-              <div className="grid grid-cols-3 gap-1">
-                {XRANGE_RUNWAYS.map(strip => {
+              <div className="grid grid-cols-3 gap-1.5">
+                {allRunwaysMatrix.map(strip => {
                   const isActiveStrip = selectedRunwayStrip === strip.id;
+                  const statusDot = strip.status === 'GO'
+                    ? 'bg-safetyGreen'
+                    : strip.status === 'CAUTION'
+                    ? 'bg-amberAlert'
+                    : 'bg-stopRed animate-ping';
                   return (
                     <button
                       key={strip.id}
                       type="button"
                       onClick={() => {
                         setSelectedRunwayStrip(strip.id);
-                        const endCode = runwayHeading === 130 ? '13' : '31';
-                        const nextHdg = endCode === '13' ? 130 : 310;
-                        setRunwayHeading(nextHdg);
-                        setSelectedRunwayId(`${strip.id}_${endCode}`);
+                        setRunwayHeading(strip.recHeading);
+                        setSelectedRunwayId(`${strip.id}_${strip.recEnd}`);
                         if (setActiveStation && strip.stationId) {
                           setActiveStation(strip.stationId);
                         }
                       }}
-                      className={`px-1.5 py-1 rounded text-[7.5px] font-black uppercase border text-center truncate cursor-pointer transition ${
+                      className={`px-2 py-1.5 rounded-lg border text-left cursor-pointer transition flex flex-col justify-between ${
                         isActiveStrip
-                          ? 'bg-edgeOrange/20 border-edgeOrange text-white'
-                          : 'bg-bgDeepSpace/60 border-slate-800 text-slate-400 hover:text-white'
+                          ? 'bg-edgeOrange/20 border-edgeOrange text-white shadow-sm'
+                          : 'bg-bgDeepSpace/70 border-slate-800 text-slate-300 hover:border-slate-700 hover:text-white'
                       }`}
-                      title={`${strip.label} — Collocated with ${strip.short}`}
+                      title={`${strip.label} — Recommended Active Threshold: RWY ${strip.recEnd} (${strip.recHeading}°) • Headwind ${strip.headwindKmh} kph • Crosswind ${strip.crosswindKmh} kph`}
                     >
-                      🛫 {strip.short} 31/13
+                      <div className="flex items-center justify-between w-full">
+                        <span className={`text-[8.5px] font-black uppercase tracking-wider truncate ${isActiveStrip ? 'text-edgeOrange' : 'text-white'}`}>
+                          🛫 {strip.short}
+                        </span>
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${statusDot}`} />
+                      </div>
+                      <div className="flex items-center justify-between w-full mt-0.5 text-[7.5px] font-mono">
+                        <span className="text-cyan-300 font-black">RWY {strip.recEnd}</span>
+                        <span className="text-slate-300">XW:{strip.crosswindKmh}kph</span>
+                      </div>
                     </button>
                   );
                 })}

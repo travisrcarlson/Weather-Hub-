@@ -166,32 +166,28 @@ export default function Header({
       </div>
 
       {/* Right Controls & Views */}
-      <div className="flex items-center space-x-1.5 xl:space-x-2 flex-shrink-0 whitespace-nowrap">
-        {/* View Mode Tabs */}
-        <div className="flex bg-slate-900/80 p-0.5 rounded-lg border border-slate-800/90 shadow-inner">
+      <div className="flex items-center space-x-2 xl:space-x-2.5 flex-shrink-0 whitespace-nowrap">
+        {/* Streamlined 4-Tab Primary Operational Navigation */}
+        <div className="flex bg-slate-900/85 p-1 rounded-lg border border-slate-800/90 shadow-inner gap-1">
           {[
-            { id: 'tv', label: 'TV Display', short: 'TV' },
-            { id: 'ops', label: 'Tactical Console', short: 'Ops' },
-            { id: 'pilot', label: 'Drone Pilot', short: 'Pilot' },
-            { id: 'advisory', label: 'Safety Advisory', short: 'Safety' },
-            { id: 'hse', label: 'HSE Dashboard', short: 'HSE' },
-            { id: 'planning', label: 'Range Planning', short: 'Plan' },
-            { id: 'customer', label: 'Customer Portal', short: 'Portal' },
-            { id: 'backend', label: 'Backend Feeds', short: 'Feeds' }
+            { id: 'ops', label: 'Tactical Ops', short: 'Tactical Ops', match: ['ops', 'tv'] },
+            { id: 'pilot', label: 'Flight & Runways', short: 'Flight', match: ['pilot'] },
+            { id: 'hse', label: 'HSE & Safety', short: 'HSE & SOPs', match: ['hse', 'advisory'] },
+            { id: 'planning', label: 'Mission Planning', short: 'Planning', match: ['planning', 'customer'] }
           ].map(tab => {
-            const isActive = viewMode === tab.id;
+            const isActive = tab.match.includes(viewMode);
             return (
               <button
                 key={tab.id}
                 onClick={() => onViewModeChange(tab.id)}
-                className={`px-2 xl:px-2.5 2xl:px-3 py-1 xl:py-1.5 text-[8.5px] xl:text-[9px] 2xl:text-[9.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-md whitespace-nowrap ${
+                className={`px-2.5 xl:px-3.5 2xl:px-4 py-1 xl:py-1.5 text-[9.5px] xl:text-[10.5px] 2xl:text-[11px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-md whitespace-nowrap ${
                   isActive
                     ? 'bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-md shadow-orange-950/40'
                     : 'text-slate-400 hover:text-textIceWhite hover:bg-slate-800/40'
                 }`}
               >
-                <span className="hidden 2xl:inline">{tab.label}</span>
-                <span className="2xl:hidden">{tab.short}</span>
+                <span className="hidden xl:inline">{tab.label}</span>
+                <span className="xl:hidden">{tab.short}</span>
               </button>
             );
           })}
@@ -200,7 +196,7 @@ export default function Header({
         {/* Notification Bell */}
         <button
           onClick={onOpenAlerts}
-          className={`flex items-center space-x-1 px-2 py-1 xl:py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 cursor-pointer relative shadow-sm whitespace-nowrap ${
+          className={`flex items-center space-x-1 px-2.5 py-1 xl:py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 cursor-pointer relative shadow-sm whitespace-nowrap ${
             activeAlertsCount > 0
               ? 'bg-red-500/15 border-red-500/50 text-red-200 shadow-red-500/10'
               : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-textIceWhite hover:border-slate-700'
@@ -208,7 +204,7 @@ export default function Header({
           title="Open Safety Alert Center & Dispatcher"
         >
           <Bell className={`w-3.5 h-3.5 ${activeAlertsCount > 0 ? 'text-red-400 animate-bounce' : 'text-slate-400'}`} />
-          <span className="hidden 2xl:inline text-[9.5px] uppercase tracking-wide">Alerts</span>
+          <span className="hidden 2xl:inline text-[10px] uppercase tracking-wide">Alerts</span>
           {activeAlertsCount > 0 && (
             <span className="absolute -top-1 -right-1 bg-red-600 border border-slate-900 text-[8px] font-black text-white px-1 py-0.5 rounded-full leading-none flex items-center justify-center min-w-[15px] h-[15px] shadow-sm select-none">
               {activeAlertsCount}
@@ -218,11 +214,16 @@ export default function Header({
 
         {/* Unified System Telemetry Cluster */}
         <div className="flex items-center bg-slate-900/80 border border-slate-800/90 rounded-lg p-0.5 divide-x divide-slate-800/80 shadow-md whitespace-nowrap">
-          {/* Segment 1: Active Forecast Model */}
-          <div 
+          {/* Segment 1: Active Forecast Model & Backend Feeds Access */}
+          <button
+            type="button"
             onClick={() => onViewModeChange('backend')}
-            className="hidden xl:flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-slate-800/50 transition-colors"
-            title={`Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'} • Click to view Backend Feeds`}
+            className={`flex items-center space-x-1 px-2 py-1 text-[8.5px] xl:text-[9px] font-mono font-black uppercase tracking-wider cursor-pointer transition-colors border-none rounded-l ${
+              viewMode === 'backend'
+                ? 'bg-cyan-500/20 text-cyan-200'
+                : 'hover:bg-slate-800/50 text-cyan-300'
+            }`}
+            title={`Active Engine: ${activeProvider?.startsWith('WEATHERNEXT') ? 'Google DeepMind WeatherNext 3 (5km)' : activeProvider || 'Open-Meteo'} • Click to open Backend Feeds`}
           >
             {activeProvider?.startsWith('WEATHERNEXT') ? (
               <Zap className="w-3 h-3 text-cyan-400 animate-pulse flex-shrink-0" />
@@ -230,11 +231,11 @@ export default function Header({
               <Cpu className="w-3 h-3 text-slate-400 flex-shrink-0" />
             )}
             <span className={activeProvider?.startsWith('WEATHERNEXT') ? 'text-cyan-300' : 'text-slate-300'}>
-              {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WN3' :
-               activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WN3' :
-               activeProvider === PROVIDERS.UAE_NCM ? 'NCM' : 'Meteo'}
+              {activeProvider === PROVIDERS.WEATHERNEXT_SIM ? 'WN3•FEEDS' :
+               activeProvider === PROVIDERS.WEATHERNEXT_LIVE ? 'WN3•FEEDS' :
+               activeProvider === PROVIDERS.UAE_NCM ? 'NCM•FEEDS' : 'FEEDS'}
             </span>
-          </div>
+          </button>
 
           {/* Segment 2: Simulation Toggle */}
           <button
