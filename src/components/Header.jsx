@@ -50,24 +50,24 @@ export default function Header({
 
   if (isMobile) {
     return (
-      <header className="w-full h-14 bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-4 select-none relative z-50 flex-none">
-        <div className="flex items-center space-x-2">
+      <header className="w-full min-h-14 ios-pt-safe bg-navyGradient border-b border-cardDarkSlate/60 flex items-center justify-between px-3 sm:px-4 py-1.5 select-none relative z-50 flex-none">
+        <div className="flex items-center space-x-2 min-w-0">
           <img 
             src="remaya_logo.png" 
             alt="REMAYA" 
-            className="h-7 w-auto object-contain bg-white px-1.5 py-0.5 rounded border border-white/80" 
+            className="h-6 sm:h-7 w-auto object-contain bg-white px-1.5 py-0.5 rounded border border-white/80 flex-shrink-0" 
           />
-          <div className="flex flex-col">
-            <h1 className="text-xs font-black tracking-wider text-textIceWhite uppercase leading-none">
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-[11px] sm:text-xs font-black tracking-wider text-textIceWhite uppercase leading-none truncate">
               XRANGE WEATHER HUB
             </h1>
-            <span className="text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans leading-none">
+            <span className="text-[7px] sm:text-[7.5px] text-edgeOrange font-black tracking-wider uppercase mt-0.5 font-sans leading-none truncate">
               AI POWERED WEATHER SAFETY PORTAL
             </span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 flex-shrink-0">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
           {/* Active Model Indicator Pill */}
           {activeProvider?.startsWith('WEATHERNEXT') && (
             <div 

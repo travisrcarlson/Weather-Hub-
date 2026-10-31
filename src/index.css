@@ -23,7 +23,11 @@
     padding: 0;
     width: 100%;
     height: 100%;
+    height: 100dvh;
     overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
     background-color: #090B0E;
     color: #F8FAFC;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
@@ -35,6 +39,11 @@
     letter-spacing: 0.05em;
   }
 
+  button, a, select, input {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   button {
     font-family: 'Montserrat', sans-serif !important;
     border-radius: 0px !important;
@@ -43,6 +52,41 @@
   /* Force sharp corners on panels & buttons matching EDGE/REMAYA website styling */
   .rounded-xl, .rounded-lg, .rounded-2xl, .rounded-md {
     border-radius: 0px !important;
+  }
+}
+
+/* iOS / iPhone Safe Area Inset Utilities (Notch / Dynamic Island & Home Indicator) */
+.ios-pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.ios-pb-safe-nav {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  height: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.ios-main-pb-safe {
+  padding-bottom: calc(3.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Smooth momentum scrolling on iOS WebKit */
+.ios-momentum-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent iOS Safari from auto-zooming viewport when focusing compact select/input controls on mobile */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 767px) {
+    select,
+    textarea,
+    input[type="text"],
+    input[type="number"],
+    input[type="password"],
+    input[type="tel"],
+    input[type="email"] {
+      font-size: 16px !important;
+    }
   }
 }
 

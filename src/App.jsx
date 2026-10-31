@@ -340,11 +340,17 @@ export default function App() {
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      const isPhonePortrait = window.innerWidth < 768;
+      const isPhoneLandscape = window.innerHeight < 500 && window.innerWidth < 960;
+      setIsMobile(isPhonePortrait || isPhoneLandscape);
     };
     handleResize();
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -713,7 +719,7 @@ export default function App() {
     const isCommandTab = ['hse', 'alerts', 'planning', 'customer', 'backend'].includes(mobileTab);
 
     return (
-      <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative pb-15 ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
+      <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative ios-main-pb-safe ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
         {/* Top Header bar (Z1) */}
         <Header 
           lastUpdated={lastUpdated} 
@@ -817,7 +823,7 @@ export default function App() {
         )}
 
         {/* Main Scrollable Content */}
-        <main className="w-full flex-grow overflow-y-auto px-3.5 py-3 select-none no-scrollbar">
+        <main className="w-full flex-grow overflow-y-auto ios-momentum-scroll px-3.5 py-3 select-none no-scrollbar">
           {isOffline && (
             <div className="bg-stopRed/95 text-white text-[9px] font-black uppercase text-center py-1.5 mb-3 tracking-widest animate-pulse border-b border-red-700">
               ⚠️ DATA UNAVAILABLE • DISPLAYING CACHED OBSERVATIONS
@@ -952,7 +958,7 @@ export default function App() {
           )}
 
           {mobileTab === 'hse' && (
-            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
+            <div className="pb-4 border border-slate-800 bg-cardDarkSlate rounded-xl">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <HseDashboard 
                   data={data} 
@@ -966,7 +972,7 @@ export default function App() {
           )}
 
           {mobileTab === 'planning' && (
-            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
+            <div className="pb-4 border border-slate-800 bg-cardDarkSlate rounded-xl">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <PlanningDashboard 
                   isSimulated={isSimulated} 
@@ -994,7 +1000,7 @@ export default function App() {
           )}
 
           {mobileTab === 'customer' && (
-            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto">
+            <div className="pb-4 border border-slate-800 bg-cardDarkSlate rounded-xl">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <CustomerPortal />
               </Suspense>
@@ -1002,7 +1008,7 @@ export default function App() {
           )}
 
           {mobileTab === 'backend' && (
-            <div className="min-h-[680px] border border-slate-800 bg-cardDarkSlate rounded-xl overflow-y-auto p-2">
+            <div className="pb-4 border border-slate-800 bg-cardDarkSlate rounded-xl p-2">
               <Suspense fallback={<ViewLoadingFallback />}>
                 <BackendFeeds 
                   isSimulated={isSimulated} 
@@ -1018,8 +1024,8 @@ export default function App() {
           )}
         </main>
 
-        {/* Ergonomic 5-Tab Mobile Bottom Navigation Bar */}
-        <nav className="absolute bottom-0 left-0 right-0 h-15 bg-slate-950/95 border-t border-slate-800/90 flex flex-row items-stretch justify-around z-50 select-none backdrop-blur-md">
+        {/* Ergonomic 5-Tab Mobile Bottom Navigation Bar (with iOS Home Indicator Safe Area) */}
+        <nav className="absolute bottom-0 left-0 right-0 ios-pb-safe-nav bg-slate-950/95 border-t border-slate-800/90 flex flex-row items-stretch justify-around z-50 select-none backdrop-blur-md">
           <button 
             onClick={() => setMobileTab('live')}
             className={`flex-1 flex flex-col items-center justify-center space-y-0.5 border-t-2 cursor-pointer transition-all ${
@@ -1507,8 +1513,11 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard */}
-      <TvWakeLockGuard enabled={true} autoReload={tvAutoReload} />
+      {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard (disabled on iOS/Android handhelds) */}
+      <TvWakeLockGuard
+        enabled={typeof navigator !== 'undefined' ? !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) : true}
+        autoReload={tvAutoReload}
+      />
     </div>
   );
 }
