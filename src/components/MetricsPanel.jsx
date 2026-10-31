@@ -419,14 +419,14 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
   };
 
   let dotCx = 0;
-  let dotCy = 65;
+  let dotCy = 67;
   let dotVal = 0;
 
   if (duration > 0) {
     if (isDaylight) {
       dotCx = ((currentMins - sunriseTime.totalMinutes) / duration) * 100;
       dotVal = getInterpolatedUv(currentMins, pointsList);
-      dotCy = 65 - (Math.min(13, dotVal) / 13) * 33;
+      dotCy = 67 - (Math.min(12.5, dotVal) / 12.5) * 58;
     } else {
       if (currentMins < sunriseTime.totalMinutes) {
         dotCx = 0;
@@ -434,142 +434,137 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
         dotCx = 100;
       }
       dotVal = 0;
-      dotCy = 65;
+      dotCy = 67;
     }
   }
 
   const points = pointsList.map(pt => {
     const x = duration > 0 ? ((pt.t - sunriseTime.totalMinutes) / duration) * 100 : 0;
-    const y = 65 - (Math.min(13, pt.uv) / 13) * 33;
+    const y = 67 - (Math.min(12.5, pt.uv) / 12.5) * 58;
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   });
 
   const pathD = `M ${points.join(' L ')}`;
-  const areaD = `${pathD} L 100,65 L 0,65 Z`;
+  const areaD = `${pathD} L 100,67 L 0,67 Z`;
 
   const dynamicIntervals = calculateSunscreenIntervals(uv);
   const clampedDotX = Math.max(4, Math.min(96, dotCx));
-  const dotTopPct = Math.max(38, Math.min(93, (dotCy / 70) * 100));
-  const pillTranslateX = clampedDotX < 20 ? '-10%' : clampedDotX > 80 ? '-90%' : '-50%';
+  const dotTopPct = Math.max(12, Math.min(96, (dotCy / 70) * 100));
+  const pillTranslateX = clampedDotX < 18 ? '-15%' : clampedDotX > 82 ? '-85%' : '-50%';
 
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Decorative Grid Line */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808008_1px,transparent_1px),linear-gradient(to_bottom,#80808008_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none" />
 
-      {/* Header */}
-      <div className="relative z-10 flex justify-between items-start">
+      {/* Header (Strictly separated above the chart scale) */}
+      <div className="relative z-20 flex justify-between items-start shrink-0">
         <div>
           <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
             Z6 • UV RADIATION
           </p>
-          <h2 className="text-xs font-bold text-slate-200 leading-none mb-1.5">Skin Safety Monitor</h2>
-          <span className={`inline-block text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
-            {details.label}
-          </span>
+          <h2 className="text-xs font-bold text-slate-200 leading-none">Skin Safety Monitor</h2>
         </div>
-        <div className="text-right leading-none">
-          <p className="text-[8.5px] text-slate-300 font-bold uppercase leading-none mb-1">Today&apos;s Peak</p>
-          <span className="text-2xl font-black text-amber-400 leading-none tracking-tight">
-            {maxUv.toFixed(1)}
+        <div className="flex items-center space-x-2.5">
+          <div className="text-right leading-none">
+            <span className="text-[8px] text-slate-400 font-bold uppercase block mb-0.5">Today&apos;s Peak</span>
+            <span className="text-base xl:text-lg font-mono font-black text-amber-400 leading-none">{maxUv.toFixed(1)}</span>
+          </div>
+          <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border border-current leading-none ${details.textColor}`}>
+            {details.label}
           </span>
         </div>
       </div>
 
-      {/* Main Content with Progressive Sparkline & Curve-Following Current UV Level */}
-      <div className="flex flex-col my-1 relative z-10 flex-grow justify-end">
-        {/* Refined Progressive Chart with Non-Scaling Stroke */}
-        <div className="w-full h-[110px] flex flex-col justify-end relative select-none">
-          <div className="w-full flex-grow relative flex items-end">
-            <div className="flex-1 h-full relative overflow-visible">
-              <svg className="w-full h-full overflow-visible" viewBox="0 0 100 70" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="uvChartFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
-                    <stop offset="85%" stopColor="#f97316" stopOpacity="0.03" />
-                    <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+      {/* Main Content: Explicitly Bounded Chart Canvas so Scale Never Bleeds Behind Title */}
+      <div className="w-full my-1.5 relative z-10 shrink-0 select-none">
+        <div className="w-full h-[78px] relative">
+          <svg className="w-full h-full block overflow-visible" viewBox="0 0 100 70" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="uvChartFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
+                <stop offset="85%" stopColor="#f97316" stopOpacity="0.03" />
+                <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
+              </linearGradient>
+            </defs>
 
-                {/* Subtle Reference Threshold Lines mapped to 65 - (uv / 13) * 33 */}
-                <line x1="0" y1="57.4" x2="100" y2="57.4" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
-                <line x1="0" y1="44.7" x2="100" y2="44.7" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
-                <line x1="0" y1="37.1" x2="100" y2="37.1" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
+            {/* Reference Threshold Lines Strictly Inside the 78px Chart Box (y = 67 - (uv/12.5)*58) */}
+            <line x1="0" y1="53.1" x2="100" y2="53.1" stroke="#eab308" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
+            <line x1="0" y1="29.9" x2="100" y2="29.9" stroke="#ef4444" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
+            <line x1="0" y1="16.0" x2="100" y2="16.0" stroke="#c084fc" strokeWidth="1" strokeDasharray="3,3" opacity="0.3" vectorEffect="non-scaling-stroke" />
 
-                <path d={areaD} fill="url(#uvChartFill)" />
-                {/* Soft ambient glow line underneath */}
-                <path d={pathD} fill="none" stroke="#ea580c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" vectorEffect="non-scaling-stroke" />
-                {/* Crisp refined foreground line */}
-                <path d={pathD} fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-              </svg>
+            <path d={areaD} fill="url(#uvChartFill)" />
+            {/* Soft ambient glow line underneath */}
+            <path d={pathD} fill="none" stroke="#ea580c" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.25" vectorEffect="non-scaling-stroke" />
+            {/* Crisp refined foreground line */}
+            <path d={pathD} fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+          </svg>
 
-              {/* Crisp Unstretched HTML Threshold Labels */}
-              <span className="absolute left-1 top-[47%] -translate-y-full text-[8.5px] font-mono font-bold text-purple-300/80 pointer-events-none leading-none">
-                EXT 11
+          {/* Crisp Unstretched HTML Scale Labels Contained Inside the Chart Box */}
+          <span className="absolute left-1 top-[22.8%] -translate-y-full pb-0.5 text-[8.5px] font-mono font-bold text-purple-300/75 pointer-events-none leading-none">
+            EXT (11)
+          </span>
+          <span className="absolute left-1 top-[42.7%] -translate-y-full pb-0.5 text-[8.5px] font-mono font-bold text-red-400/75 pointer-events-none leading-none">
+            V.HIGH (8)
+          </span>
+          <span className="absolute left-1 top-[75.8%] -translate-y-full pb-0.5 text-[8.5px] font-mono font-bold text-yellow-400/75 pointer-events-none leading-none">
+            MOD (3)
+          </span>
+
+          {/* Curve-Following Dot + Readable Current UV Badge */}
+          <div 
+            className="absolute pointer-events-none z-20"
+            style={{ left: `${clampedDotX}%`, top: `${dotTopPct}%` }}
+          >
+            {/* Floating Current UV Exposure Number Following the Dot Along the Curve */}
+            <div
+              className="absolute bottom-2.5 flex items-center space-x-1 bg-slate-950/95 border border-orange-500/60 px-2 py-0.5 shadow-[0_3px_10px_rgba(0,0,0,0.85)] whitespace-nowrap"
+              style={{ transform: `translateX(${pillTranslateX})` }}
+            >
+              <span className={`text-base xl:text-lg font-mono font-black leading-none ${details.textColor}`}>
+                {uv.toFixed(1)}
               </span>
-              <span className="absolute left-1 top-[61%] -translate-y-full text-[8.5px] font-mono font-bold text-red-400/80 pointer-events-none leading-none">
-                V.HIGH 8
-              </span>
-              <span className="absolute left-1 top-[80%] -translate-y-full text-[8.5px] font-mono font-bold text-yellow-400/80 pointer-events-none leading-none">
-                MOD 3
-              </span>
+              {uvTrend.arrow && uvTrend.arrow !== '→' && (
+                <span className={`text-[10px] font-black leading-none ${uvTrend.class}`}>
+                  {uvTrend.arrow}
+                </span>
+              )}
+            </div>
 
-              {/* Curve-Following Dot + Large Readable Current UV Number */}
-              <div 
-                className="absolute pointer-events-none z-20"
-                style={{ left: `${clampedDotX}%`, top: `${dotTopPct}%` }}
-              >
-                {/* Floating Current UV Exposure Number (Slightly smaller than old text-4xl -> text-2xl/3xl) */}
-                <div
-                  className="absolute bottom-3 flex items-baseline space-x-1 bg-slate-950/90 border border-orange-500/50 rounded-lg px-2 py-0.5 shadow-[0_4px_12px_rgba(0,0,0,0.85)] whitespace-nowrap backdrop-blur-sm"
-                  style={{ transform: `translateX(${pillTranslateX})` }}
-                >
-                  <span className={`text-2xl xl:text-3xl font-black tracking-tight leading-none ${details.textColor}`}>
-                    {uv.toFixed(1)}
-                  </span>
-                  {uvTrend.arrow && uvTrend.arrow !== '→' && (
-                    <span className={`text-xs font-black leading-none ${uvTrend.class}`}>
-                      {uvTrend.arrow}
-                    </span>
-                  )}
-                </div>
-
-                {/* Round Dot on the Curve */}
-                <div className="-translate-x-1/2 -translate-y-1/2 relative">
-                  {isDaylight && (
-                    <div className="w-4 h-4 rounded-full bg-orange-500/35 animate-ping absolute inset-0 -m-0.5" />
-                  )}
-                  <div className="w-3 h-3 rounded-full bg-orange-500 border-2 border-white shadow-md relative" />
-                </div>
-              </div>
+            {/* Round Dot on the Curve */}
+            <div className="-translate-x-1/2 -translate-y-1/2 relative">
+              {isDaylight && (
+                <div className="w-4 h-4 rounded-full bg-orange-500/30 animate-ping absolute inset-0 -m-0.5" />
+              )}
+              <div className="w-3 h-3 rounded-full bg-orange-500 border-2 border-white shadow-sm relative" />
             </div>
           </div>
-          
-          {/* X-Axis Labels */}
-          <div className="w-full flex flex-row items-center pt-1 text-[9.5px] font-bold text-slate-300 relative border-t border-slate-800/60 mt-0.5">
-            <div className="flex-1 h-4 relative">
-              {/* Sunrise label */}
-              {dotCx >= 15 && (
-                <span className="absolute left-0 top-0 text-slate-400 font-mono font-bold">
-                  {sunriseLabel}
-                </span>
-              )}
-              
-              {/* Dynamic NOW tracker label */}
-              <span 
-                className="absolute top-0 text-edgeOrange font-mono font-black text-[10px] whitespace-nowrap" 
-                style={{ left: `${dotCx}%`, transform: 'translateX(-50%)' }}
-              >
-                {isDaylight ? nowLabel : 'NIGHT'}
+        </div>
+        
+        {/* X-Axis Labels */}
+        <div className="w-full flex flex-row items-center pt-1 text-[9px] font-bold text-slate-400 relative border-t border-slate-800/60 mt-0.5">
+          <div className="flex-1 h-3.5 relative">
+            {/* Sunrise label */}
+            {dotCx >= 15 && (
+              <span className="absolute left-0 top-0 text-slate-400 font-mono font-bold">
+                {sunriseLabel}
               </span>
-              
-              {/* Sunset label */}
-              {dotCx <= 85 && (
-                <span className="absolute right-0 top-0 text-slate-400 font-mono font-bold">
-                  {sunsetLabel}
-                </span>
-              )}
-            </div>
+            )}
+            
+            {/* Dynamic NOW tracker label */}
+            <span 
+              className="absolute top-0 text-edgeOrange font-mono font-black text-[9.5px] whitespace-nowrap" 
+              style={{ left: `${dotCx}%`, transform: 'translateX(-50%)' }}
+            >
+              {isDaylight ? nowLabel : 'NIGHT'}
+            </span>
+            
+            {/* Sunset label */}
+            {dotCx <= 85 && (
+              <span className="absolute right-0 top-0 text-slate-400 font-mono font-bold">
+                {sunsetLabel}
+              </span>
+            )}
           </div>
         </div>
       </div>
