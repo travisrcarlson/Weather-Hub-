@@ -7,7 +7,7 @@ import HourlyForecast from './components/HourlyForecast';
 import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
-import { fetchDashboardData, getActiveProvider, getInitialGroundedData } from './services/weatherService';
+import { fetchDashboardData, fetchLiveAirspaceTraffic, getActiveProvider, getInitialGroundedData } from './services/weatherService';
 import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
@@ -419,6 +419,27 @@ export default function App() {
     const interval = setInterval(loadData, 10 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Poll live ADS-B Abu Al Abyad Island overflights every 25 seconds
+  useEffect(() => {
+    let cancelled = false;
+    const pollAirspace = async () => {
+      try {
+        const res = await fetchLiveAirspaceTraffic(isSimulated, data?.airspaceTraffic);
+        if (!cancelled && res?.data) {
+          setData(prev => (prev ? { ...prev, airspaceTraffic: res.data } : prev));
+        }
+      } catch {
+        // retain existing airspaceTraffic state
+      }
+    };
+    pollAirspace();
+    const adsbTimer = setInterval(pollAirspace, 25000);
+    return () => {
+      cancelled = true;
+      clearInterval(adsbTimer);
+    };
+  }, [isSimulated]);
 
   useEffect(() => {
     const handleProviderChange = (e) => {

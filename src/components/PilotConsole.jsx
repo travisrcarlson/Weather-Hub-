@@ -1382,6 +1382,22 @@ Range Safety Officer (RSO):     ______________________  Time: __________
           >
             📊 ENSEMBLE GO {ensembleSpread.currentGoConfidencePct}% (P90G {ensembleSpread.currentGustP90}kph)
           </span>
+          <span
+            className={`px-1.5 py-0.5 rounded text-[8px] font-mono font-black uppercase border shrink-0 ${
+              (airspaceTraffic.activeOverIslandCount || 0) > 0
+                ? 'bg-red-950/80 border-red-500 text-red-300 animate-pulse'
+                : (airspaceTraffic.inboundToIslandCount || 0) > 0
+                ? 'bg-amber-950/70 border-amber-500/50 text-amber-300'
+                : 'bg-emerald-950/60 border-emerald-500/40 text-emerald-300'
+            }`}
+            title={airspaceTraffic.statusHeadline || 'Abu Al Abyad Island Live Overflight Status'}
+          >
+            {(airspaceTraffic.activeOverIslandCount || 0) > 0
+              ? `🚨 OVER ISLAND NOW: ${airspaceTraffic.activeOverIslandCount} (${airspaceTraffic.overIslandFlights?.[0]?.callsign || 'ACFT'})`
+              : (airspaceTraffic.inboundToIslandCount || 0) > 0
+              ? `✈️ INBOUND TO ISLAND: ${airspaceTraffic.inboundFlights?.[0]?.callsign || 'ACFT'} (ETA ~${airspaceTraffic.inboundFlights?.[0]?.etaToIslandMin}m)`
+              : `🟢 OVER ISLAND: 0 LIVE (${airspaceTraffic.totalTracked50nm || 0} IN 50NM)`}
+          </span>
         </div>
 
         {/* Interactive 5-Point RPIC Pre-Flight Checklist */}
@@ -2192,28 +2208,55 @@ Range Safety Officer (RSO):     ______________________  Time: __________
               Updraft: <strong className={aeroPerformance.thermalColor}>{aeroPerformance.thermalRisk}</strong> ({Math.round(solarWm2)} W/m²). FLIR: <strong className="text-purple-300">{aeroPerformance.recommendedFlirPolarity}</strong> • C2 RF: <strong className={aeroPerformance.rfDuctingColor}>{aeroPerformance.rfDuctingStatus}</strong>.
             </p>
 
-            {/* Live ADS-B 50 NM Airspace Deconfliction & NOAA SWPC GNSS Strip */}
+            {/* Live ADS-B Abu Al Abyad Island Overflight & 50 NM Airspace Deconfliction Strip */}
             <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex flex-col space-y-1">
-              <div className="flex items-center justify-between text-[8px]">
+              <div className="flex items-center justify-between text-[8px] gap-1 flex-wrap">
                 <span className="font-black uppercase tracking-wider text-cyan-300">
-                  ✈️ ADS-B 50 NM DECONFLICTION ({airspaceTraffic.totalTracked50nm} TRACKS)
+                  ✈️ ABU AL ABYAD ISLAND OVERFLIGHT &amp; 50 NM ADS-B
                 </span>
                 <span className={`px-1.5 py-0.5 rounded font-mono font-black uppercase border text-[7.5px] ${
-                  airspaceTraffic.deconflictionStatus === 'CLEAR'
-                    ? 'bg-safetyGreen/15 border-safetyGreen/40 text-safetyGreen'
-                    : airspaceTraffic.deconflictionStatus === 'ADVISORY'
+                  (airspaceTraffic.activeOverIslandCount || 0) > 0
+                    ? 'bg-stopRed/25 border-stopRed text-stopRed animate-pulse'
+                    : (airspaceTraffic.inboundToIslandCount || 0) > 0 || airspaceTraffic.deconflictionStatus === 'ADVISORY'
                     ? 'bg-amberAlert/15 border-amberAlert/40 text-amberAlert'
-                    : 'bg-stopRed/20 border-stopRed text-stopRed animate-pulse'
+                    : 'bg-safetyGreen/15 border-safetyGreen/40 text-safetyGreen'
                 }`}>
-                  {airspaceTraffic.deconflictionStatus} • 15NM:{airspaceTraffic.within15nm} | &lt;10K FT:{airspaceTraffic.lowAltitudeCount}
+                  {(airspaceTraffic.activeOverIslandCount || 0) > 0
+                    ? `🚨 ${airspaceTraffic.activeOverIslandCount} OVER ISLAND NOW`
+                    : (airspaceTraffic.inboundToIslandCount || 0) > 0
+                    ? `⚠️ ${airspaceTraffic.inboundToIslandCount} INBOUND TO ISLAND`
+                    : '🟢 0 OVER ISLAND'} • 50NM:{airspaceTraffic.totalTracked50nm}
                 </span>
               </div>
+
+              {/* Explicit Island Overflight Status Line */}
+              <div className={`px-2 py-0.5 text-[7.5px] font-mono font-bold border ${
+                (airspaceTraffic.activeOverIslandCount || 0) > 0
+                  ? 'bg-red-950/50 border-red-500/50 text-red-200'
+                  : (airspaceTraffic.inboundToIslandCount || 0) > 0
+                  ? 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                  : 'bg-slate-950/70 border-slate-800 text-emerald-300'
+              }`}>
+                {airspaceTraffic.statusHeadline || `NO LIVE FLIGHTS OVER ISLAND (${airspaceTraffic.totalTracked50nm || 0} in 50 NM Sector)`}
+              </div>
+
               <div className="grid grid-cols-3 gap-1 text-[7.5px] font-mono">
                 {(airspaceTraffic.contacts || []).slice(0, 3).map((ac, idx) => (
-                  <div key={`${ac.callsign}-${idx}`} className="bg-slate-950/80 border border-slate-800/80 px-1.5 py-0.5 flex items-center justify-between">
+                  <div
+                    key={`${ac.callsign}-${idx}`}
+                    className={`px-1.5 py-0.5 flex items-center justify-between border ${
+                      ac.isOverIsland
+                        ? 'bg-red-950/70 border-red-500 text-white'
+                        : ac.isInboundToIsland
+                        ? 'bg-amber-950/50 border-amber-500/50 text-white'
+                        : 'bg-slate-950/80 border-slate-800/80'
+                    }`}
+                  >
                     <span className="font-black text-white truncate">{ac.callsign}</span>
-                    <span className="text-cyan-300">{ac.distanceNm}NM</span>
-                    <span className="text-slate-400">{Math.round((ac.altitudeFt || 0) / 1000)}k ft</span>
+                    <span className={ac.isOverIsland ? 'text-red-300 font-black' : ac.isInboundToIsland ? 'text-amber-300 font-black' : 'text-cyan-300'}>
+                      {ac.isOverIsland ? 'OVER ISL' : ac.isInboundToIsland ? `ETA ${ac.etaToIslandMin}m` : `${ac.distanceNm}NM`}
+                    </span>
+                    <span className="text-slate-300">{Math.round((ac.altitudeFt || 0) / 1000)}k ft</span>
                   </div>
                 ))}
               </div>

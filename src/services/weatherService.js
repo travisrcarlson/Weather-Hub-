@@ -1747,6 +1747,206 @@ function angularDiffDeg(a, b) {
   return Math.round(Math.abs(diff));
 }
 
+// Abu Al Abyad Island Exact Geofence Polygon / Bounding Box (24.10°N–24.31°N, 53.65°E–54.02°E)
+const ISLAND_GEOFENCE = {
+  latMin: 24.10,
+  latMax: 24.31,
+  lonMin: 53.65,
+  lonMax: 54.02,
+  coreRadiusNm: 9.5
+};
+
+function evaluateIslandOverflightForContact(contact) {
+  const { lat, lon, distanceNm, bearingDeg, headingDeg, speedKt, altitudeFt } = contact;
+  const inBoundingBox =
+    typeof lat === 'number' &&
+    typeof lon === 'number' &&
+    lat >= ISLAND_GEOFENCE.latMin &&
+    lat <= ISLAND_GEOFENCE.latMax &&
+    lon >= ISLAND_GEOFENCE.lonMin &&
+    lon <= ISLAND_GEOFENCE.lonMax;
+
+  const isOverIsland = (inBoundingBox || distanceNm <= ISLAND_GEOFENCE.coreRadiusNm) && altitudeFt > 50;
+
+  let islandSector = null;
+  if (isOverIsland) {
+    if (lon < 53.79) {
+      islandSector = 'OVER SOUTH / WEST ISLAND';
+    } else if (lat > 24.225) {
+      islandSector = 'OVER NORTH RANGE & SEA SPIT';
+    } else {
+      islandSector = 'OVER HQ & CENTRAL ISLAND';
+    }
+  }
+
+  // Bearing FROM the aircraft TO Abu Al Abyad Island center
+  const bearingToIslandDeg = (bearingDeg + 180) % 360;
+  const trackAlignmentDeg = angularDiffDeg(headingDeg || 0, bearingToIslandDeg);
+  const isInboundToIsland =
+    !isOverIsland &&
+    distanceNm <= 45 &&
+    speedKt >= 60 &&
+    altitudeFt > 100 &&
+    trackAlignmentDeg <= 22;
+
+  const etaToIslandMin = isInboundToIsland
+    ? Math.max(1, Math.round((Math.max(0.5, distanceNm - 8.5) / Math.max(60, speedKt)) * 60))
+    : null;
+
+  return {
+    ...contact,
+    isOverIsland,
+    islandSector,
+    isInboundToIsland,
+    etaToIslandMin,
+    trackAlignmentDeg
+  };
+}
+
+function summarizeIslandOverflights(contacts, totalTracked50nm) {
+  const enriched = contacts.map(evaluateIslandOverflightForContact);
+  const overIslandFlights = enriched.filter(c => c.isOverIsland);
+  const inboundFlights = enriched.filter(c => c.isInboundToIsland);
+  const within15nm = enriched.filter(c => c.distanceNm <= 15).length;
+  const within30nm = enriched.filter(c => c.distanceNm <= 30).length;
+  const lowAltitudeCount = enriched.filter(c => c.altitudeFt > 0 && c.altitudeFt <= 10000).length;
+
+  let islandStatus = 'ISLAND AIRSPACE CLEAR';
+  let deconflictionStatus = 'CLEAR';
+  let statusHeadline = `NO LIVE FLIGHTS OVER ISLAND (${totalTracked50nm} in 50 NM Sector)`;
+
+  if (overIslandFlights.length > 0) {
+    const primary = overIslandFlights[0];
+    islandStatus = 'OVERFLIGHT ACTIVE';
+    deconflictionStatus = primary.altitudeFt <= 12000 ? 'OVERFLIGHT ALERT' : 'OVERFLIGHT ACTIVE';
+    statusHeadline = `${overIslandFlights.length} LIVE FLIGHT${overIslandFlights.length > 1 ? 'S' : ''} OVER ISLAND: ${primary.callsign} (${primary.altitudeFt.toLocaleString()} ft • ${primary.speedKt} kt • ${primary.islandSector})`;
+  } else if (inboundFlights.length > 0) {
+    const nextIn = inboundFlights[0];
+    islandStatus = 'INBOUND TO ISLAND';
+    deconflictionStatus = 'ADVISORY';
+    statusHeadline = `INBOUND TO ISLAND: ${nextIn.callsign} (${nextIn.distanceNm} NM out • ETA ~${nextIn.etaToIslandMin}m • ${nextIn.altitudeFt.toLocaleString()} ft)`;
+  } else if (within15nm > 0 && lowAltitudeCount > 0) {
+    deconflictionStatus = 'PROXIMITY ALERT';
+  } else if (within30nm > 0 && lowAltitudeCount > 0) {
+    deconflictionStatus = 'ADVISORY';
+  }
+
+  return {
+    totalTracked50nm,
+    within15nm,
+    within30nm,
+    within50nm: totalTracked50nm,
+    lowAltitudeCount,
+    deconflictionStatus,
+    islandStatus,
+    activeOverIslandCount: overIslandFlights.length,
+    inboundToIslandCount: inboundFlights.length,
+    overIslandFlights,
+    inboundFlights,
+    statusHeadline,
+    closestAircraft: enriched[0] || null,
+    contacts: enriched,
+    lastPolledAt: new Date().toISOString(),
+    source: 'Live ADS-B Abu Al Abyad Island Overflight & 50 NM Deconfliction'
+  };
+}
+
+export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraffic = null, nowIso = new Date().toISOString()) {
+  if (isSimulated) {
+    const simData = summarizeIslandOverflights([
+      { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 128, headingDeg: 265, distanceNm: 3.2, bearingDeg: 85, lat: 24.201, lon: 53.91, category: 'Offshore Rotorcraft' },
+      { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 11800, speedKt: 320, headingDeg: 254, distanceNm: 16.4, bearingDeg: 74, lat: 24.27, lon: 54.14, category: 'Commercial' },
+      { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 290, distanceNm: 34.2, bearingDeg: 145, lat: 23.72, lon: 54.21, category: 'Heavy Transit' }
+    ], 3);
+    return {
+      data: simData,
+      meta: {
+        url: 'sim://adsb-island-overflight-test',
+        status: 'SIMULATED',
+        statusCode: 200,
+        latency: 4,
+        lastPing: nowIso,
+        payload: simData
+      }
+    };
+  }
+
+  const t0 = performance.now();
+  let rawAircraft = [];
+  let endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
+  try {
+    const res = await axios.get(endpointUsed, { timeout: 5000 });
+    rawAircraft = Array.isArray(res.data?.ac) ? res.data.ac : [];
+  } catch {
+    endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
+    const osRes = await axios.get(endpointUsed, { timeout: 5000 });
+    const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
+    rawAircraft = states.map(s => ({
+      hex: s[0],
+      flight: (s[1] || '').trim() || 'UNKN',
+      lon: s[5],
+      lat: s[6],
+      alt_baro: s[4] && s[8] === true ? 'ground' : (s[7] ? Math.round(s[7] * 3.28084) : 15000),
+      gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
+      track: s[10] ? Math.round(s[10]) : 0
+    }));
+  }
+  const latency = Math.round(performance.now() - t0);
+
+  const parsedContacts = rawAircraft
+    .filter(ac => {
+      if (typeof ac.lat !== 'number' || typeof ac.lon !== 'number') return false;
+      if (ac.alt_baro === 'ground' || ac.type === 'adsb_icao_nt' || ac.r === 'TWR') return false;
+      const alt = typeof ac.alt_baro === 'number' ? ac.alt_baro : 0;
+      return alt > 100;
+    })
+    .map(ac => {
+      const { distanceNm, bearingDeg } = computeHaversineNmAndBearing(LAT, LON, ac.lat, ac.lon);
+      const altFt = typeof ac.alt_baro === 'number' ? Math.max(0, Math.round(ac.alt_baro)) : 0;
+      const speedKt = typeof ac.gs === 'number' ? Math.round(ac.gs) : 240;
+      const callsign = String(ac.flight || ac.r || ac.hex || 'CONTACT').trim().toUpperCase();
+      return {
+        callsign,
+        hex: String(ac.hex || '').toUpperCase(),
+        aircraftType: String(ac.t || 'ACFT').toUpperCase(),
+        altitudeFt: altFt,
+        speedKt,
+        headingDeg: Math.round(ac.track ?? ac.true_heading ?? ac.calc_track ?? 0),
+        distanceNm,
+        bearingDeg,
+        lat: ac.lat,
+        lon: ac.lon,
+        category: altFt < 5000 ? 'Low-Level / Rotorcraft' : altFt < 18000 ? 'Regional Approach' : 'High-Altitude Airway'
+      };
+    })
+    .filter(c => c.distanceNm <= 50)
+    .sort((a, b) => a.distanceNm - b.distanceNm);
+
+  const fallbackContacts = fallbackTraffic?.contacts || [];
+  const contactsToUse = parsedContacts.length > 0 ? parsedContacts.slice(0, 8) : fallbackContacts;
+  const totalCount = parsedContacts.length > 0 ? parsedContacts.length : (fallbackTraffic?.totalTracked50nm ?? contactsToUse.length);
+  const summaryData = summarizeIslandOverflights(contactsToUse, totalCount);
+
+  return {
+    data: summaryData,
+    meta: {
+      url: endpointUsed,
+      status: 'OK',
+      statusCode: 200,
+      latency,
+      lastPing: nowIso,
+      payload: {
+        islandStatus: summaryData.islandStatus,
+        activeOverIslandCount: summaryData.activeOverIslandCount,
+        inboundToIslandCount: summaryData.inboundToIslandCount,
+        statusHeadline: summaryData.statusHeadline,
+        totalTracked50nm: summaryData.totalTracked50nm,
+        closestAircraft: summaryData.closestAircraft
+      }
+    }
+  };
+}
+
 export function buildDefaultAuxiliaryTacticalData(current = {}) {
   const surfWind = Number(current.wind_speed_10m ?? 18);
   const surfDir = Number(current.wind_direction_10m ?? 295);
@@ -1844,31 +2044,12 @@ export function buildDefaultAuxiliaryTacticalData(current = {}) {
       layerWeightedDriftMultiplier: 1.38,
       source: 'Open-Meteo Upper-Air Pressure Levels (975–700 hPa)'
     },
-    airspaceTraffic: {
-      totalTracked50nm: 4,
-      within15nm: 0,
-      within30nm: 2,
-      within50nm: 4,
-      lowAltitudeCount: 1,
-      deconflictionStatus: 'CLEAR',
-      closestAircraft: {
-        callsign: 'ETD402',
-        hex: '8964A1',
-        altitudeFt: 18400,
-        speedKt: 365,
-        headingDeg: 112,
-        distanceNm: 21.4,
-        bearingDeg: 74,
-        category: 'Commercial Transit'
-      },
-      contacts: [
-        { callsign: 'ETD402', hex: '8964A1', altitudeFt: 18400, speedKt: 365, headingDeg: 112, distanceNm: 21.4, bearingDeg: 74, lat: 24.29, lon: 54.23, category: 'Commercial' },
-        { callsign: 'ADA71', hex: '8961C2', altitudeFt: 2400, speedKt: 128, headingDeg: 265, distanceNm: 26.8, bearingDeg: 108, lat: 24.05, lon: 54.32, category: 'Offshore Rotorcraft' },
-        { callsign: 'UAE815', hex: '896319', altitudeFt: 32000, speedKt: 455, headingDeg: 290, distanceNm: 34.2, bearingDeg: 145, lat: 23.72, lon: 54.21, category: 'Heavy Transit' },
-        { callsign: 'QTR104', hex: '06A122', altitudeFt: 28500, speedKt: 430, headingDeg: 305, distanceNm: 41.6, bearingDeg: 315, lat: 24.68, lon: 53.32, category: 'Commercial' }
-      ],
-      source: 'ADS-B Regional 50 NM Deconfliction Feed'
-    },
+    airspaceTraffic: summarizeIslandOverflights([
+      { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 18400, speedKt: 365, headingDeg: 254, distanceNm: 21.4, bearingDeg: 74, lat: 24.29, lon: 54.23, category: 'Commercial' },
+      { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 128, headingDeg: 265, distanceNm: 26.8, bearingDeg: 108, lat: 24.05, lon: 54.32, category: 'Offshore Rotorcraft' },
+      { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 290, distanceNm: 34.2, bearingDeg: 145, lat: 23.72, lon: 54.21, category: 'Heavy Transit' },
+      { callsign: 'QTR104', hex: '06A122', aircraftType: 'A359', altitudeFt: 28500, speedKt: 430, headingDeg: 305, distanceNm: 41.6, bearingDeg: 315, lat: 24.68, lon: 53.32, category: 'Commercial' }
+    ], 4),
     ensembleSpread: {
       modelName: 'ICON-EPS 40-Member Ensemble',
       memberCount: 40,
@@ -2037,83 +2218,8 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
     };
   })();
 
-  // 3. Live ADS-B Regional Airspace Deconfliction (50 NM around Abu Al Abyad)
-  const adsbPromise = (async () => {
-    const t0 = performance.now();
-    let rawAircraft = [];
-    let endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
-    try {
-      const res = await axios.get(endpointUsed, { timeout: 5000 });
-      rawAircraft = Array.isArray(res.data?.ac) ? res.data.ac : [];
-    } catch {
-      endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
-      const osRes = await axios.get(endpointUsed, { timeout: 5000 });
-      const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
-      rawAircraft = states.map(s => ({
-        hex: s[0],
-        flight: (s[1] || '').trim() || 'UNKN',
-        lon: s[5],
-        lat: s[6],
-        alt_baro: s[7] ? Math.round(s[7] * 3.28084) : 15000,
-        gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
-        track: s[10] ? Math.round(s[10]) : 0
-      }));
-    }
-    const latency = Math.round(performance.now() - t0);
-
-    const parsedContacts = rawAircraft
-      .filter(ac => typeof ac.lat === 'number' && typeof ac.lon === 'number')
-      .map(ac => {
-        const { distanceNm, bearingDeg } = computeHaversineNmAndBearing(LAT, LON, ac.lat, ac.lon);
-        const altFt = typeof ac.alt_baro === 'number' ? Math.max(0, Math.round(ac.alt_baro)) : 0;
-        const speedKt = typeof ac.gs === 'number' ? Math.round(ac.gs) : 240;
-        const callsign = String(ac.flight || ac.r || ac.hex || 'CONTACT').trim().toUpperCase();
-        return {
-          callsign,
-          hex: String(ac.hex || '').toUpperCase(),
-          altitudeFt: altFt,
-          speedKt,
-          headingDeg: Math.round(ac.track || 0),
-          distanceNm,
-          bearingDeg,
-          lat: ac.lat,
-          lon: ac.lon,
-          category: altFt < 5000 ? 'Low-Level / Rotorcraft' : altFt < 18000 ? 'Regional Approach' : 'High-Altitude Airway'
-        };
-      })
-      .filter(c => c.distanceNm <= 50)
-      .sort((a, b) => a.distanceNm - b.distanceNm);
-
-    const contacts = parsedContacts.length > 0 ? parsedContacts.slice(0, 6) : defaults.airspaceTraffic.contacts;
-    const within15nm = parsedContacts.filter(c => c.distanceNm <= 15).length;
-    const within30nm = parsedContacts.filter(c => c.distanceNm <= 30).length;
-    const totalTracked50nm = parsedContacts.length > 0 ? parsedContacts.length : defaults.airspaceTraffic.totalTracked50nm;
-    const lowAltitudeCount = contacts.filter(c => c.altitudeFt > 0 && c.altitudeFt <= 10000).length;
-    const hasLowIntruder = contacts.some(c => c.distanceNm <= 15 && c.altitudeFt <= 10000);
-    const deconflictionStatus = hasLowIntruder ? 'PROXIMITY ALERT' : within30nm > 0 && lowAltitudeCount > 0 ? 'ADVISORY' : 'CLEAR';
-
-    return {
-      data: {
-        totalTracked50nm,
-        within15nm,
-        within30nm,
-        within50nm: totalTracked50nm,
-        lowAltitudeCount,
-        deconflictionStatus,
-        closestAircraft: contacts[0] || defaults.airspaceTraffic.closestAircraft,
-        contacts,
-        source: 'Live ADS-B 50 NM Airspace Deconfliction'
-      },
-      meta: {
-        url: endpointUsed,
-        status: 'OK',
-        statusCode: 200,
-        latency,
-        lastPing: nowIso,
-        payload: { totalTracked50nm, within15nm, within30nm, lowAltitudeCount, deconflictionStatus, closestAircraft: contacts[0] }
-      }
-    };
-  })();
+  // 3. Live ADS-B Regional Airspace Deconfliction & Abu Al Abyad Island Overflight Detector
+  const adsbPromise = fetchLiveAirspaceTraffic(false, defaults.airspaceTraffic, nowIso);
 
   // 4. Open-Meteo Multi-Member Ensemble Spread (ICON-EPS)
   const ensemblePromise = (async () => {

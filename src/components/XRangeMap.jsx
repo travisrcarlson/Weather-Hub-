@@ -451,28 +451,55 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         />
       )}
 
-      {/* Live ADS-B 50 NM Regional Airspace Traffic Contacts */}
+      {/* Live ADS-B Abu Al Abyad Island Overflight & 50 NM Regional Airspace Contacts */}
       {(activeLayer === 'adsb' || activeLayer === 'all') && Array.isArray(apiData?.airspaceTraffic?.contacts) && (
         <g className="pointer-events-none">
           {apiData.airspaceTraffic.contacts.slice(0, 4).map((ac, idx) => {
             const rad = ((ac.bearingDeg - 90) * Math.PI) / 180;
-            const distScale = Math.min(72, Math.max(22, (ac.distanceNm / 50) * 78));
-            const ax = Math.max(55, Math.min(445, 290 + Math.cos(rad) * distScale * 1.4));
+            const distScale = ac.isOverIsland
+              ? Math.min(24, Math.max(4, (ac.distanceNm / 9.5) * 24))
+              : Math.min(72, Math.max(26, (ac.distanceNm / 50) * 78));
+            const ax = Math.max(55, Math.min(418, 290 + Math.cos(rad) * distScale * 1.4));
             const ay = Math.max(72, Math.min(225, 155 + Math.sin(rad) * distScale * 0.75));
+            const trackRad = (((ac.headingDeg || 0) - 90) * Math.PI) / 180;
+            const vx = Math.cos(trackRad) * 26;
+            const vy = Math.sin(trackRad) * 26;
+            const badgeColor = ac.isOverIsland ? '#ef4444' : ac.isInboundToIsland ? '#f59e0b' : '#0891b2';
+            const textColor = ac.isOverIsland ? '#fca5a5' : ac.isInboundToIsland ? '#fcd34d' : '#67e8f9';
+
             return (
               <g key={`adsb-${ac.callsign}-${idx}`} transform={`translate(${ax}, ${ay})`}>
-                <circle cx="0" cy="0" r="4.5" fill="#06b6d4" fillOpacity="0.18" stroke="#22d3ee" strokeWidth="0.6" />
+                {/* Projected Flight Track Vector Line */}
+                {(ac.isOverIsland || ac.isInboundToIsland || activeLayer === 'adsb') && (
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2={vx}
+                    y2={vy}
+                    stroke={badgeColor}
+                    strokeWidth="0.65"
+                    strokeDasharray="1.8,1.8"
+                    opacity="0.85"
+                  />
+                )}
+                {ac.isOverIsland && (
+                  <circle cx="0" cy="0" r="8" fill="none" stroke="#ef4444" strokeWidth="0.7" opacity="0.75">
+                    <animate attributeName="r" values="4;11" dur="1.6s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" values="0.85;0" dur="1.6s" repeatCount="indefinite" />
+                  </circle>
+                )}
+                <circle cx="0" cy="0" r="4.5" fill={badgeColor} fillOpacity="0.22" stroke={badgeColor} strokeWidth="0.65" />
                 <polygon
-                  points="0,-3.2 2.4,2.6 0,1.2 -2.4,2.6"
-                  fill="#22d3ee"
+                  points="0,-3.4 2.5,2.6 0,1.2 -2.5,2.6"
+                  fill={textColor}
                   transform={`rotate(${ac.headingDeg || 0})`}
                 />
-                <rect x="5" y="-5" width="38" height="9.5" fill="#020617" fillOpacity="0.88" stroke="#0891b2" strokeWidth="0.4" />
-                <text x="6.5" y="-0.8" fill="#67e8f9" fontSize="3.2" fontWeight="bold" fontFamily="monospace">
-                  {ac.callsign}
+                <rect x="5.5" y="-5.5" width="48" height="10.5" fill="#020617" fillOpacity="0.92" stroke={badgeColor} strokeWidth="0.45" />
+                <text x="7" y="-1" fill={textColor} fontSize="3.1" fontWeight="bold" fontFamily="monospace">
+                  {ac.callsign} {ac.isOverIsland ? '• OVER ISL' : ac.isInboundToIsland ? `• ETA ${ac.etaToIslandMin}m` : ''}
                 </text>
-                <text x="6.5" y="2.8" fill="#cbd5e1" fontSize="2.6" fontFamily="monospace">
-                  {Math.round((ac.altitudeFt || 0) / 1000)}k ft • {ac.distanceNm}NM
+                <text x="7" y="2.8" fill="#e2e8f0" fontSize="2.55" fontFamily="monospace">
+                  {Math.round((ac.altitudeFt || 0) / 1000)}k ft • {ac.speedKt}kt • {ac.distanceNm}NM
                 </text>
               </g>
             );
@@ -1114,12 +1141,26 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                   className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
                     activeLayer === 'adsb'
                       ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 shadow-inner'
+                      : (apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+                      ? 'bg-red-950/70 text-red-300 border border-red-500/50 animate-pulse'
                       : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                   }`}
-                  title="Live ADS-B 50 NM Airspace Deconfliction Overlay"
+                  title={apiData?.airspaceTraffic?.statusHeadline || 'Live ADS-B Abu Al Abyad Island Overflight & 50 NM Deconfliction'}
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                  <span>ADS-B ({apiData?.airspaceTraffic?.totalTracked50nm ?? 4})</span>
+                  <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
+                    (apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+                      ? 'bg-red-500'
+                      : (apiData?.airspaceTraffic?.inboundToIslandCount || 0) > 0
+                      ? 'bg-amber-400'
+                      : 'bg-cyan-400'
+                  }`} />
+                  <span>
+                    {(apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+                      ? `ADS-B • ${apiData.airspaceTraffic.activeOverIslandCount} OVER ISLAND`
+                      : (apiData?.airspaceTraffic?.inboundToIslandCount || 0) > 0
+                      ? `ADS-B • ${apiData.airspaceTraffic.inboundToIslandCount} INBOUND`
+                      : `ADS-B • 0 Over Island (${apiData?.airspaceTraffic?.totalTracked50nm ?? 0})`}
+                  </span>
                 </button>
               </div>
 
