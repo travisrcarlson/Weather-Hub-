@@ -357,7 +357,7 @@ export default function App() {
   useEffect(() => {
     const timer = setInterval(() => {
       setSystemTime(new Date());
-    }, 10000);
+    }, 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -374,7 +374,9 @@ export default function App() {
     return () => clearInterval(rotationTimer);
   }, [activeStation, isAutoRotateStations]);
 
-  const activeTime = isSimulated ? new Date('2026-06-15T11:30:00') : systemTime;
+  const activeTime = isSimulated
+    ? new Date(new Date('2026-06-15T11:30:00').getTime() + (systemTime.getSeconds() * 1000))
+    : systemTime;
 
   const loadData = async () => {
     try {

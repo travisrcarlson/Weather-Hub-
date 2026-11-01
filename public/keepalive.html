@@ -28,26 +28,8 @@
   <script>
     (function () {
       var params = new URLSearchParams(window.location.search);
-      var isBounce = params.get('bounce') === '1';
-      if (isBounce) {
-        // Mount a 100% opaque, zero-OSD, full-viewport hardware H.264+AAC video
-        // to force LG webOS out of Type-2 (Video+OSD 30-min cap) into Type-1 (Pure Fullscreen Video)
-        var v = document.createElement('video');
-        v.src = 'tv-keepawake-motion.mp4?t=' + Date.now();
-        v.muted = true;
-        v.autoplay = true;
-        v.loop = true;
-        v.playsInline = true;
-        v.setAttribute('playsinline', '');
-        v.setAttribute('webkit-playsinline', '');
-        document.body.appendChild(v);
-        var p = v.play();
-        if (p && p.catch) p.catch(function () {});
-
-        // Return to the main X-Range dashboard after 4.5 seconds of pure Type-1 hardware video playback
-        setTimeout(function () {
-          window.location.replace('./?reset=' + Date.now());
-        }, 4500);
+      if (params.get('bounce') === '1') {
+        window.location.replace('./?reset=' + Date.now());
       } else {
         document.title = 'keepalive-' + Date.now();
       }

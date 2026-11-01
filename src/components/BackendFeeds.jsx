@@ -272,6 +272,86 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
       ]
     },
     {
+      id: 'swpc',
+      name: 'NOAA SWPC Space Weather & GNSS Scintillation API',
+      url: feeds.swpc?.url || 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
+      description: 'Ingests live Planetary Kp Geomagnetic Index and NOAA R/S/G Space Weather Scales to monitor UAV GNSS/RTK dilution and C2 datalink stability ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.swpc?.statusCode || 200,
+      latency: isOffline ? null : (feeds.swpc?.latency || 88),
+      lastPing: feeds.swpc?.lastPing || new Date().toISOString(),
+      payload: feeds.swpc?.payload || apiData?.spaceWeather || null,
+      calibrationTitle: 'UAV GNSS / RTK & C2 Datalink Integrity Gate',
+      calibration: [
+        '🛰️ Live Planetary Kp & R/S/G Scales: Monitors ionospheric scintillation and geomagnetic storms impacting Abu Al Abyad BVLOS drone corridors.',
+        '🧭 Magnetometer & RTK Dilution: Estimates horizontal RTK centimeter error and flags mandatory UAV compass recalibration when Kp ≥ 5.'
+      ]
+    },
+    {
+      id: 'upperAir',
+      name: 'Open-Meteo Upper-Air Pressure Levels API (975–700 hPa)',
+      url: feeds.upperAir?.url || 'https://api.open-meteo.com/v1/forecast?hourly=wind_speed_975hPa..700hPa',
+      description: 'Fetches multi-altitude wind speed, wind direction, and temperature across 300m (975 hPa), 750m (925 hPa), 1,500m (850 hPa), and 3,000m (700 hPa) ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.upperAir?.statusCode || 200,
+      latency: isOffline ? null : (feeds.upperAir?.latency || 112),
+      lastPing: feeds.upperAir?.lastPing || new Date().toISOString(),
+      payload: feeds.upperAir?.payload || apiData?.upperAirProfile || null,
+      calibrationTitle: 'Multi-Altitude Wind Shear & Parachute Drift Profile',
+      calibration: [
+        '🌬️ Persian Gulf Sea-Breeze Return Flow: Detects directional wind twist (degrees) between 10m surface and 1,500m (850 hPa).',
+        '🪂 ISO 21384-3 Upper-Air Parachute Drift: Feeds multi-layer wind vectors into the UAV Parachute Recovery System (PRS) ballistic drift resolver.'
+      ]
+    },
+    {
+      id: 'adsb',
+      name: 'Live ADS-B Regional Airspace Deconfliction API (50 NM)',
+      url: feeds.adsb?.url || 'https://api.adsb.lol/v2/point/24.195/53.860/50',
+      description: 'Tracks real-time ADS-B aircraft state vectors within a 50 NM radius of Abu Al Abyad (24.195°N, 53.860°E) with OpenSky Network fallback ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.adsb?.statusCode || 200,
+      latency: isOffline ? null : (feeds.adsb?.latency || 134),
+      lastPing: feeds.adsb?.lastPing || new Date().toISOString(),
+      payload: feeds.adsb?.payload || apiData?.airspaceTraffic || null,
+      calibrationTitle: '50 NM Airspace Intruder & TFR Proximity Matrix',
+      calibration: [
+        '✈️ 15 NM / 30 NM / 50 NM Rings: Computes Haversine distance and true bearing from X-Range HQ to every active transponder in the sector.',
+        '🚨 Low-Altitude Rotorcraft Gate: Triggers PROXIMITY ALERT when manned traffic enters within 15 NM below 10,000 ft MSL.'
+      ]
+    },
+    {
+      id: 'ensemble',
+      name: 'Open-Meteo ICON-EPS 40-Member Ensemble API',
+      url: feeds.ensemble?.url || 'https://ensemble-api.open-meteo.com/v1/ensemble?models=icon_seamless',
+      description: 'Queries 40-member ensemble forecast perturbations to compute P10 / P50 / P90 wind and gust confidence intervals and Go-Window probabilities ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.ensemble?.statusCode || 200,
+      latency: isOffline ? null : (feeds.ensemble?.latency || 148),
+      lastPing: feeds.ensemble?.lastPing || new Date().toISOString(),
+      payload: feeds.ensemble?.payload || apiData?.ensembleSpread || null,
+      calibrationTitle: 'ISO 42001 Probabilistic Uncertainty Quantification',
+      calibration: [
+        '📊 P10 / P50 / P90 Spread: Quantifies atmospheric model uncertainty across all ensemble members for surface wind and gust peaks.',
+        '🎯 Go-Window Agreement (%): Calculates the exact percentage of ensemble members satisfying X-Range green/amber safety gates.'
+      ]
+    },
+    {
+      id: 'rainviewer',
+      name: 'RainViewer Global Doppler Weather Radar API',
+      url: feeds.rainviewer?.url || 'https://api.rainviewer.com/public/weather-maps.json',
+      description: 'Provides live composite Doppler precipitation radar timestamps, Web Mercator slippy-map reflectivity tiles, and Arabian Gulf storm nowcast frames ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.rainviewer?.statusCode || 200,
+      latency: isOffline ? null : (feeds.rainviewer?.latency || 76),
+      lastPing: feeds.rainviewer?.lastPing || new Date().toISOString(),
+      payload: feeds.rainviewer?.payload || apiData?.radarNowcast || null,
+      calibrationTitle: 'Live Doppler Reflectivity & Squall Nowcast Overlay',
+      calibration: [
+        '🌧️ Live Radar Tile Composite: Feeds real-time Web Mercator Doppler reflectivity tiles directly onto the interactive 4-sector range map.',
+        '⚡ Convective Squall Tracking: Tracks offshore Arabian Gulf precipitation echoes approaching the Sea Boundary and HQ sectors.'
+      ]
+    },
+    {
       id: 'ncm',
       name: 'UAE NCM Operational Forecast API',
       url: 'https://api.ncm.gov.ae/v1/forecast',

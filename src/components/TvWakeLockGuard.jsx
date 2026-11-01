@@ -30,19 +30,15 @@ import React, { useEffect, useRef, useState } from 'react';
 export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
   const bgVideoRef = useRef(null);
   const fgVideoRef = useRef(null);
-  const resetVideoRef = useRef(null);
   const audioCtxRef = useRef(null);
   const [iframeTick, setIframeTick] = useState(() => Date.now());
-  const [isType1ResetActive, setIsType1ResetActive] = useState(false);
-  const [resetCycleKey, setResetCycleKey] = useState(0);
 
   const baseUrl = import.meta.env.BASE_URL || '/';
-  const motionMp4Url = `${baseUrl}tv-keepawake-motion.mp4`;
   const fallbackMp4Url = `${baseUrl}tv-keepawake.mp4`;
   const fallbackWebmUrl = `${baseUrl}tv-keepawake.webm`;
   const keepAliveHtmlUrl = `${baseUrl}keepalive.html?t=${iframeTick}`;
 
-  // Seamless loop handler so LG StarfishMedia hardware decoder never reaches EOS
+  // Seamless loop handler so hardware decoder never reaches EOS
   const handleTimeUpdate = (e) => {
     const vid = e.currentTarget;
     if (vid && vid.duration && vid.currentTime > vid.duration - 0.85) {
@@ -59,7 +55,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
     if (!enabled) return;
 
     const ensureVideosPlaying = () => {
-      [bgVideoRef.current, fgVideoRef.current, resetVideoRef.current].forEach((vid) => {
+      [bgVideoRef.current, fgVideoRef.current].forEach((vid) => {
         if (!vid) return;
         if (vid.paused || vid.ended) {
           vid.play().catch(() => {});
@@ -78,7 +74,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
       }
     };
 
-    // Unlock unmuted hardware audio+video pipeline & request native Fullscreen on user click/keypress
+    // Unlock unmuted hardware audio+video pipeline on user click/keypress
     const handleUserGesture = () => {
       tryWakeLockNonBlocking();
       [bgVideoRef.current, fgVideoRef.current].forEach((vid) => {
@@ -141,30 +137,12 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
       }
     }, 35000);
 
-    // Every 8 minutes (480,000 ms): Trigger a 4.5-second Zero-OSD Type-1 Fullscreen Video Reset
-    // Hides all DOM/OSD elements and plays a single 100% opaque fullscreen <video> so LG webOS
-    // exits Type-2 (Video+OSD 30-min cap) and resets the 30-minute countdown back to 0:00.
-    let resetTimeoutId = null;
-    const type1ResetWatchdog = setInterval(() => {
-      setResetCycleKey((prev) => prev + 1);
-      setIsType1ResetActive(true);
-      if (resetTimeoutId) clearTimeout(resetTimeoutId);
-      resetTimeoutId = setTimeout(() => {
-        setIsType1ResetActive(false);
-      }, 4500);
-    }, 8 * 60 * 1000);
-
-    // Every 14 minutes (840,000 ms): Bounce top window through `keepalive.html?bounce=1`
-    // (a pure zero-OSD 100%-opaque fullscreen video page) for 4.5s and return to `./`
-    let bounceWatchdog = null;
+    // Optional clean instant refresh every 25 minutes (no holding video screen)
+    let reloadWatchdog = null;
     if (autoReload) {
-      bounceWatchdog = setInterval(() => {
-        try {
-          window.location.replace(`${baseUrl}keepalive.html?bounce=1&t=${Date.now()}`);
-        } catch (_e) {
-          window.location.reload();
-        }
-      }, 14 * 60 * 1000);
+      reloadWatchdog = setInterval(() => {
+        window.location.reload();
+      }, 25 * 60 * 1000);
     }
 
     const handleVisibilityChange = () => {
@@ -182,9 +160,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
     return () => {
       clearInterval(videoWatchdog);
       clearInterval(navWatchdog);
-      clearInterval(type1ResetWatchdog);
-      if (resetTimeoutId) clearTimeout(resetTimeoutId);
-      if (bounceWatchdog) clearInterval(bounceWatchdog);
+      if (reloadWatchdog) clearInterval(reloadWatchdog);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('click', handleUserGesture);
       window.removeEventListener('keydown', handleUserGesture);
@@ -196,44 +172,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
 
   return (
     <>
-      {/* During the 4.5s Type-1 Fullscreen Video Reset every 8 minutes, hide all OSD/DOM elements
-          so Chromium submits ONLY the 100% opaque full-viewport hardware video plane to webOS */}
-      {isType1ResetActive && (
-        <>
-          <style>{`
-            body > #root > div > *:not(#tv-type1-reset-video) {
-              visibility: hidden !important;
-            }
-          `}</style>
-          <video
-            id="tv-type1-reset-video"
-            key={`type1-reset-${resetCycleKey}`}
-            ref={resetVideoRef}
-            muted
-            loop
-            playsInline
-            autoPlay
-            preload="auto"
-            onTimeUpdate={handleTimeUpdate}
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              backgroundColor: '#000000',
-              zIndex: 2147483647
-            }}
-          >
-            <source src={`${motionMp4Url}?cycle=${resetCycleKey}`} type="video/mp4" />
-            <source src={fallbackMp4Url} type="video/mp4" />
-          </video>
-        </>
-      )}
-
-      {/* Layer 1A: 100% Opaque (NO CSS opacity/transform/border!) Full-Viewport Black H.264+AAC Video
-          Satisfies LG webOS's requirement that fullscreen video elements have no partial opacity */}
+      {/* Layer 1A: Invisible Full-Viewport Black H.264+AAC Video behind dashboard (zIndex: 0) */}
       <video
         ref={bgVideoRef}
         muted
@@ -241,6 +180,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
         playsInline
         autoPlay
         preload="auto"
+        onTimeUpdate={handleTimeUpdate}
         aria-hidden="true"
         style={{
           position: 'fixed',
@@ -257,11 +197,11 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
         <source src={fallbackWebmUrl} type="video/webm" />
       </video>
 
-      {/* Layer 1B: Continuous Hardware H.264+AAC Motion Stream */}
+      {/* Layer 1B: Tiny 2x2 Invisible Corner Keep-Awake Video */}
       <video
         ref={fgVideoRef}
-        width={320}
-        height={180}
+        width={2}
+        height={2}
         muted
         loop
         playsInline
@@ -273,14 +213,13 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
           position: 'fixed',
           bottom: 0,
           right: 0,
-          width: '320px',
-          height: '180px',
-          opacity: 0.015,
+          width: '2px',
+          height: '2px',
+          opacity: 0.01,
           pointerEvents: 'none',
-          zIndex: 9999
+          zIndex: 0
         }}
       >
-        <source src={motionMp4Url} type="video/mp4" />
         <source src={fallbackMp4Url} type="video/mp4" />
         <source src={fallbackWebmUrl} type="video/webm" />
       </video>

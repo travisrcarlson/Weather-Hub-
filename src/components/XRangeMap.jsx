@@ -436,6 +436,50 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         />
       )}
 
+      {/* RainViewer Live Doppler Weather Radar Tile Overlay */}
+      {(activeLayer === 'radar' || activeLayer === 'all') && apiData?.radarNowcast?.abuAlAbyadTileUrl && (
+        <image
+          href={apiData.radarNowcast.abuAlAbyadTileUrl}
+          xlinkHref={apiData.radarNowcast.abuAlAbyadTileUrl}
+          x="30"
+          y="57.5"
+          width="440"
+          height="185"
+          opacity={activeLayer === 'radar' ? 0.72 : 0.35}
+          preserveAspectRatio="none"
+          className="pointer-events-none"
+        />
+      )}
+
+      {/* Live ADS-B 50 NM Regional Airspace Traffic Contacts */}
+      {(activeLayer === 'adsb' || activeLayer === 'all') && Array.isArray(apiData?.airspaceTraffic?.contacts) && (
+        <g className="pointer-events-none">
+          {apiData.airspaceTraffic.contacts.slice(0, 4).map((ac, idx) => {
+            const rad = ((ac.bearingDeg - 90) * Math.PI) / 180;
+            const distScale = Math.min(72, Math.max(22, (ac.distanceNm / 50) * 78));
+            const ax = Math.max(55, Math.min(445, 290 + Math.cos(rad) * distScale * 1.4));
+            const ay = Math.max(72, Math.min(225, 155 + Math.sin(rad) * distScale * 0.75));
+            return (
+              <g key={`adsb-${ac.callsign}-${idx}`} transform={`translate(${ax}, ${ay})`}>
+                <circle cx="0" cy="0" r="4.5" fill="#06b6d4" fillOpacity="0.18" stroke="#22d3ee" strokeWidth="0.6" />
+                <polygon
+                  points="0,-3.2 2.4,2.6 0,1.2 -2.4,2.6"
+                  fill="#22d3ee"
+                  transform={`rotate(${ac.headingDeg || 0})`}
+                />
+                <rect x="5" y="-5" width="38" height="9.5" fill="#020617" fillOpacity="0.88" stroke="#0891b2" strokeWidth="0.4" />
+                <text x="6.5" y="-0.8" fill="#67e8f9" fontSize="3.2" fontWeight="bold" fontFamily="monospace">
+                  {ac.callsign}
+                </text>
+                <text x="6.5" y="2.8" fill="#cbd5e1" fontSize="2.6" fontFamily="monospace">
+                  {Math.round((ac.altitudeFt || 0) / 1000)}k ft • {ac.distanceNm}NM
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      )}
+
       {/* Tactical Radar Sweep (Pulsing sweep around active station) */}
       <g className="pointer-events-none">
         <g 
@@ -1050,6 +1094,32 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   <span>Vis</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('radar')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                    activeLayer === 'radar'
+                      ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                  title="RainViewer Live Doppler Weather Radar Overlay"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>Radar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLayer('adsb')}
+                  className={`px-2 py-0.5 rounded transition-all cursor-pointer flex items-center space-x-1 font-sans ${
+                    activeLayer === 'adsb'
+                      ? 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/40 shadow-inner'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                  }`}
+                  title="Live ADS-B 50 NM Airspace Deconfliction Overlay"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                  <span>ADS-B ({apiData?.airspaceTraffic?.totalTracked50nm ?? 4})</span>
                 </button>
               </div>
 

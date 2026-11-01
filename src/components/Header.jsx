@@ -84,7 +84,7 @@ export default function Header({
           {/* Clock */}
           <div className="flex items-center space-x-1 text-textIceWhite bg-bgDeepSpace/40 px-2 py-1 rounded border border-slate-700/35">
             <Clock className="w-3.5 h-3.5 text-edgeOrange" />
-            <span className="text-[11px] font-mono font-black tracking-wider leading-none">{formatTime(time).slice(0, 5)}</span>
+            <span className="text-[11px] font-mono font-black tracking-wider tabular-nums leading-none">{formatTime(time)}</span>
           </div>
 
           {/* Notification Bell */}
@@ -155,7 +155,7 @@ export default function Header({
       {/* Center: Clock & Date (Compact Single-Line Telemetry Pill) */}
       <div className="flex items-center space-x-2 flex-shrink-0 whitespace-nowrap bg-bgDeepSpace/50 px-2.5 xl:px-3 py-1 xl:py-1.5 rounded-lg border border-slate-700/40 font-sans">
         <Clock className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-edgeOrange flex-shrink-0" />
-        <span className="text-sm xl:text-base 2xl:text-lg font-mono font-black tracking-wider text-textIceWhite leading-none">
+        <span className="text-sm xl:text-base 2xl:text-lg font-mono font-black tracking-wider tabular-nums text-textIceWhite leading-none">
           {formatTime(time)}
         </span>
         <span className="text-[8.5px] xl:text-[9.5px] text-slate-400 font-bold uppercase leading-none">GST</span>
