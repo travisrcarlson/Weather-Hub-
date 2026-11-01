@@ -300,6 +300,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
   let sunTransit = { visible: false, progress: 0 };
   let sunX = 0;
   let sunY = 0;
+  let currentSunElevationDeg = 45;
 
   let moonTransit = { visible: false, progress: 0 };
   let moonX = 0;
@@ -367,6 +368,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         const theta = sunTransit.progress * Math.PI;
         sunX = 250 + 180 * Math.cos(theta);
         sunY = 200 - dynamicSunRy * Math.sin(theta);
+        currentSunElevationDeg = Math.max(1, Math.round(maxElevation * Math.sin(theta)));
       }
 
       // 2. Moon Transit
@@ -421,6 +423,18 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
           <stop offset="50%" stopColor="#eab308" stopOpacity="0.15" />
           <stop offset="100%" stopColor="#eab308" stopOpacity="0" />
+        </radialGradient>
+
+        {/* Radiant Solar Corona & Photosphere Gradients */}
+        <radialGradient id="sunCoronaGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#fde047" stopOpacity="0.55" />
+          <stop offset="45%" stopColor="#f59e0b" stopOpacity="0.22" />
+          <stop offset="100%" stopColor="#ea580c" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="sunCoreGrad" cx="40%" cy="40%" r="60%">
+          <stop offset="0%" stopColor="#fffbeb" />
+          <stop offset="55%" stopColor="#fde047" />
+          <stop offset="100%" stopColor="#f59e0b" />
         </radialGradient>
       </defs>
 
@@ -868,18 +882,96 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           opacity="0.24" 
         />
 
-        {/* Glowing Sun Transit Icon */}
+        {/* Radiant Starburst Sun Transit Icon (Distinct from Circular Station Pins) */}
         {sunTransit.visible && (
           <g transform={`translate(${sunX}, ${sunY})`}>
-            {/* Pulsing solar halo */}
-            <circle cx="0" cy="0" r="10" fill="#ff7a00" opacity="0.35">
-              <animate attributeName="r" values="7;13;7" dur="3s" repeatCount="indefinite" />
-              <animate attributeName="opacity" values="0.45;0.1;0.45" dur="3s" repeatCount="indefinite" />
+            {/* Soft radial solar corona bloom */}
+            <circle cx="0" cy="0" r="14" fill="url(#sunCoronaGlow)">
+              <animate attributeName="r" values="12;16.5;12" dur="4s" repeatCount="indefinite" />
             </circle>
-            {/* Outer solar ring */}
-            <circle cx="0" cy="0" r="5.5" fill="#f59e0b" opacity="0.8" />
-            {/* Sun core */}
-            <circle cx="0" cy="0" r="3" fill="#fff" />
+
+            {/* Slowly rotating 8-point tapered solar rays + corona ticks */}
+            <g>
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 0 0"
+                to="360 0 0"
+                dur="28s"
+                repeatCount="indefinite"
+              />
+              {/* 4 Primary Cardinal Tapered Sunbeams */}
+              {[0, 90, 180, 270].map(angle => (
+                <polygon
+                  key={`sun-ray-maj-${angle}`}
+                  points="0,-9.8 1.25,-4.6 -1.25,-4.6"
+                  fill="#fde047"
+                  opacity="0.92"
+                  transform={`rotate(${angle})`}
+                />
+              ))}
+              {/* 4 Intercardinal Tapered Sunbeams */}
+              {[45, 135, 225, 315].map(angle => (
+                <polygon
+                  key={`sun-ray-min-${angle}`}
+                  points="0,-7.8 0.95,-4.6 -0.95,-4.6"
+                  fill="#f59e0b"
+                  opacity="0.85"
+                  transform={`rotate(${angle})`}
+                />
+              ))}
+              {/* 8 Fine Outer Corona Ray Ticks */}
+              {[22.5, 67.5, 112.5, 157.5, 202.5, 247.5, 292.5, 337.5].map(angle => (
+                <line
+                  key={`sun-tick-${angle}`}
+                  x1="0"
+                  y1="-5.2"
+                  x2="0"
+                  y2="-6.8"
+                  stroke="#fef08a"
+                  strokeWidth="0.45"
+                  strokeLinecap="round"
+                  opacity="0.7"
+                  transform={`rotate(${angle})`}
+                />
+              ))}
+            </g>
+
+            {/* Golden-Yellow Solar Photosphere Core (No dark center ring like station pins) */}
+            <circle
+              cx="0"
+              cy="0"
+              r="4.1"
+              fill="url(#sunCoreGrad)"
+              stroke="#fef08a"
+              strokeWidth="0.55"
+            />
+
+            {/* Subtle Solar Elevation Micro-Tag */}
+            <g transform="translate(0, -11.8)">
+              <rect
+                x="-11.5"
+                y="-2.6"
+                width="23"
+                height="4.4"
+                rx="1"
+                fill="#090d16"
+                fillOpacity="0.82"
+                stroke="#f59e0b"
+                strokeWidth="0.35"
+              />
+              <text
+                x="0"
+                y="0.5"
+                textAnchor="middle"
+                fontSize="2.5"
+                fontFamily="monospace"
+                fontWeight="bold"
+                fill="#fde047"
+              >
+                ☀ {currentSunElevationDeg}° EL
+              </text>
+            </g>
           </g>
         )}
 
