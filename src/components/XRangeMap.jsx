@@ -9,6 +9,7 @@ export const stationsList = [
   {
     id: 'hq',
     name: 'X-Range HQ',
+    mgrs: '39R YG 9058 7842',
     x: 310,
     y: 170,
     description: 'Administrative & Firing HQ',
@@ -30,6 +31,7 @@ export const stationsList = [
   {
     id: 'north',
     name: 'Range North',
+    mgrs: '39R YG 9508 8183',
     x: 365,
     y: 100,
     description: 'Heavy Ballistics & Drone Range',
@@ -51,6 +53,7 @@ export const stationsList = [
   {
     id: 'south',
     name: 'Range South',
+    mgrs: '39R YG 8201 7438',
     x: 135,
     y: 180,
     description: 'Desert Durability Sector',
@@ -72,6 +75,7 @@ export const stationsList = [
   {
     id: 'sea',
     name: 'Sea Boundary',
+    mgrs: '39R YG 8806 7726',
     x: 240,
     y: 205,
     description: 'Marine Spit & Port Security',
@@ -435,6 +439,92 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
           className="pointer-events-none mix-blend-multiply"
         />
       )}
+
+      {/* Subtle NATO STANAG 2211 MGRS Grid Overlay (UTM Zone 39R • 100km Square YG • Abu Al Abyad Island) */}
+      <g className="pointer-events-none">
+        {/* Vertical MGRS Easting Lines (39R YG 78E to 98E) */}
+        {[
+          { x: 65, label: '78E', major: false },
+          { x: 135, label: '82E', major: false },
+          { x: 190, label: '85E', major: false },
+          { x: 240, label: '88E', major: false },
+          { x: 310, label: '90E', major: true },
+          { x: 365, label: '95E', major: false },
+          { x: 425, label: '98E', major: false }
+        ].map(grid => (
+          <g key={`mgrs-e-${grid.label}`}>
+            <line
+              x1={grid.x}
+              y1="57.5"
+              x2={grid.x}
+              y2="242.5"
+              stroke={grid.major ? '#38bdf8' : '#94a3b8'}
+              strokeWidth={grid.major ? '0.45' : '0.3'}
+              strokeDasharray={grid.major ? 'none' : '2.2,2.2'}
+              opacity={grid.major ? '0.24' : '0.14'}
+            />
+            <text
+              x={grid.x + 1.5}
+              y="62.2"
+              fill={grid.major ? '#38bdf8' : '#94a3b8'}
+              fontSize="2.5"
+              fontFamily="monospace"
+              fontWeight="bold"
+              opacity={grid.major ? '0.65' : '0.45'}
+            >
+              {grid.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Horizontal MGRS Northing Lines (39R YG 84N to 74N) */}
+        {[
+          { y: 75, label: '84N', major: false },
+          { y: 100, label: '81N', major: false },
+          { y: 135, label: '80N', major: true },
+          { y: 170, label: '78N', major: false },
+          { y: 205, label: '76N', major: false },
+          { y: 230, label: '74N', major: false }
+        ].map(grid => (
+          <g key={`mgrs-n-${grid.label}`}>
+            <line
+              x1="30"
+              y1={grid.y}
+              x2="470"
+              y2={grid.y}
+              stroke={grid.major ? '#38bdf8' : '#94a3b8'}
+              strokeWidth={grid.major ? '0.45' : '0.3'}
+              strokeDasharray={grid.major ? 'none' : '2.2,2.2'}
+              opacity={grid.major ? '0.24' : '0.14'}
+            />
+            <text
+              x="32.5"
+              y={grid.y - 1.2}
+              fill={grid.major ? '#38bdf8' : '#94a3b8'}
+              fontSize="2.5"
+              fontFamily="monospace"
+              fontWeight="bold"
+              opacity={grid.major ? '0.65' : '0.45'}
+            >
+              {grid.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Subtle MGRS Grid Zone Designation Stamp (39R YG) */}
+        <text
+          x="466"
+          y="62.2"
+          textAnchor="end"
+          fill="#38bdf8"
+          fontSize="2.6"
+          fontFamily="monospace"
+          fontWeight="bold"
+          opacity="0.55"
+        >
+          MGRS 39R YG • {currentStationInfo.mgrs || '39R YG 9058 7842'}
+        </text>
+      </g>
 
       {/* RainViewer Live Doppler Weather Radar Tile Overlay */}
       {(activeLayer === 'radar' || activeLayer === 'all') && apiData?.radarNowcast?.abuAlAbyadTileUrl && (

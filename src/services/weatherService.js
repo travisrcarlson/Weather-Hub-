@@ -1747,13 +1747,14 @@ function angularDiffDeg(a, b) {
   return Math.round(Math.abs(diff));
 }
 
-// Abu Al Abyad Island Exact Geofence Polygon / Bounding Box (24.10°N–24.31°N, 53.65°E–54.02°E)
+// Abu Al Abyad Island Exact Geofence Polygon / Bounding Box (24.12°N–24.29°N, 53.68°E–53.99°E)
 const ISLAND_GEOFENCE = {
-  latMin: 24.10,
-  latMax: 24.31,
-  lonMin: 53.65,
-  lonMax: 54.02,
-  coreRadiusNm: 9.5
+  latMin: 24.12,
+  latMax: 24.29,
+  lonMin: 53.68,
+  lonMax: 53.99,
+  coreRadiusNm: 7.5,
+  cpaThresholdNm: 6.5
 };
 
 function evaluateIslandOverflightForContact(contact) {
@@ -1771,26 +1772,32 @@ function evaluateIslandOverflightForContact(contact) {
   let islandSector = null;
   if (isOverIsland) {
     if (lon < 53.79) {
-      islandSector = 'OVER SOUTH / WEST ISLAND';
-    } else if (lat > 24.225) {
-      islandSector = 'OVER NORTH RANGE & SEA SPIT';
+      islandSector = 'OVER SOUTH / WEST ISLAND (39R YG 82 74)';
+    } else if (lat > 24.22) {
+      islandSector = 'OVER NORTH RANGE & SEA SPIT (39R YG 95 81)';
     } else {
-      islandSector = 'OVER HQ & CENTRAL ISLAND';
+      islandSector = 'OVER HQ & CENTRAL ISLAND (39R YG 90 78)';
     }
   }
 
-  // Bearing FROM the aircraft TO Abu Al Abyad Island center
+  // True Aviation Closest Point of Approach (CPA / Cross-Track Distance in NM)
+  // Bearing FROM the aircraft TO Abu Al Abyad Island center (24.195°N, 53.860°E)
   const bearingToIslandDeg = (bearingDeg + 180) % 360;
   const trackAlignmentDeg = angularDiffDeg(headingDeg || 0, bearingToIslandDeg);
+  const trackRad = (trackAlignmentDeg * Math.PI) / 180;
+  const cpaNm = trackAlignmentDeg < 85 ? Number((distanceNm * Math.sin(trackRad)).toFixed(1)) : 99.9;
+  const alongTrackNm = trackAlignmentDeg < 85 ? Number((distanceNm * Math.cos(trackRad)).toFixed(1)) : 0;
+
   const isInboundToIsland =
     !isOverIsland &&
-    distanceNm <= 45 &&
-    speedKt >= 60 &&
+    distanceNm <= 35 &&
+    speedKt >= 70 &&
     altitudeFt > 100 &&
-    trackAlignmentDeg <= 22;
+    trackAlignmentDeg < 65 &&
+    cpaNm <= ISLAND_GEOFENCE.cpaThresholdNm;
 
   const etaToIslandMin = isInboundToIsland
-    ? Math.max(1, Math.round((Math.max(0.5, distanceNm - 8.5) / Math.max(60, speedKt)) * 60))
+    ? Math.max(1, Math.round((Math.max(0.5, alongTrackNm - 6.5) / Math.max(70, speedKt)) * 60))
     : null;
 
   return {
@@ -1799,6 +1806,7 @@ function evaluateIslandOverflightForContact(contact) {
     islandSector,
     isInboundToIsland,
     etaToIslandMin,
+    cpaNm,
     trackAlignmentDeg
   };
 }
@@ -1875,21 +1883,30 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
   let rawAircraft = [];
   let endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
   try {
-    const res = await axios.get(endpointUsed, { timeout: 5000 });
-    rawAircraft = Array.isArray(res.data?.ac) ? res.data.ac : [];
+    // Primary browser-CORS-enabled relay wrapping live adsb.lol 50 NM Abu Al Abyad feed
+    const corsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(endpointUsed)}&_t=${Math.floor(Date.now() / 20000)}`;
+    const corsRes = await axios.get(corsUrl, { timeout: 5500 });
+    const parsedBody = typeof corsRes.data?.contents === 'string' ? JSON.parse(corsRes.data.contents) : corsRes.data;
+    rawAircraft = Array.isArray(parsedBody?.ac) ? parsedBody.ac : [];
+    if (rawAircraft.length === 0) throw new Error('Empty relay response');
   } catch {
-    endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
-    const osRes = await axios.get(endpointUsed, { timeout: 5000 });
-    const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
-    rawAircraft = states.map(s => ({
-      hex: s[0],
-      flight: (s[1] || '').trim() || 'UNKN',
-      lon: s[5],
-      lat: s[6],
-      alt_baro: s[4] && s[8] === true ? 'ground' : (s[7] ? Math.round(s[7] * 3.28084) : 15000),
-      gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
-      track: s[10] ? Math.round(s[10]) : 0
-    }));
+    try {
+      const res = await axios.get(endpointUsed, { timeout: 4500 });
+      rawAircraft = Array.isArray(res.data?.ac) ? res.data.ac : [];
+    } catch {
+      endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
+      const osRes = await axios.get(endpointUsed, { timeout: 4500 });
+      const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
+      rawAircraft = states.map(s => ({
+        hex: s[0],
+        flight: (s[1] || '').trim() || 'UNKN',
+        lon: s[5],
+        lat: s[6],
+        alt_baro: s[4] && s[8] === true ? 'ground' : (s[7] ? Math.round(s[7] * 3.28084) : 15000),
+        gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
+        track: s[10] ? Math.round(s[10]) : 0
+      }));
+    }
   }
   const latency = Math.round(performance.now() - t0);
 
@@ -2045,10 +2062,10 @@ export function buildDefaultAuxiliaryTacticalData(current = {}) {
       source: 'Open-Meteo Upper-Air Pressure Levels (975–700 hPa)'
     },
     airspaceTraffic: summarizeIslandOverflights([
-      { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 18400, speedKt: 365, headingDeg: 254, distanceNm: 21.4, bearingDeg: 74, lat: 24.29, lon: 54.23, category: 'Commercial' },
-      { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 128, headingDeg: 265, distanceNm: 26.8, bearingDeg: 108, lat: 24.05, lon: 54.32, category: 'Offshore Rotorcraft' },
-      { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 290, distanceNm: 34.2, bearingDeg: 145, lat: 23.72, lon: 54.21, category: 'Heavy Transit' },
-      { callsign: 'QTR104', hex: '06A122', aircraftType: 'A359', altitudeFt: 28500, speedKt: 430, headingDeg: 305, distanceNm: 41.6, bearingDeg: 315, lat: 24.68, lon: 53.32, category: 'Commercial' }
+      { callsign: 'ABY145', hex: '8965F6', aircraftType: 'A321', altitudeFt: 32000, speedKt: 417, headingDeg: 240, distanceNm: 16.5, bearingDeg: 164, lat: 23.932, lon: 53.945, category: 'High-Altitude Airway' },
+      { callsign: 'QTR8952', hex: '06A3B6', aircraftType: 'B77L', altitudeFt: 38975, speedKt: 552, headingDeg: 107, distanceNm: 37.0, bearingDeg: 353, lat: 24.806, lon: 53.780, category: 'High-Altitude Airway' },
+      { callsign: 'ETD591', hex: '503E9C', aircraftType: 'A320', altitudeFt: 22250, speedKt: 409, headingDeg: 302, distanceNm: 41.3, bearingDeg: 13, lat: 24.865, lon: 54.031, category: 'Commercial' },
+      { callsign: 'ETD2AP', hex: '896489', aircraftType: 'B789', altitudeFt: 18550, speedKt: 414, headingDeg: 312, distanceNm: 48.9, bearingDeg: 13, lat: 24.988, lon: 54.056, category: 'Commercial' }
     ], 4),
     ensembleSpread: {
       modelName: 'ICON-EPS 40-Member Ensemble',
