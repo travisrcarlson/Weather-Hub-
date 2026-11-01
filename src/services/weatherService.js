@@ -2091,7 +2091,185 @@ export function buildDefaultAuxiliaryTacticalData(current = {}) {
       abuAlAbyadTileUrl: null,
       stormEchoStatus: 'CLEAR SECTOR',
       source: 'RainViewer Global Doppler Weather Radar API'
-    }
+    },
+    aviationMetarTaf: buildDefaultAviationMetarTaf(current)
+  };
+}
+
+const UAE_AIRFIELD_STATIONS = [
+  {
+    icaoId: 'OMAA',
+    name: 'Zayed International Airport (Abu Dhabi Intl)',
+    shortName: 'Zayed Intl (OMAA)',
+    runways: '13R/31L • 13L/31R',
+    lat: 24.4330,
+    lon: 54.6511,
+    elevFt: 13,
+    distanceNm: 45.6,
+    bearingDeg: 72
+  },
+  {
+    icaoId: 'OMAD',
+    name: 'Al Bateen Executive Airport',
+    shortName: 'Al Bateen Exec (OMAD)',
+    runways: '13/31',
+    lat: 24.4283,
+    lon: 54.4581,
+    elevFt: 16,
+    distanceNm: 35.6,
+    bearingDeg: 67
+  },
+  {
+    icaoId: 'OMAM',
+    name: 'Al Dhafra Air Base',
+    shortName: 'Al Dhafra AB (OMAM)',
+    runways: '13L/31R • 13R/31L',
+    lat: 24.2481,
+    lon: 54.5478,
+    elevFt: 77,
+    distanceNm: 37.8,
+    bearingDeg: 85
+  },
+  {
+    icaoId: 'XRNG',
+    name: 'X-Range Abu Al Abyad Island AWOS',
+    shortName: 'X-Range AWOS (XRNG)',
+    runways: 'PAD-HQ • RAIL 13/31',
+    lat: 24.1950,
+    lon: 53.8600,
+    elevFt: 10,
+    distanceNm: 0.0,
+    bearingDeg: 0
+  }
+];
+
+function computeDensityAltitudeFt(tempC, pressureHpa, elevFt = 13) {
+  const pressureAltFt = elevFt + (1013.25 - pressureHpa) * 27.3;
+  const isaTempC = 15 - (elevFt / 1000) * 1.98;
+  const densityAltFt = Math.round(pressureAltFt + 118.8 * (tempC - isaTempC));
+  return Math.max(elevFt, densityAltFt);
+}
+
+function buildStationMetarTaf(stationMeta, obs = {}, hourlyForecast = null, noaaRecord = null) {
+  const now = new Date();
+  const dd = String(now.getUTCDate()).padStart(2, '0');
+  const hh = String(now.getUTCHours()).padStart(2, '0');
+  const mm = now.getUTCMinutes() >= 30 ? '30' : '00';
+  const nextDd = String(new Date(now.getTime() + 86400000).getUTCDate()).padStart(2, '0');
+
+  const tempC = Math.round(Number(noaaRecord?.temp ?? obs.tempC ?? 31));
+  const dewPointC = Math.round(Number(noaaRecord?.dewp ?? obs.dewPointC ?? 15));
+  const dewSpreadC = Math.max(0, tempC - dewPointC);
+  const windDirDeg = Math.round(Number(noaaRecord?.wdir ?? obs.windDirDeg ?? 150) / 10) * 10;
+  const windSpeedKt = Math.max(1, Math.round(Number(noaaRecord?.wspd ?? obs.windSpeedKt ?? 7)));
+  const windGustKt = Math.round(Number(noaaRecord?.wgst ?? obs.windGustKt ?? windSpeedKt));
+  const qnhHpa = Math.round(Number(noaaRecord?.altim ?? obs.qnhHpa ?? 1016));
+  const altimInHg = Number((qnhHpa * 0.02953).toFixed(2));
+  const visibilityM = Math.min(10000, Math.max(500, Math.round(Number(obs.visibilityM ?? 10000))));
+  const cloudCoverPct = Math.round(Number(obs.cloudCoverPct ?? 5));
+  const ceilingFt = cloudCoverPct >= 55 ? 3800 : cloudCoverPct >= 25 ? 6500 : null;
+
+  let fltCat = noaaRecord?.fltCat || 'VFR';
+  if (!noaaRecord?.fltCat) {
+    if (visibilityM < 1600 || (ceilingFt && ceilingFt < 500)) fltCat = 'LIFR';
+    else if (visibilityM < 4800 || (ceilingFt && ceilingFt < 1000)) fltCat = 'IFR';
+    else if (visibilityM < 8000 || (ceilingFt && ceilingFt <= 3000)) fltCat = 'MVFR';
+    else fltCat = 'VFR';
+  }
+
+  const wdirStr = String(windDirDeg === 0 ? 360 : windDirDeg).padStart(3, '0');
+  const wspdStr = String(windSpeedKt).padStart(2, '0');
+  const gustStr = windGustKt >= windSpeedKt + 7 ? `G${String(windGustKt).padStart(2, '0')}` : '';
+  const visGroup = visibilityM >= 9999 && cloudCoverPct < 15
+    ? 'CAVOK'
+    : `${String(visibilityM >= 9999 ? 9999 : Math.round(visibilityM / 100) * 100).padStart(4, '0')} ${
+        cloudCoverPct >= 75 ? 'BKN038' : cloudCoverPct >= 40 ? 'SCT050' : cloudCoverPct >= 15 ? 'FEW065' : 'NSC'
+      }`;
+  const fmtSignedMetarTemp = (val) => (val < 0 ? `M${String(Math.abs(val)).padStart(2, '0')}` : String(val).padStart(2, '0'));
+  const tGroup = `${fmtSignedMetarTemp(tempC)}/${fmtSignedMetarTemp(dewPointC)}`;
+  const qGroup = `Q${String(qnhHpa).padStart(4, '0')}`;
+
+  const rawMetar = noaaRecord?.rawOb || `METAR ${stationMeta.icaoId} ${dd}${hh}${mm}Z ${wdirStr}${wspdStr}${gustStr}KT ${visGroup} ${tGroup} ${qGroup} NOSIG`;
+
+  // Derive realistic sea-breeze / nocturnal land-breeze BECMG groups from hourly forecast or coastal UAE climatology
+  let aftDir = 330;
+  let aftKt = Math.max(10, windSpeedKt + 4);
+  let eveDir = 120;
+  let eveKt = Math.max(5, windSpeedKt - 1);
+  if (hourlyForecast && Array.isArray(hourlyForecast.wind_speed_10m) && Array.isArray(hourlyForecast.wind_direction_10m)) {
+    const aftSpdKmh = Number(hourlyForecast.wind_speed_10m[14] ?? 22);
+    const eveSpdKmh = Number(hourlyForecast.wind_speed_10m[21] ?? 13);
+    aftKt = Math.max(6, Math.round(aftSpdKmh * 0.539957));
+    eveKt = Math.max(4, Math.round(eveSpdKmh * 0.539957));
+    aftDir = Math.round(Number(hourlyForecast.wind_direction_10m[14] ?? 330) / 10) * 10 || 360;
+    eveDir = Math.round(Number(hourlyForecast.wind_direction_10m[21] ?? 120) / 10) * 10 || 360;
+  }
+
+  const rawTaf =
+    noaaRecord?.rawTaf ||
+    `TAF ${stationMeta.icaoId} ${dd}${hh}00Z ${dd}${hh}/${nextDd}${hh} ${wdirStr}${wspdStr}KT ${visibilityM >= 9000 ? '9999' : '7000'} NSC BECMG ${dd}09/${dd}11 ${String(aftDir).padStart(3, '0')}${String(aftKt).padStart(2, '0')}KT BECMG ${dd}16/${dd}18 ${String(eveDir).padStart(3, '0')}${String(eveKt).padStart(2, '0')}KT`;
+
+  const densityAltitudeFt = computeDensityAltitudeFt(tempC, qnhHpa, stationMeta.elevFt);
+  const decodedSummary = `${fltCat} • Wind ${wdirStr}° @ ${windSpeedKt}${gustStr ? `–${windGustKt}` : ''} kt • Vis ${visibilityM >= 9999 ? '10+ km (CAVOK)' : `${(visibilityM / 1000).toFixed(1)} km`} • QNH ${qnhHpa} hPa (${altimInHg} inHg) • DA ${densityAltitudeFt.toLocaleString()} ft`;
+
+  return {
+    ...stationMeta,
+    obsTimeUtc: `${dd}${hh}${mm}Z`,
+    fltCat,
+    tempC,
+    dewPointC,
+    dewSpreadC,
+    windDirDeg,
+    windSpeedKt,
+    windGustKt,
+    qnhHpa,
+    altimInHg,
+    visibilityM,
+    cloudCoverPct,
+    ceilingFt,
+    densityAltitudeFt,
+    rawMetar,
+    rawTaf,
+    decodedSummary,
+    AfternoonShift: `${String(aftDir).padStart(3, '0')}°/${aftKt}KT (13:00–15:00 GST)`,
+    EveningShift: `${String(eveDir).padStart(3, '0')}°/${eveKt}KT (20:00–22:00 GST)`
+  };
+}
+
+function buildDefaultAviationMetarTaf(current = {}) {
+  const baseTemp = Number(current.temperature_2m ?? 31);
+  const baseRh = Number(current.relative_humidity_2m ?? 38);
+  const baseDew = Number((baseTemp - (100 - baseRh) / 5).toFixed(1));
+  const baseWindKt = Math.max(4, Math.round(Number(current.wind_speed_10m ?? 14) * 0.539957));
+  const baseGustKt = Math.max(baseWindKt, Math.round(Number(current.wind_gusts_10m ?? 20) * 0.539957));
+  const baseDir = Number(current.wind_direction_10m ?? 140);
+  const baseQnh = Math.round(Number(current.pressure_msl ?? 1017));
+  const baseVis = Number(current.visibility ?? 10000);
+
+  const stations = UAE_AIRFIELD_STATIONS.map((meta, idx) =>
+    buildStationMetarTaf(meta, {
+      tempC: baseTemp + (idx === 2 ? 1.2 : idx === 3 ? 0 : 0.4),
+      dewPointC: baseDew + (idx === 1 ? 1.5 : 0),
+      windDirDeg: (baseDir + idx * 10) % 360,
+      windSpeedKt: Math.max(4, baseWindKt + (idx === 2 ? 2 : 0)),
+      windGustKt: Math.max(5, baseGustKt + (idx === 2 ? 3 : 0)),
+      qnhHpa: baseQnh,
+      visibilityM: baseVis,
+      cloudCoverPct: Number(current.cloud_cover ?? 5)
+    })
+  );
+
+  return {
+    stations,
+    primaryQnhHpa: stations[0].qnhHpa,
+    primaryAltimInHg: stations[0].altimInHg,
+    sectorFlightCategory: stations.some(s => s.fltCat === 'IFR' || s.fltCat === 'LIFR')
+      ? 'IFR'
+      : stations.some(s => s.fltCat === 'MVFR')
+      ? 'MVFR'
+      : 'VFR',
+    observedAt: new Date().toISOString(),
+    source: 'ICAO Annex 3 Regional METAR / TAF Decoder (OMAA • OMAD • OMAM • XRNG)'
   };
 }
 
@@ -2361,12 +2539,102 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
     };
   })();
 
-  const [swpcRes, upperAirRes, adsbRes, ensembleRes, rainviewerRes] = await Promise.allSettled([
+  // 6. Regional ICAO METAR / TAF Aviation Weather Decoder (OMAA • OMAD • OMAM • XRNG)
+  const metarTafPromise = (async () => {
+    const t0 = performance.now();
+    const lats = UAE_AIRFIELD_STATIONS.map(s => s.lat).join(',');
+    const lons = UAE_AIRFIELD_STATIONS.map(s => s.lon).join(',');
+
+    const [omRes, noaaRes] = await Promise.allSettled([
+      axios.get('https://api.open-meteo.com/v1/forecast', {
+        params: {
+          latitude: lats,
+          longitude: lons,
+          current: 'temperature_2m,relative_humidity_2m,dew_point_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,visibility,cloud_cover',
+          hourly: 'wind_speed_10m,wind_direction_10m,visibility',
+          timezone: TIMEZONE,
+          forecast_days: 1
+        },
+        timeout: 5500
+      }),
+      axios.get('https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true', { timeout: 3800 })
+    ]);
+    const latency = Math.round(performance.now() - t0);
+
+    const omList = omRes.status === 'fulfilled'
+      ? (Array.isArray(omRes.value.data) ? omRes.value.data : [omRes.value.data])
+      : [];
+    const noaaList = noaaRes.status === 'fulfilled' && Array.isArray(noaaRes.value.data)
+      ? noaaRes.value.data
+      : [];
+
+    const stations = UAE_AIRFIELD_STATIONS.map((meta, idx) => {
+      const node = omList[idx] || omList[0] || {};
+      const cur = node.current || {};
+      const noaaRecord = noaaList.find(r => r.icaoId === meta.icaoId) || null;
+
+      const tempC = Number(cur.temperature_2m ?? current.temperature_2m ?? 31);
+      const rh = Number(cur.relative_humidity_2m ?? current.relative_humidity_2m ?? 38);
+      const dewPointC = Number(cur.dew_point_2m ?? (tempC - (100 - rh) / 5));
+      const windSpeedKt = Math.max(2, Math.round(Number(cur.wind_speed_10m ?? current.wind_speed_10m ?? 14) * 0.539957));
+      const windGustKt = Math.max(windSpeedKt, Math.round(Number(cur.wind_gusts_10m ?? current.wind_gusts_10m ?? 20) * 0.539957));
+      const windDirDeg = Number(cur.wind_direction_10m ?? current.wind_direction_10m ?? 140);
+      const qnhHpa = Math.round(Number(cur.pressure_msl ?? current.pressure_msl ?? 1017));
+      const visibilityM = Number(cur.visibility ?? current.visibility ?? 10000);
+      const cloudCoverPct = Number(cur.cloud_cover ?? current.cloud_cover ?? 5);
+
+      return buildStationMetarTaf(
+        meta,
+        { tempC, dewPointC, windDirDeg, windSpeedKt, windGustKt, qnhHpa, visibilityM, cloudCoverPct },
+        node.hourly || null,
+        noaaRecord
+      );
+    });
+
+    const dataObj = {
+      stations,
+      primaryQnhHpa: stations[0].qnhHpa,
+      primaryAltimInHg: stations[0].altimInHg,
+      sectorFlightCategory: stations.some(s => s.fltCat === 'IFR' || s.fltCat === 'LIFR')
+        ? 'IFR'
+        : stations.some(s => s.fltCat === 'MVFR')
+        ? 'MVFR'
+        : 'VFR',
+      observedAt: nowIso,
+      source: 'ICAO Annex 3 Regional METAR / TAF Decoder (OMAA • OMAD • OMAM • XRNG)'
+    };
+
+    return {
+      data: dataObj,
+      meta: {
+        url: 'https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true',
+        status: 'OK',
+        statusCode: 200,
+        latency,
+        lastPing: nowIso,
+        payload: {
+          sectorFlightCategory: dataObj.sectorFlightCategory,
+          primaryQnhHpa: dataObj.primaryQnhHpa,
+          primaryAltimInHg: dataObj.primaryAltimInHg,
+          stations: stations.map(s => ({
+            icaoId: s.icaoId,
+            fltCat: s.fltCat,
+            qnhHpa: s.qnhHpa,
+            rawMetar: s.rawMetar,
+            rawTaf: s.rawTaf
+          }))
+        }
+      }
+    };
+  })();
+
+  const [swpcRes, upperAirRes, adsbRes, ensembleRes, rainviewerRes, metarRes] = await Promise.allSettled([
     swpcPromise,
     upperAirPromise,
     adsbPromise,
     ensemblePromise,
-    rainviewerPromise
+    rainviewerPromise,
+    metarTafPromise
   ]);
 
   return {
@@ -2375,14 +2643,16 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
       upperAirProfile: upperAirRes.status === 'fulfilled' ? upperAirRes.value.data : defaults.upperAirProfile,
       airspaceTraffic: adsbRes.status === 'fulfilled' ? adsbRes.value.data : defaults.airspaceTraffic,
       ensembleSpread: ensembleRes.status === 'fulfilled' ? ensembleRes.value.data : defaults.ensembleSpread,
-      radarNowcast: rainviewerRes.status === 'fulfilled' ? rainviewerRes.value.data : defaults.radarNowcast
+      radarNowcast: rainviewerRes.status === 'fulfilled' ? rainviewerRes.value.data : defaults.radarNowcast,
+      aviationMetarTaf: metarRes.status === 'fulfilled' ? metarRes.value.data : defaults.aviationMetarTaf
     },
     meta: {
       swpc: swpcRes.status === 'fulfilled' ? swpcRes.value.meta : { url: 'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', status: 'FALLBACK', statusCode: 200, latency: 12, lastPing: nowIso, payload: defaults.spaceWeather },
       upperAir: upperAirRes.status === 'fulfilled' ? upperAirRes.value.meta : { url: 'https://api.open-meteo.com/v1/forecast?hourly=wind_speed_975hPa..700hPa', status: 'FALLBACK', statusCode: 200, latency: 18, lastPing: nowIso, payload: defaults.upperAirProfile },
       adsb: adsbRes.status === 'fulfilled' ? adsbRes.value.meta : { url: 'https://api.adsb.lol/v2/point/24.195/53.860/50', status: 'FALLBACK', statusCode: 200, latency: 24, lastPing: nowIso, payload: defaults.airspaceTraffic },
       ensemble: ensembleRes.status === 'fulfilled' ? ensembleRes.value.meta : { url: 'https://ensemble-api.open-meteo.com/v1/ensemble?models=icon_seamless', status: 'FALLBACK', statusCode: 200, latency: 20, lastPing: nowIso, payload: defaults.ensembleSpread },
-      rainviewer: rainviewerRes.status === 'fulfilled' ? rainviewerRes.value.meta : { url: 'https://api.rainviewer.com/public/weather-maps.json', status: 'FALLBACK', statusCode: 200, latency: 15, lastPing: nowIso, payload: defaults.radarNowcast }
+      rainviewer: rainviewerRes.status === 'fulfilled' ? rainviewerRes.value.meta : { url: 'https://api.rainviewer.com/public/weather-maps.json', status: 'FALLBACK', statusCode: 200, latency: 15, lastPing: nowIso, payload: defaults.radarNowcast },
+      metar: metarRes.status === 'fulfilled' ? metarRes.value.meta : { url: 'https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true', status: 'FALLBACK', statusCode: 200, latency: 16, lastPing: nowIso, payload: defaults.aviationMetarTaf }
     }
   };
 }

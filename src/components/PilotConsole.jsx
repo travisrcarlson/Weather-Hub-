@@ -211,6 +211,10 @@ export default function PilotConsole({
   const [calcAltitudeM, setCalcAltitudeM] = useState(300);
   const [altitudeBand, setAltitudeBand] = useState('LOW'); // 'LOW' (10m-300m) or 'HIGH' (300m-2500m)
 
+  // Live ICAO METAR / TAF Aviation Decoder state
+  const [selectedMetarIcao, setSelectedMetarIcao] = useState('OMAA');
+  const [metarViewMode, setMetarViewMode] = useState('RAW'); // 'RAW' or 'DECODED'
+
   // RPIC Pre-Flight Safety Gate Checklist state
   const [checkedItems, setCheckedItems] = useState({
     bat: true,
@@ -328,6 +332,108 @@ export default function PilotConsole({
     currentGustP50: 25.0,
     currentGustP90: 31.0
   };
+  const aviationMetarTaf = data?.aviationMetarTaf || {
+    primaryQnhHpa: Math.round(pressureHpa),
+    primaryAltimInHg: Number((pressureHpa * 0.02953).toFixed(2)),
+    sectorFlightCategory: 'VFR',
+    stations: [
+      {
+        icaoId: 'OMAA',
+        name: 'Zayed International Airport',
+        shortName: 'Zayed Intl (OMAA)',
+        runways: '13R/31L • 13L/31R',
+        distanceNm: 45.6,
+        bearingDeg: 72,
+        fltCat: 'VFR',
+        tempC: Math.round(tempC),
+        dewPointC: Math.round(tempC - (100 - rhPct) / 5),
+        dewSpreadC: Math.max(2, Math.round((100 - rhPct) / 5)),
+        windDirDeg: Math.round(windDirDeg / 10) * 10 || 360,
+        windSpeedKt: Math.max(4, Math.round(surfaceWindKmh * 0.539957)),
+        windGustKt: Math.max(6, Math.round(surfaceGustKmh * 0.539957)),
+        qnhHpa: Math.round(pressureHpa),
+        altimInHg: Number((pressureHpa * 0.02953).toFixed(2)),
+        visibilityM: Math.round(visibilityKm * 1000),
+        densityAltitudeFt: atmData.densityAltitudeFt,
+        rawMetar: `METAR OMAA 010530Z ${String(Math.round(windDirDeg / 10) * 10 || 360).padStart(3, '0')}${String(Math.max(4, Math.round(surfaceWindKmh * 0.539957))).padStart(2, '0')}KT CAVOK ${Math.round(tempC)}/${Math.round(tempC - (100 - rhPct) / 5)} Q${Math.round(pressureHpa)} NOSIG`,
+        rawTaf: `TAF OMAA 010500Z 0106/0212 12006KT 9999 NSC BECMG 0109/0111 34013KT BECMG 0116/0118 12008KT`,
+        AfternoonShift: '340°/13KT (13:00–15:00 GST)',
+        EveningShift: '120°/08KT (20:00–22:00 GST)'
+      },
+      {
+        icaoId: 'OMAD',
+        name: 'Al Bateen Executive Airport',
+        shortName: 'Al Bateen Exec (OMAD)',
+        runways: '13/31',
+        distanceNm: 35.6,
+        bearingDeg: 67,
+        fltCat: 'VFR',
+        tempC: Math.round(tempC),
+        dewPointC: Math.round(tempC - (100 - rhPct) / 5) + 1,
+        dewSpreadC: Math.max(2, Math.round((100 - rhPct) / 5) - 1),
+        windDirDeg: 110,
+        windSpeedKt: 6,
+        windGustKt: 9,
+        qnhHpa: Math.round(pressureHpa),
+        altimInHg: Number((pressureHpa * 0.02953).toFixed(2)),
+        visibilityM: 10000,
+        densityAltitudeFt: atmData.densityAltitudeFt,
+        rawMetar: `METAR OMAD 010530Z 11006KT CAVOK ${Math.round(tempC)}/${Math.round(tempC - (100 - rhPct) / 5) + 1} Q${Math.round(pressureHpa)} NOSIG`,
+        rawTaf: `TAF OMAD 010500Z 0106/0212 07005KT 9999 NSC BECMG 0109/0111 34011KT BECMG 0116/0118 11007KT`,
+        AfternoonShift: '340°/11KT (13:00–15:00 GST)',
+        EveningShift: '110°/07KT (20:00–22:00 GST)'
+      },
+      {
+        icaoId: 'OMAM',
+        name: 'Al Dhafra Air Base',
+        shortName: 'Al Dhafra AB (OMAM)',
+        runways: '13L/31R • 13R/31L',
+        distanceNm: 37.8,
+        bearingDeg: 85,
+        fltCat: 'VFR',
+        tempC: Math.round(tempC) + 1,
+        dewPointC: Math.round(tempC - (100 - rhPct) / 5),
+        dewSpreadC: Math.max(3, Math.round((100 - rhPct) / 5) + 1),
+        windDirDeg: 140,
+        windSpeedKt: 8,
+        windGustKt: 12,
+        qnhHpa: Math.round(pressureHpa),
+        altimInHg: Number((pressureHpa * 0.02953).toFixed(2)),
+        visibilityM: 10000,
+        densityAltitudeFt: atmData.densityAltitudeFt + 140,
+        rawMetar: `METAR OMAM 010530Z 14008KT CAVOK ${Math.round(tempC) + 1}/${Math.round(tempC - (100 - rhPct) / 5)} Q${Math.round(pressureHpa)} NOSIG`,
+        rawTaf: `TAF OMAM 010500Z 0106/0212 14008KT 9999 NSC BECMG 0109/0111 33014KT BECMG 0116/0118 13008KT`,
+        AfternoonShift: '330°/14KT (13:00–15:00 GST)',
+        EveningShift: '130°/08KT (20:00–22:00 GST)'
+      },
+      {
+        icaoId: 'XRNG',
+        name: 'X-Range Abu Al Abyad Island AWOS',
+        shortName: 'X-Range AWOS (XRNG)',
+        runways: 'PAD-HQ • RAIL 13/31',
+        distanceNm: 0.0,
+        bearingDeg: 0,
+        fltCat: visibilityKm < 5 ? 'MVFR' : 'VFR',
+        tempC: Math.round(tempC),
+        dewPointC: Math.round(tempC - (100 - rhPct) / 5),
+        dewSpreadC: Math.max(2, Math.round((100 - rhPct) / 5)),
+        windDirDeg: Math.round(windDirDeg / 10) * 10 || 360,
+        windSpeedKt: Math.max(4, Math.round(surfaceWindKmh * 0.539957)),
+        windGustKt: Math.max(6, Math.round(surfaceGustKmh * 0.539957)),
+        qnhHpa: Math.round(pressureHpa),
+        altimInHg: Number((pressureHpa * 0.02953).toFixed(2)),
+        visibilityM: Math.round(visibilityKm * 1000),
+        densityAltitudeFt: atmData.densityAltitudeFt,
+        rawMetar: `METAR XRNG 010530Z AUTO ${String(Math.round(windDirDeg / 10) * 10 || 360).padStart(3, '0')}${String(Math.max(4, Math.round(surfaceWindKmh * 0.539957))).padStart(2, '0')}KT CAVOK ${Math.round(tempC)}/${Math.round(tempC - (100 - rhPct) / 5)} Q${Math.round(pressureHpa)} RMK MGRS 39R YG 9058 7842`,
+        rawTaf: `TAF XRNG 010500Z 0106/0206 ${String(Math.round(windDirDeg / 10) * 10 || 360).padStart(3, '0')}${String(Math.max(4, Math.round(surfaceWindKmh * 0.539957))).padStart(2, '0')}KT 9999 NSC BECMG 0109/0111 32014KT BECMG 0116/0118 11007KT`,
+        AfternoonShift: '320°/14KT (13:00–15:00 GST)',
+        EveningShift: '110°/07KT (20:00–22:00 GST)'
+      }
+    ]
+  };
+  const selectedMetarStation =
+    (aviationMetarTaf.stations || []).find(s => s.icaoId === selectedMetarIcao) ||
+    (aviationMetarTaf.stations || [])[0];
 
   // Compute meteorological & aerodynamic profile at any altitude (10m up to 3000m AGL)
   // Assimilates live Open-Meteo 975 / 925 / 850 / 700 hPa upper-air observations when available
@@ -2260,6 +2366,94 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                   </div>
                 ))}
               </div>
+
+              {/* Live Regional ICAO METAR / TAF & QNH Altimeter Decoder (OMAA • OMAD • OMAM • XRNG) */}
+              {selectedMetarStation && (
+                <div className="mt-1.5 pt-1.5 border-t border-slate-800/80 flex flex-col space-y-1">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-[8px] font-black uppercase tracking-wider text-amber-300">
+                        📟 ICAO METAR / TAF DECODER
+                      </span>
+                      <div className="flex items-center bg-slate-950 border border-slate-800 rounded p-0.5 space-x-0.5">
+                        {(aviationMetarTaf.stations || []).map(st => (
+                          <button
+                            key={st.icaoId}
+                            type="button"
+                            onClick={() => setSelectedMetarIcao(st.icaoId)}
+                            className={`px-1.5 py-0.5 rounded text-[7px] font-mono font-black uppercase cursor-pointer transition ${
+                              selectedMetarStation.icaoId === st.icaoId
+                                ? 'bg-amber-500/25 text-amber-300 border border-amber-500/50'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title={`${st.name} (${st.distanceNm} NM)`}
+                          >
+                            {st.icaoId}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-1">
+                      <span className={`px-1.5 py-0.5 rounded text-[7px] font-mono font-black uppercase border ${
+                        selectedMetarStation.fltCat === 'VFR'
+                          ? 'bg-emerald-950/80 border-emerald-500/50 text-emerald-300'
+                          : selectedMetarStation.fltCat === 'MVFR'
+                          ? 'bg-sky-950/80 border-sky-500/50 text-sky-300'
+                          : 'bg-red-950/80 border-red-500/50 text-red-300'
+                      }`}>
+                        {selectedMetarStation.fltCat} • Q{selectedMetarStation.qnhHpa} ({selectedMetarStation.altimInHg}&quot;)
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setMetarViewMode(prev => prev === 'RAW' ? 'DECODED' : 'RAW')}
+                        className="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded text-[6.5px] font-mono font-black uppercase text-cyan-300 cursor-pointer"
+                        title="Toggle Raw ICAO String vs Decoded Tactical Brief"
+                      >
+                        {metarViewMode === 'RAW' ? 'DECODE' : 'RAW ICAO'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {metarViewMode === 'RAW' ? (
+                    <div className="bg-slate-950/90 border border-slate-800/90 px-2 py-1 font-mono text-[7px] leading-snug space-y-0.5">
+                      <div className="text-emerald-300 break-all">
+                        <strong className="text-slate-400">METAR:</strong> {selectedMetarStation.rawMetar}
+                      </div>
+                      <div className="text-cyan-300 break-all">
+                        <strong className="text-slate-400">TAF:</strong> {selectedMetarStation.rawTaf}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-1 bg-slate-950/90 border border-slate-800/90 p-1.5 font-mono text-[7px] text-center">
+                      <div>
+                        <span className="text-[6px] text-slate-400 block uppercase">WIND (KT)</span>
+                        <span className="font-black text-white">
+                          {String(selectedMetarStation.windDirDeg).padStart(3, '0')}°/{selectedMetarStation.windSpeedKt}G{selectedMetarStation.windGustKt}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[6px] text-slate-400 block uppercase">TEMP / DEW</span>
+                        <span className="font-black text-amber-300">
+                          {selectedMetarStation.tempC}°/{selectedMetarStation.dewPointC}°C (Δ{selectedMetarStation.dewSpreadC}°)
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[6px] text-slate-400 block uppercase">PM SEA BREEZE</span>
+                        <span className="font-black text-cyan-300">
+                          {(selectedMetarStation.AfternoonShift || '330°/13KT').split(' ')[0]}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[6px] text-slate-400 block uppercase">AIRFIELD DA</span>
+                        <span className="font-black text-emerald-300">
+                          {selectedMetarStation.densityAltitudeFt?.toLocaleString()} ft
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

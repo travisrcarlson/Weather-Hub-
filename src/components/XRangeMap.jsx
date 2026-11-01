@@ -541,61 +541,187 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         />
       )}
 
-      {/* Live ADS-B Abu Al Abyad Island Overflight & 50 NM Regional Airspace Contacts */}
-      {(activeLayer === 'adsb' || activeLayer === 'all') && Array.isArray(apiData?.airspaceTraffic?.contacts) && (
-        <g className="pointer-events-none">
-          {apiData.airspaceTraffic.contacts.slice(0, 4).map((ac, idx) => {
-            const rad = ((ac.bearingDeg - 90) * Math.PI) / 180;
-            const distScale = ac.isOverIsland
-              ? Math.min(24, Math.max(4, (ac.distanceNm / 9.5) * 24))
-              : Math.min(72, Math.max(26, (ac.distanceNm / 50) * 78));
-            const ax = Math.max(55, Math.min(418, 290 + Math.cos(rad) * distScale * 1.4));
-            const ay = Math.max(72, Math.min(225, 155 + Math.sin(rad) * distScale * 0.75));
-            const trackRad = (((ac.headingDeg || 0) - 90) * Math.PI) / 180;
-            const vx = Math.cos(trackRad) * 26;
-            const vy = Math.sin(trackRad) * 26;
-            const badgeColor = ac.isOverIsland ? '#ef4444' : ac.isInboundToIsland ? '#f59e0b' : '#0891b2';
-            const textColor = ac.isOverIsland ? '#fca5a5' : ac.isInboundToIsland ? '#fcd34d' : '#67e8f9';
+      {/* Live ADS-B Abu Al Abyad Island Overflight & 50 NM Regional Airspace Blips + Velocity Vectors */}
+      {Array.isArray(apiData?.airspaceTraffic?.contacts) && (() => {
+        const allContacts = apiData.airspaceTraffic.contacts;
+        const visibleContacts = (activeLayer === 'adsb' || activeLayer === 'all')
+          ? allContacts.slice(0, 6)
+          : allContacts.filter(c => c.isOverIsland || c.isInboundToIsland).slice(0, 3);
 
-            return (
-              <g key={`adsb-${ac.callsign}-${idx}`} transform={`translate(${ax}, ${ay})`}>
-                {/* Projected Flight Track Vector Line */}
-                {(ac.isOverIsland || ac.isInboundToIsland || activeLayer === 'adsb') && (
+        if (visibleContacts.length === 0 && activeLayer !== 'adsb') return null;
+
+        return (
+          <g className="pointer-events-none">
+            {/* 7.5 NM Island TFR Core Ring & 25/50 NM Sector Radar Rings (Shown in ADS-B Mode or Active Alert) */}
+            {(activeLayer === 'adsb' || visibleContacts.some(c => c.isOverIsland || c.isInboundToIsland)) && (
+              <g>
+                {/* 7.5 NM Abu Al Abyad Island TFR Geofence Ring */}
+                <ellipse
+                  cx="265"
+                  cy="155"
+                  rx="115"
+                  ry="52"
+                  fill="none"
+                  stroke={(apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0 ? '#ef4444' : '#38bdf8'}
+                  strokeWidth="0.55"
+                  strokeDasharray="3,2.5"
+                  opacity="0.45"
+                />
+                <text
+                  x="265"
+                  y="101"
+                  textAnchor="middle"
+                  fill={(apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0 ? '#fca5a5' : '#38bdf8'}
+                  fontSize="2.5"
+                  fontFamily="monospace"
+                  fontWeight="bold"
+                  opacity="0.75"
+                >
+                  7.5 NM ISLAND TFR GEOFENCE (39R YG)
+                </text>
+
+                {/* 25 NM / 50 NM Outer Sector Radar Ring */}
+                {activeLayer === 'adsb' && (
+                  <>
+                    <ellipse
+                      cx="265"
+                      cy="155"
+                      rx="185"
+                      ry="78"
+                      fill="none"
+                      stroke="#0ea5e9"
+                      strokeWidth="0.45"
+                      strokeDasharray="1.8,2.8"
+                      opacity="0.35"
+                    />
+                    <text
+                      x="265"
+                      y="75"
+                      textAnchor="middle"
+                      fill="#7dd3fc"
+                      fontSize="2.4"
+                      fontFamily="monospace"
+                      fontWeight="bold"
+                      opacity="0.65"
+                    >
+                      50 NM ADS-B DECONFLICTION RADAR RING • OMAA / OMAD / OMAM SECTOR
+                    </text>
+                  </>
+                )}
+              </g>
+            )}
+
+            {/* Plot Each Aircraft Contact with Rotated Airframe Icon, Speed-Scaled Velocity Vector & Data Block */}
+            {visibleContacts.map((ac, idx) => {
+              const inGeodeticIslandBox =
+                typeof ac.lat === 'number' &&
+                typeof ac.lon === 'number' &&
+                ac.lat >= 24.11 &&
+                ac.lat <= 24.29 &&
+                ac.lon >= 53.68 &&
+                ac.lon <= 54.00;
+
+              let ax;
+              let ay;
+              if (inGeodeticIslandBox) {
+                // Direct WGS-84 to MGRS 39R YG Island SVG Coordinate Mapping
+                ax = 65 + ((ac.lon - 53.68) / (54.00 - 53.68)) * (425 - 65);
+                ay = 230 - ((ac.lat - 24.12) / (24.29 - 24.12)) * (230 - 75);
+              } else {
+                // True Azimuth Projection onto Sector Radar Ring around Island Center (265, 155)
+                const rad = ((ac.bearingDeg - 90) * Math.PI) / 180;
+                const normDist = Math.min(1, Math.max(0.32, (ac.distanceNm || 20) / 50));
+                ax = 265 + Math.cos(rad) * (175 * normDist);
+                ay = 155 + Math.sin(rad) * (74 * normDist);
+              }
+
+              ax = Math.max(46, Math.min(410, ax));
+              ay = Math.max(69, Math.min(228, ay));
+
+              const trackRad = (((ac.headingDeg || 0) - 90) * Math.PI) / 180;
+              // Velocity vector leader length scaled by groundspeed (18px to 34px)
+              const vecLen = Math.min(34, Math.max(16, Math.round((ac.speedKt || 250) / 16)));
+              const vx = Math.cos(trackRad) * vecLen;
+              const vy = Math.sin(trackRad) * vecLen;
+
+              const badgeColor = ac.isOverIsland ? '#ef4444' : ac.isInboundToIsland ? '#f59e0b' : '#06b6d4';
+              const textColor = ac.isOverIsland ? '#fca5a5' : ac.isInboundToIsland ? '#fcd34d' : '#67e8f9';
+              const flStr = `FL${String(Math.max(1, Math.round((ac.altitudeFt || 1000) / 100))).padStart(3, '0')}`;
+
+              // Offset label left if near right edge of map
+              const labelOnLeft = ax > 365;
+              const boxX = labelOnLeft ? -57.5 : 5.5;
+              const textX = labelOnLeft ? -55.5 : 7.2;
+
+              return (
+                <g key={`adsb-${ac.callsign}-${idx}`} transform={`translate(${ax}, ${ay})`}>
+                  {/* CPA Intercept Line to HQ if Inbound */}
+                  {ac.isInboundToIsland && (
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2={310 - ax}
+                      y2={170 - ay}
+                      stroke="#f59e0b"
+                      strokeWidth="0.45"
+                      strokeDasharray="1.2,2.2"
+                      opacity="0.55"
+                    />
+                  )}
+
+                  {/* Speed-Scaled Velocity Vector Leader Line + Tip Dot */}
                   <line
                     x1="0"
                     y1="0"
                     x2={vx}
                     y2={vy}
                     stroke={badgeColor}
-                    strokeWidth="0.65"
-                    strokeDasharray="1.8,1.8"
-                    opacity="0.85"
+                    strokeWidth="0.75"
+                    strokeDasharray="1.8,1.4"
+                    opacity="0.9"
                   />
-                )}
-                {ac.isOverIsland && (
-                  <circle cx="0" cy="0" r="8" fill="none" stroke="#ef4444" strokeWidth="0.7" opacity="0.75">
-                    <animate attributeName="r" values="4;11" dur="1.6s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.85;0" dur="1.6s" repeatCount="indefinite" />
-                  </circle>
-                )}
-                <circle cx="0" cy="0" r="4.5" fill={badgeColor} fillOpacity="0.22" stroke={badgeColor} strokeWidth="0.65" />
-                <polygon
-                  points="0,-3.4 2.5,2.6 0,1.2 -2.5,2.6"
-                  fill={textColor}
-                  transform={`rotate(${ac.headingDeg || 0})`}
-                />
-                <rect x="5.5" y="-5.5" width="48" height="10.5" fill="#020617" fillOpacity="0.92" stroke={badgeColor} strokeWidth="0.45" />
-                <text x="7" y="-1" fill={textColor} fontSize="3.1" fontWeight="bold" fontFamily="monospace">
-                  {ac.callsign} {ac.isOverIsland ? '• OVER ISL' : ac.isInboundToIsland ? `• ETA ${ac.etaToIslandMin}m` : ''}
-                </text>
-                <text x="7" y="2.8" fill="#e2e8f0" fontSize="2.55" fontFamily="monospace">
-                  {Math.round((ac.altitudeFt || 0) / 1000)}k ft • {ac.speedKt}kt • {ac.distanceNm}NM
-                </text>
-              </g>
-            );
-          })}
-        </g>
-      )}
+                  <circle cx={vx} cy={vy} r="1.1" fill={textColor} opacity="0.9" />
+
+                  {/* Pulsing Alert Ring for Overflight or Inbound */}
+                  {(ac.isOverIsland || ac.isInboundToIsland) && (
+                    <circle cx="0" cy="0" r="8" fill="none" stroke={badgeColor} strokeWidth="0.7" opacity="0.75">
+                      <animate attributeName="r" values="4;11" dur="1.6s" repeatCount="indefinite" />
+                      <animate attributeName="opacity" values="0.85;0" dur="1.6s" repeatCount="indefinite" />
+                    </circle>
+                  )}
+
+                  {/* Radar Target Reticle & Rotated Swept-Wing Aircraft Silhouette */}
+                  <circle cx="0" cy="0" r="4.6" fill="#020617" fillOpacity="0.75" stroke={badgeColor} strokeWidth="0.65" />
+                  <path
+                    d="M 0,-3.6 L 0.9,-1.0 L 3.4,0.8 L 3.4,1.6 L 0.8,0.8 L 0.6,2.6 L 1.6,3.3 L 1.6,3.8 L 0,3.3 L -1.6,3.8 L -1.6,3.3 L -0.6,2.6 L -0.8,0.8 L -3.4,1.6 L -3.4,0.8 L -0.9,-1.0 Z"
+                    fill={textColor}
+                    transform={`rotate(${ac.headingDeg || 0})`}
+                  />
+
+                  {/* NATO ADS-B Telemetry Data Block */}
+                  <rect
+                    x={boxX}
+                    y="-5.8"
+                    width="52"
+                    height="11.2"
+                    rx="1"
+                    fill="#020617"
+                    fillOpacity="0.92"
+                    stroke={badgeColor}
+                    strokeWidth="0.45"
+                  />
+                  <text x={textX} y="-1.1" fill={textColor} fontSize="3.0" fontWeight="bold" fontFamily="monospace">
+                    {ac.callsign} {ac.isOverIsland ? '• OVER ISL' : ac.isInboundToIsland ? `• ETA ${ac.etaToIslandMin}m` : `• ${flStr}`}
+                  </text>
+                  <text x={textX} y="3.1" fill="#e2e8f0" fontSize="2.45" fontFamily="monospace">
+                    {ac.speedKt}kt • {ac.distanceNm}NM@{String(ac.bearingDeg || 0).padStart(3, '0')}°
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        );
+      })()}
 
       {/* Tactical Radar Sweep (Pulsing sweep around active station) */}
       <g className="pointer-events-none">
@@ -1146,17 +1272,51 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                 </span>
               </div>
 
-              {forecastOffset > 0 && (
+              <div className="flex items-center space-x-1.5 pointer-events-auto">
+                {/* Live QNH & ADS-B Sector Status Pill */}
                 <button
                   type="button"
-                  onClick={() => { setForecastOffset(0); setIsPlaying(false); }}
-                  className="pointer-events-auto flex items-center space-x-1 px-2 py-1 bg-orange-600/90 hover:bg-orange-500 text-white border border-orange-400/60 text-[7.5px] font-black uppercase tracking-wider cursor-pointer shadow-lg transition-all"
-                  title="Reset map to live conditions"
+                  onClick={() => setActiveLayer(prev => prev === 'adsb' ? 'none' : 'adsb')}
+                  className={`hidden sm:flex items-center space-x-1.5 px-2 py-1 border backdrop-blur-md shadow-lg text-[7.5px] font-mono font-black uppercase cursor-pointer transition-all ${
+                    (apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+                      ? 'bg-red-950/90 border-red-500 text-red-200 animate-pulse'
+                      : (apiData?.airspaceTraffic?.inboundToIslandCount || 0) > 0
+                      ? 'bg-amber-950/90 border-amber-500/70 text-amber-200'
+                      : activeLayer === 'adsb'
+                      ? 'bg-cyan-950/90 border-cyan-400/70 text-cyan-200'
+                      : 'bg-slate-950/85 border-slate-700/80 text-slate-300 hover:border-cyan-500/50'
+                  }`}
+                  title="Toggle 50 NM ADS-B Airspace Radar & Velocity Vectors"
                 >
-                  <RotateCcw className="w-2.5 h-2.5" />
-                  <span>Return to Live</span>
+                  <span>
+                    ✈️ {(apiData?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+                      ? `${apiData.airspaceTraffic.activeOverIslandCount} OVER ISL`
+                      : (apiData?.airspaceTraffic?.inboundToIslandCount || 0) > 0
+                      ? `${apiData.airspaceTraffic.inboundToIslandCount} INBOUND`
+                      : `50NM: ${apiData?.airspaceTraffic?.totalTracked50nm ?? 0} ACFT`}
+                  </span>
+                  {apiData?.aviationMetarTaf?.primaryQnhHpa && (
+                    <>
+                      <span className="text-slate-600">|</span>
+                      <span className="text-cyan-300">
+                        OMAA Q{apiData.aviationMetarTaf.primaryQnhHpa} ({apiData.aviationMetarTaf.sectorFlightCategory || 'VFR'})
+                      </span>
+                    </>
+                  )}
                 </button>
-              )}
+
+                {forecastOffset > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setForecastOffset(0); setIsPlaying(false); }}
+                    className="flex items-center space-x-1 px-2 py-1 bg-orange-600/90 hover:bg-orange-500 text-white border border-orange-400/60 text-[7.5px] font-black uppercase tracking-wider cursor-pointer shadow-lg transition-all"
+                    title="Reset map to live conditions"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Return to Live</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
 

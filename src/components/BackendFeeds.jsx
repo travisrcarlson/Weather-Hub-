@@ -352,6 +352,22 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
       ]
     },
     {
+      id: 'metar',
+      name: 'Regional ICAO METAR / TAF Aviation Decoder (OMAA • OMAD • OMAM • XRNG)',
+      url: feeds.metar?.url || 'https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true',
+      description: 'Ingests and decodes live ICAO Annex 3 METAR/TAF aviation strings, QNH altimeter settings (hPa/inHg), flight categories (VFR/MVFR/IFR), and density altitude across Zayed Intl (OMAA), Al Bateen Exec (OMAD), Al Dhafra AB (OMAM), and X-Range AWOS (XRNG) ($0.00 / No Key).',
+      status: getFeedStatus(),
+      statusCode: feeds.metar?.statusCode || 200,
+      latency: isOffline ? null : (feeds.metar?.latency || 84),
+      lastPing: feeds.metar?.lastPing || new Date().toISOString(),
+      payload: feeds.metar?.payload || apiData?.aviationMetarTaf || null,
+      calibrationTitle: 'UAE Airfield QNH Altimeter & Flight Category Cross-Check',
+      calibration: [
+        '📟 Official ICAO QNH Altimeter Sync: Provides real-time sea-level barometric pressure (QNH hPa / inHg) from OMAA, OMAD, and OMAM for UAV baro-altimeter calibration.',
+        '🛫 24-Hour TAF Sea-Breeze BECMG Groups: Tracks afternoon NW sea-breeze onset (330°–340°) and nocturnal land-breeze transitions across the Abu Dhabi coastal sector.'
+      ]
+    },
+    {
       id: 'ncm',
       name: 'UAE NCM Operational Forecast API',
       url: 'https://api.ncm.gov.ae/v1/forecast',
