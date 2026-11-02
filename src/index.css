@@ -5,7 +5,7 @@
   --color-cardDarkSlate: #121418;
   --color-textIceWhite: #F8FAFC;
   --color-safetyGreen: #10B981;
-  --color-amberAlert: #78350F;
+  --color-amberAlert: #F59E0B;
   --color-stopRed: #EF4444;
   --color-edgeOrange: #FF4E02;
   --color-uvPurple: #8B5CF6;
@@ -164,20 +164,104 @@
   animation: bounce-slow 3s infinite;
 }
 
-/* Glassmorphism Global Overrides - Sharp Corporate Corners */
-.bg-cardDarkSlate {
-  background-color: rgba(18, 20, 24, 0.85) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+/* Glassmorphism & Machined Tactical Glass Global Overrides - Sharp Corporate Corners */
+.bg-cardDarkSlate,
+.bg-slate-950\/70 {
+  background: linear-gradient(165deg, rgba(20, 24, 33, 0.90) 0%, rgba(10, 13, 20, 0.92) 100%) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(148, 163, 184, 0.14) !important;
   border-radius: 0px !important;
-  box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6);
-  transition: all 0.3s ease;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.09),
+    inset 0 0 22px rgba(15, 23, 42, 0.45),
+    0 14px 32px -10px rgba(0, 0, 0, 0.78);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
-.bg-cardDarkSlate:hover {
-  border-color: rgba(255, 78, 2, 0.4) !important;
-  box-shadow: 0 15px 35px -10px rgba(0, 0, 0, 0.8), 0 0 15px rgba(255, 78, 2, 0.1);
+.bg-cardDarkSlate:hover,
+.bg-slate-950\/70:hover {
+  border-color: rgba(255, 78, 2, 0.45) !important;
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 160, 90, 0.18),
+    inset 0 0 24px rgba(15, 23, 42, 0.5),
+    0 16px 36px -10px rgba(0, 0, 0, 0.85),
+    0 0 16px rgba(255, 78, 2, 0.12);
+}
+
+/* Calibrated High-Contrast Luminous Status Readouts */
+.text-amberAlert {
+  color: #F59E0B !important;
+  text-shadow: 0 0 10px rgba(245, 158, 11, 0.22);
+}
+
+.text-safetyGreen {
+  text-shadow: 0 0 10px rgba(16, 185, 129, 0.22);
+}
+
+.text-stopRed {
+  text-shadow: 0 0 12px rgba(239, 68, 68, 0.28);
+}
+
+/* Dynamic Viewport Safety Perimeter Aura */
+@keyframes aura-breathe-amber {
+  0%, 100% {
+    box-shadow: inset 0 0 24px rgba(245, 158, 11, 0.16), inset 0 2px 0 rgba(245, 158, 11, 0.55);
+  }
+  50% {
+    box-shadow: inset 0 0 38px rgba(245, 158, 11, 0.30), inset 0 2px 0 rgba(251, 191, 36, 0.85);
+  }
+}
+
+@keyframes aura-breathe-red {
+  0%, 100% {
+    box-shadow: inset 0 0 28px rgba(239, 68, 68, 0.22), inset 0 2px 0 rgba(239, 68, 68, 0.65);
+  }
+  50% {
+    box-shadow: inset 0 0 48px rgba(239, 68, 68, 0.45), inset 0 2px 0 rgba(248, 113, 113, 0.95);
+  }
+}
+
+.viewport-aura-green {
+  box-shadow: inset 0 0 22px rgba(16, 185, 129, 0.13), inset 0 1.5px 0 rgba(16, 185, 129, 0.45);
+}
+
+.viewport-aura-amber {
+  animation: aura-breathe-amber 3.2s infinite ease-in-out;
+}
+
+.viewport-aura-red {
+  animation: aura-breathe-red 1.6s infinite ease-in-out;
+}
+
+/* Live Telemetry Gauge Shimmer */
+@keyframes telemetry-shimmer {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.telemetry-gauge-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.telemetry-gauge-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 48%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.32) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  animation: telemetry-shimmer 3.4s infinite cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 /* Radar Sweep Animation */

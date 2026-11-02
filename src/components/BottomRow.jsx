@@ -154,10 +154,10 @@ export function AqiWidget({ data, hourlyData }) {
               )}
             </span>
           </div>
-          <div className="w-full h-2.5 bg-bgDeepSpace/60 rounded overflow-hidden">
+          <div className="w-full h-2.5 bg-bgDeepSpace/70 border border-slate-800/70 rounded overflow-hidden">
             <div 
-              style={{ width: `${pm25Pct}%` }}
-              className={`h-full ${pm25 >= 25 ? 'bg-stopRed' : 'bg-slate-300'}`}
+              style={{ width: `${Math.max(6, pm25Pct)}%` }}
+              className={`h-full telemetry-gauge-bar ${pm25 >= 25 ? 'bg-stopRed' : pm25 >= 15 ? 'bg-amberAlert' : 'bg-safetyGreen'}`}
             />
           </div>
         </div>
@@ -175,10 +175,10 @@ export function AqiWidget({ data, hourlyData }) {
               )}
             </span>
           </div>
-          <div className="w-full h-2.5 bg-bgDeepSpace/60 rounded overflow-hidden">
+          <div className="w-full h-2.5 bg-bgDeepSpace/70 border border-slate-800/70 rounded overflow-hidden">
             <div 
-              style={{ width: `${pm10Pct}%` }}
-              className={`h-full ${pm10 >= 155 ? 'bg-stopRed animate-pulse' : 'bg-slate-300'}`}
+              style={{ width: `${Math.max(6, pm10Pct)}%` }}
+              className={`h-full telemetry-gauge-bar ${pm10 >= 155 ? 'bg-stopRed animate-pulse' : pm10 >= 80 ? 'bg-amberAlert' : 'bg-cyan-400'}`}
             />
           </div>
         </div>

@@ -144,7 +144,15 @@ export function HumidityWidget({ data, hourlyData }) {
       </div>
 
       {/* UAE MoHRE Work/Rest Split & Translated Water Intake */}
-      <div className="border-t border-slate-800/40 pt-1.5 pb-1 relative z-10 flex flex-col space-y-0.5">
+      <div className="border-t border-slate-800/40 pt-1.5 pb-1 relative z-10 flex flex-col space-y-1">
+        <div className="w-full h-1.5 bg-bgDeepSpace/70 overflow-hidden border border-slate-800/70">
+          <div
+            style={{ width: `${Math.min(100, Math.max(8, (wbgt / 35) * 100))}%` }}
+            className={`h-full telemetry-gauge-bar ${
+              wbgt >= 30.5 ? 'bg-stopRed' : wbgt >= 27.9 ? 'bg-amberAlert' : 'bg-safetyGreen'
+            }`}
+          />
+        </div>
         <div className="flex justify-between items-center text-[9px] font-bold uppercase leading-none">
           <span className="text-slate-450">Work/Rest (MoHRE)</span>
           <span className={`${cycle.color} font-black tracking-wide`}>{cycle.ratio}</span>
@@ -263,15 +271,25 @@ export function VisibilityWidget({ data, hourlyData }) {
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="border-t border-slate-700/30 pt-1.5 flex justify-between items-center">
-        <span className="text-[9px] text-slate-400 font-bold uppercase flex items-center space-x-0.5">
-          <Eye className="w-3 h-3 text-slate-400" />
-          <span>STATUS</span>
-        </span>
-        <span className={`text-[9px] font-bold uppercase tracking-wider ${visStatus.color}`}>
-          {visStatus.label}
-        </span>
+      {/* Footer with Shimmering Visibility Gauge */}
+      <div className="border-t border-slate-700/30 pt-1.5 flex flex-col space-y-1">
+        <div className="w-full h-1.5 bg-bgDeepSpace/70 overflow-hidden border border-slate-800/70">
+          <div
+            style={{ width: `${Math.min(100, Math.max(8, (visibilityKm / 10) * 100))}%` }}
+            className={`h-full telemetry-gauge-bar ${
+              visibilityKm < 1 ? 'bg-stopRed' : visibilityKm <= 5 ? 'bg-amberAlert' : 'bg-safetyGreen'
+            }`}
+          />
+        </div>
+        <div className="flex justify-between items-center">
+          <span className="text-[9px] text-slate-400 font-bold uppercase flex items-center space-x-0.5">
+            <Eye className="w-3 h-3 text-slate-400" />
+            <span>STATUS</span>
+          </span>
+          <span className={`text-[9px] font-bold uppercase tracking-wider ${visStatus.color}`}>
+            {visStatus.label}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -657,8 +675,20 @@ export function HydrationWidget({ data }) {
         </div>
       </div>
 
-      {/* Footer / Advisory Note */}
-      <div className="border-t border-slate-800/50 pt-1 flex items-center justify-between text-[8px] font-semibold text-slate-300 leading-tight relative z-10">
+      {/* Footer / Advisory Note + Shimmering Hydration Gauge */}
+      <div className="border-t border-slate-800/50 pt-1 flex flex-col space-y-1 text-[8px] font-semibold text-slate-300 leading-tight relative z-10">
+        <div className="w-full h-1.5 bg-bgDeepSpace/70 overflow-hidden border border-slate-800/70">
+          <div
+            style={{ width: `${Math.min(100, Math.max(20, ((heatStress.litersPerHour || 0.5) / 1.25) * 100))}%` }}
+            className={`h-full telemetry-gauge-bar ${
+              (heatStress.litersPerHour || 0.5) >= 1.25
+                ? 'bg-stopRed'
+                : (heatStress.litersPerHour || 0.5) >= 1.0
+                ? 'bg-amberAlert'
+                : 'bg-cyan-400'
+            }`}
+          />
+        </div>
         <span className="truncate">💡 {heatStress.note}</span>
       </div>
     </div>

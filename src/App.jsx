@@ -752,6 +752,13 @@ export default function App() {
 
   const tvExtremes = getTvProjectedExtremes();
 
+  const viewportAuraClass =
+    globalSafety.status === 'RED' || (data?.airspaceTraffic?.activeOverIslandCount || 0) > 0
+      ? 'viewport-aura-red'
+      : globalSafety.status === 'AMBER' || (data?.airspaceTraffic?.inboundToIslandCount || 0) > 0
+      ? 'viewport-aura-amber'
+      : 'viewport-aura-green';
+
   if (isMobile) {
     const mobileSectorList = [
       { id: 'hq', short: 'HQ', label: 'X-Range HQ' },
@@ -764,6 +771,8 @@ export default function App() {
 
     return (
       <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative ios-main-pb-safe ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-600' : ''}`}>
+        {/* Dynamic Viewport Safety Perimeter Aura */}
+        <div className={`fixed inset-0 pointer-events-none z-50 ${viewportAuraClass}`} />
         {/* Top Header bar (Z1) */}
         <Header 
           lastUpdated={lastUpdated} 
@@ -1184,6 +1193,8 @@ export default function App() {
 
   return (
     <div className={`w-full h-full bg-bgDeepSpace flex flex-col justify-between overflow-hidden relative ${globalSafety.status === 'RED' && globalSafety.reasons.some(r => r.includes('lightning') || r.includes('LIGHTNING') || r.includes('Lightning')) ? 'animate-emergency-strobe border-2 border-red-650' : ''}`}>
+      {/* Dynamic Viewport Safety Perimeter Aura */}
+      <div className={`fixed inset-0 pointer-events-none z-50 ${viewportAuraClass}`} />
       {/* Top Header bar (Z1) */}
       <Header 
         lastUpdated={lastUpdated} 
