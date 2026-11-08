@@ -25,6 +25,7 @@ const PilotConsole = lazy(() => import('./components/PilotConsole'));
 const AlertCenter = lazy(() => import('./components/AlertCenter'));
 const TacticalBallisticsModal = lazy(() => import('./components/TacticalBallisticsModal'));
 const MunitionsThermalModal = lazy(() => import('./components/MunitionsThermalModal'));
+const TacAiCopilotDrawer = lazy(() => import('./components/TacAiCopilotDrawer'));
 
 const ViewLoadingFallback = () => (
   <div className="w-full h-full flex items-center justify-center bg-slate-950/80 border border-slate-800/80 text-slate-400 text-xs font-mono uppercase tracking-widest animate-pulse">
@@ -195,6 +196,7 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState('live'); // 'live', 'pilot', 'map', 'forecast', or command sub-tabs
 
   const [isAlertCenterOpen, setIsAlertCenterOpen] = useState(false);
+  const [isTacAiOpen, setIsTacAiOpen] = useState(false);
   const [isBallisticsModalOpen, setIsBallisticsModalOpen] = useState(false);
   const [isMunitionsThermalModalOpen, setIsMunitionsThermalModalOpen] = useState(false);
   
@@ -787,6 +789,7 @@ export default function App() {
           time={activeTime}
           isMobile={true}
           onOpenAlerts={() => setIsAlertCenterOpen(true)}
+          onOpenTacAi={() => setIsTacAiOpen(true)}
           activeAlertsCount={activeAlertsCount}
           activeProvider={activeProvider}
         />
@@ -1187,6 +1190,21 @@ export default function App() {
             />
           </Suspense>
         )}
+
+        {isTacAiOpen && (
+          <Suspense fallback={null}>
+            <TacAiCopilotDrawer
+              isOpen={isTacAiOpen}
+              onClose={() => setIsTacAiOpen(false)}
+              data={data}
+              activeDisplayData={activeDisplayData}
+              activeStation={activeStation}
+              globalSafety={globalSafety}
+              activeTime={activeTime}
+              isSimulated={isSimulated}
+            />
+          </Suspense>
+        )}
       </div>
     );
   }
@@ -1205,6 +1223,7 @@ export default function App() {
         onViewModeChange={handleViewModeChange}
         time={activeTime}
         onOpenAlerts={() => setIsAlertCenterOpen(true)}
+        onOpenTacAi={() => setIsTacAiOpen(true)}
         activeAlertsCount={activeAlertsCount}
         activeProvider={activeProvider}
         tvAutoReload={tvAutoReload}
@@ -1570,6 +1589,22 @@ export default function App() {
             onClose={() => setIsMunitionsThermalModalOpen(false)}
             currentData={activeDisplayData}
             hourlyData={activeHourlyData}
+          />
+        </Suspense>
+      )}
+
+      {/* X-Range TAC-AI RSO Co-Pilot Slide-Over Drawer */}
+      {isTacAiOpen && (
+        <Suspense fallback={null}>
+          <TacAiCopilotDrawer
+            isOpen={isTacAiOpen}
+            onClose={() => setIsTacAiOpen(false)}
+            data={data}
+            activeDisplayData={activeDisplayData}
+            activeStation={activeStation}
+            globalSafety={globalSafety}
+            activeTime={activeTime}
+            isSimulated={isSimulated}
           />
         </Suspense>
       )}

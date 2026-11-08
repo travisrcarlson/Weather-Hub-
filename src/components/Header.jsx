@@ -1,4 +1,4 @@
-import { Clock, Wifi, WifiOff, Cpu, Bell, Zap, Tv } from 'lucide-react';
+import { Clock, Wifi, WifiOff, Cpu, Bell, Zap, Tv, Bot } from 'lucide-react';
 import { PROVIDERS } from '../services/weatherService';
 
 export default function Header({ 
@@ -13,7 +13,8 @@ export default function Header({
   activeAlertsCount,
   activeProvider,
   tvAutoReload = true,
-  onToggleTvAutoReload
+  onToggleTvAutoReload,
+  onOpenTacAi
 }) {
   const handleTvWakeAndFullscreen = () => {
     try {
@@ -86,6 +87,16 @@ export default function Header({
             <Clock className="w-3.5 h-3.5 text-edgeOrange" />
             <span className="text-[11px] font-mono font-black tracking-wider tabular-nums leading-none">{formatTime(time)}</span>
           </div>
+
+          {/* TAC-AI RSO Co-Pilot Button */}
+          <button
+            onClick={onOpenTacAi}
+            className="flex items-center space-x-1 bg-amber-950/60 border border-amber-500/60 text-amber-300 px-2 py-1 rounded text-[9px] font-mono font-black uppercase tracking-wider cursor-pointer hover:bg-amber-900/60 shadow-sm shadow-amber-950/40"
+            title="Open X-Range TAC-AI RSO Co-Pilot"
+          >
+            <Bot className="w-3.5 h-3.5 text-edgeOrange" />
+            <span>TAC-AI</span>
+          </button>
 
           {/* Notification Bell */}
           <button
@@ -192,6 +203,16 @@ export default function Header({
             );
           })}
         </div>
+
+        {/* TAC-AI RSO Co-Pilot Button */}
+        <button
+          onClick={onOpenTacAi}
+          className="flex items-center space-x-1.5 px-2.5 py-1 xl:py-1.5 rounded-lg border bg-amber-950/50 border-amber-500/60 text-amber-200 hover:bg-amber-900/50 hover:border-amber-400 text-xs font-black transition-all duration-200 cursor-pointer relative shadow-sm shadow-amber-950/30 whitespace-nowrap"
+          title="Open X-Range TAC-AI RSO Co-Pilot (Live Telemetry Reasoning & Voice Readout)"
+        >
+          <Bot className="w-3.5 h-3.5 text-edgeOrange" />
+          <span className="text-[10px] font-mono uppercase tracking-wider">TAC-AI</span>
+        </button>
 
         {/* Notification Bell */}
         <button
