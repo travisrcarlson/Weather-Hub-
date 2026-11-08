@@ -17,7 +17,8 @@ import {
   Key,
   Trash2
 } from 'lucide-react';
-import { evaluateSafety, evaluateHeatStress, calculateAtmosphericDensity } from '../utils/safetyEngine';
+import { evaluateSafety, evaluateHeatStress } from '../utils/safetyEngine';
+import { calculateAtmosphericDensity } from '../utils/tacticalBallisticsEngine';
 import { calculateAbuAlAbyadTides } from '../utils/tideEngine';
 import { appendIso42001AuditEntry } from '../services/hseBroadcastService';
 
