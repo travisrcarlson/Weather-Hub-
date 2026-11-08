@@ -454,7 +454,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
         />
       )}
 
-      {/* Subtle NATO STANAG 2211 MGRS Grid Overlay (UTM Zone 39R • 100km Square YG • Abu Al Abyad Island) */}
+      {/* Subtle MGRS Grid Overlay (UTM Zone 39R • 100km Square YG • Abu Al Abyad Island) */}
       <g className="pointer-events-none">
         {/* Vertical MGRS Easting Lines (39R YG 78E to 98E) */}
         {[
@@ -712,7 +712,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                     transform={`rotate(${ac.headingDeg || 0})`}
                   />
 
-                  {/* NATO ADS-B Telemetry Data Block */}
+                  {/* ADS-B Telemetry Data Block */}
                   <rect
                     x={boxX}
                     y="-5.8"

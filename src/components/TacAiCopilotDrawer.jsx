@@ -26,10 +26,10 @@ const GEMINI_KEY_STORAGE = 'xrange_gemini_api_key_v1';
 
 const QUICK_PROMPTS = [
   {
-    id: 'smeac',
-    label: '📋 NATO SMEAC Range SitRep',
+    id: 'sitrep',
+    label: '📋 Tactical Range SitRep',
     icon: Sparkles,
-    query: 'Generate a full NATO SMEAC Range Safety & Weather SitRep for all 4 Abu Al Abyad sectors right now.'
+    query: 'Generate a full Tactical Range Safety & Weather SitRep for all 4 Abu Al Abyad sectors right now.'
   },
   {
     id: 'uav',
@@ -212,7 +212,7 @@ function generateLocalTacAiResponse(query, snap) {
 
   // Check if user asked about a specific custom altitude (e.g., "800m", "1500m", "500m")
   const altMatch = q.match(/(\d{2,4})\s*(m|meter|meters|ft|feet)/i);
-  if (altMatch && !q.includes('smeac')) {
+  if (altMatch && !q.includes('sitrep')) {
     const rawVal = parseInt(altMatch[1], 10);
     const isFeet = altMatch[2].toLowerCase().startsWith('f');
     const targetAltM = isFeet ? Math.round(rawVal / 3.28084) : rawVal;
@@ -236,14 +236,14 @@ function generateLocalTacAiResponse(query, snap) {
     ].join('\n');
   }
 
-  // 1. NATO SMEAC Range SitRep
-  if (q.includes('smeac') || q.includes('sitrep') || q.includes('full') || q.includes('brief')) {
+  // 1. Tactical Range SitRep
+  if (q.includes('sitrep') || q.includes('smeac') || q.includes('full') || q.includes('brief')) {
     const sectorLines = snap.sectors
       .map(s => `  - **${s.name} (\`${s.mgrs}\`)**: \`${s.status}\` — ${s.tempC}°C | Wind ${s.windKmh}G${s.gustKmh} kph | Vis ${s.visKm} km`)
       .join('\n');
 
     return [
-      `### 📋 NATO SMEAC TACTICAL RANGE SITREP — ABU AL ABYAD ISLAND`,
+      `### 📋 X-RANGE TACTICAL RANGE SITREP — ABU AL ABYAD ISLAND`,
       `**1. SITUATION & OVERALL GATE**: **\`${snap.globalStatus}\`** (${snap.activeSectorName} • \`${snap.activeSectorMgrs}\`)`,
       snap.globalReasons.length > 0
         ? `- **Active Advisories**: ${snap.globalReasons.slice(0, 2).join(' • ')}`
@@ -314,7 +314,7 @@ function generateLocalTacAiResponse(query, snap) {
       `### 🎯 TACTICAL BALLISTICS & PARACHUTE RECOVERY DRIFT (${snap.activeSectorName})`,
       `- **Firing Line 310° NW / 130° SE Crosswind**: **${snap.crosswind310Kmh} km/h (${xwindMs} m/s)** | Headwind: **${snap.headwind310Kmh} km/h**`,
       `- **Estimated Crosswind Deflection @ 1,000m Target**:`,
-      `  - **7.62×51mm NATO**: **${(xwindMs * 0.34).toFixed(2)} MRAD** (${Math.round(xwindMs * 34)} cm windage hold)`,
+      `  - **7.62×51mm (M118LR)**: **${(xwindMs * 0.34).toFixed(2)} MRAD** (${Math.round(xwindMs * 34)} cm windage hold)`,
       `  - **.338 Lapua Mag**: **${(xwindMs * 0.21).toFixed(2)} MRAD** (${Math.round(xwindMs * 21)} cm windage hold)`,
       `  - **12.7×99mm (.50 BMG)**: **${(xwindMs * 0.18).toFixed(2)} MRAD** (${Math.round(xwindMs * 18)} cm windage hold)`,
       `\n**ISO 21384-3 UAV PARACHUTE RECOVERY (PRS) DRIFT**:`,
@@ -361,7 +361,7 @@ function generateLocalTacAiResponse(query, snap) {
     `- **Current Sector Status**: **\`${snap.globalStatus}\`** — Temp **${snap.temp.toFixed(1)}°C** (WBGT **${snap.heat.wbgt}°C**), 10m Wind **${snap.wind10m.toFixed(0)} km/h** (Gusts **${snap.gust10m.toFixed(0)} km/h** @ **${snap.windDir}°T**), 100m Wind **${snap.wind100m} km/h**, Visibility **${snap.visKm} km**.`,
     `- **Airspace & Altimetry**: **${air.activeOverIslandCount || 0} Flights Over Island** (${air.totalTracked50nm || 0} in 50 NM) • **OMAA QNH ${omaa.qnhHpa} hPa (${omaa.fltCat})** • Density Alt **${snap.atm.densityAltitudeFt.toLocaleString()} ft**.`,
     `- **Optimal Next Sortie Window**: **${snap.bestWindow.time}** (Score **${snap.bestWindow.score}%** • Wind **${snap.bestWindow.windKmh} km/h**).`,
-    `- *Tip: Ask about any specific altitude (e.g., "wind at 800m"), "SMEAC brief", "UAV Go/No-Go", "ballistics", or "OMAA METAR".*`
+    `- *Tip: Ask about any specific altitude (e.g., "wind at 800m"), "Range SitRep", "UAV Go/No-Go", "ballistics", or "OMAA METAR".*`
   ].join('\n');
 }
 
@@ -393,7 +393,7 @@ export default function TacAiCopilotDrawer({
   // Initialize with a live welcome SitRep when opened first time
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      const initialBrief = generateLocalTacAiResponse('smeac', snap);
+      const initialBrief = generateLocalTacAiResponse('sitrep', snap);
       setMessages([
         {
           role: 'assistant',
@@ -670,7 +670,7 @@ export default function TacAiCopilotDrawer({
             <button
               type="button"
               onClick={() => {
-                const freshBrief = generateLocalTacAiResponse('smeac', snap);
+                const freshBrief = generateLocalTacAiResponse('sitrep', snap);
                 setMessages([
                   {
                     role: 'assistant',
@@ -766,7 +766,7 @@ export default function TacAiCopilotDrawer({
             type="text"
             value={inputQuery}
             onChange={(e) => setInputQuery(e.target.value)}
-            placeholder="Ask TAC-AI (e.g., 'Can we fly at 800m?', 'OMAA METAR', 'SMEAC brief')..."
+            placeholder="Ask TAC-AI (e.g., 'Can we fly at 800m?', 'OMAA METAR', 'Range SitRep')..."
             className="flex-1 bg-slate-950 border border-slate-700 focus:border-cyan-400 px-3 py-2 text-xs font-mono text-white outline-none"
           />
           <button

@@ -51,7 +51,7 @@ const MODEL_CARDS = [
   {
     id: 'HABOOB-BALLISTICS-V2',
     name: 'Convective Haboob Early-Warning & Ballistic Drift Solver',
-    version: 'v2.4-NATO-G1G7',
+    version: 'v2.4-G1G7',
     type: 'Hybrid Multi-Parameter Anomaly Detector & Point-Mass Ballistic Solver',
     isoClass: 'Class II — Tactical Range Safety & Munitions Thermal Protection',
     inputs: '1-Hr Barometric Pressure Delta (hPa), Wind Vector Shift (°), CAPE (J/kg), PM10/Dust (µg/m³), Direct Solar Load',

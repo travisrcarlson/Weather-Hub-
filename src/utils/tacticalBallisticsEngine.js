@@ -6,8 +6,8 @@ import { calculateWBGT } from './safetyEngine';
 export const BALLISTIC_CALIBERS = [
   {
     id: '556_nato',
-    name: '5.56x45mm NATO (M855A1 EPR)',
-    shortName: '5.56 NATO',
+    name: '5.56x45mm (M855A1 EPR)',
+    shortName: '5.56x45mm',
     caliber: '5.56mm',
     bulletWeightGrains: 62,
     muzzleVelocityMps: 940, // 3084 fps
@@ -23,8 +23,8 @@ export const BALLISTIC_CALIBERS = [
   },
   {
     id: '762_nato',
-    name: '7.62x51mm NATO (M118LR / DMR)',
-    shortName: '7.62 NATO',
+    name: '7.62x51mm (M118LR / DMR)',
+    shortName: '7.62x51mm',
     caliber: '7.62mm',
     bulletWeightGrains: 175,
     muzzleVelocityMps: 790, // ~2590 fps
