@@ -28,7 +28,19 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   const windSpeed = data.wind_speed_10m || 0;
   const gusts = data.wind_gusts_10m || 0;
   const directionDegrees = data.wind_direction_10m || 0;
-  const wind100m = data.wind_speed_100m || null;
+  const wind100m = data.wind_speed_100m !== undefined && data.wind_speed_100m !== null
+    ? Number(data.wind_speed_100m)
+    : Number((windSpeed * 1.28).toFixed(1));
+  const windDir100m = data.wind_direction_100m !== undefined && data.wind_direction_100m !== null
+    ? Number(data.wind_direction_100m)
+    : Math.round((directionDegrees + 12) % 360);
+
+  // Abu Al Abyad Runway 31 (310° NW) / 13 (130° SE) Crosswind & Headwind Resolver
+  const rwy31Rad = (((directionDegrees - 310) + 360) % 360) * (Math.PI / 180);
+  const rwyCrosswindKmh = Math.abs(windSpeed * Math.sin(rwy31Rad));
+  const rwyHeadwindKmh = windSpeed * Math.cos(rwy31Rad);
+  const activeRwyLabel = rwyHeadwindKmh >= 0 ? 'RWY 31' : 'RWY 13';
+  const rwyXwStroke = rwyCrosswindKmh >= 35 ? '#EF4444' : rwyCrosswindKmh >= 22 ? '#F59E0B' : '#10B981';
 
   const cardinal = getCardinalDirection(directionDegrees);
   const beaufort = getBeaufortScale(windSpeed);
@@ -135,11 +147,15 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
         const timeStr = hourlyData.time[idx];
         const speed = hourlyData.wind_speed_10m[idx] || 0;
         const gust = hourlyData.wind_gusts_10m ? (hourlyData.wind_gusts_10m[idx] || 0) : 0;
+        const speed100m = hourlyData.wind_speed_100m?.[idx] !== undefined
+          ? hourlyData.wind_speed_100m[idx]
+          : Number((speed * 1.28).toFixed(1));
         const hour = timeStr.includes('T') ? timeStr.split('T')[1].slice(0, 2) : '00';
         windForecast12h.push({
           hour: `${hour}:00`,
           speed,
-          gust
+          gust,
+          speed100m
         });
       }
     }
@@ -153,6 +169,9 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   const gustPathD = windForecast12h.length > 0 ? `M ${gustPoints.join(' L ')}` : 'M 15,52 L 120,52';
   const gustAreaD = `${gustPathD} L 120,52 L 15,52 Z`;
 
+  const speed100mPoints = windForecast12h.map((d, i) => `${(15 + i * 9.545).toFixed(2)},${(52 - (Math.min(60, d.speed100m) / 60) * 44).toFixed(2)}`);
+  const speed100mPathD = windForecast12h.length > 0 ? `M ${speed100mPoints.join(' L ')}` : 'M 15,52 L 120,52';
+
   return (
     <div className="w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden select-none backdrop-blur-md shadow-lg">
       {/* Header */}
@@ -161,7 +180,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none mb-1">
             Z3 • WIND & GUSTS
           </p>
-          <h2 className="text-sm font-bold text-slate-200 leading-none">ADOSH Safety Limits</h2>
+          <h2 className="text-sm font-bold text-slate-200 leading-none">ADOSH & HSI Wind Profile</h2>
         </div>
         {onOpenBallistics && (
           <button
@@ -180,64 +199,125 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
         {/* Column 1 (Col-span-4): Readings */}
         <div className="col-span-4 flex flex-col justify-around h-full space-y-1.5 pr-1 border-r border-slate-800/40">
           <div>
-            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-1">Sustained</p>
+            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">10m Sustained</p>
             <div className="flex items-center leading-none">
-              <span className={`text-3xl font-black tracking-tight ${getWindColor(windSpeed, false)}`}>
+              <span className={`text-2xl xl:text-3xl font-black tracking-tight ${getWindColor(windSpeed, false)}`}>
                 {windSpeed.toFixed(0)}
               </span>
               <span className="text-[9px] font-semibold text-slate-500 ml-1">km/h</span>
               {windTrend.arrow && windTrend.arrow !== '→' && (
-                <span className={`text-[10px] ml-1.5 ${windTrend.class}`}>{windTrend.arrow}</span>
+                <span className={`text-[10px] ml-1 ${windTrend.class}`}>{windTrend.arrow}</span>
               )}
             </div>
           </div>
           <div>
-            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-1">Peak Gusts</p>
+            <p className="text-[8px] text-slate-400 font-bold uppercase leading-none mb-0.5">Peak Gusts</p>
             <div className="flex items-center leading-none">
-              <span className={`text-3xl font-black tracking-tight ${getWindColor(gusts, true)}`}>
+              <span className={`text-2xl xl:text-3xl font-black tracking-tight ${getWindColor(gusts, true)}`}>
                 {gusts.toFixed(0)}
               </span>
               <span className="text-[9px] font-semibold text-slate-500 ml-1">km/h</span>
               {gustsTrend.arrow && gustsTrend.arrow !== '→' && (
-                <span className={`text-[10px] ml-1.5 ${gustsTrend.class}`}>{gustsTrend.arrow}</span>
+                <span className={`text-[10px] ml-1 ${gustsTrend.class}`}>{gustsTrend.arrow}</span>
               )}
             </div>
           </div>
-          {wind100m && (
-            <div className="pt-1 border-t border-slate-800/40">
-              <div className="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase leading-none">
-                <span>100m:</span>
-                <span className="text-cyan-300 font-mono font-black">{wind100m} km/h</span>
-              </div>
+          <div className="pt-1 border-t border-slate-800/40 space-y-0.5">
+            <div className="flex items-center justify-between text-[7.5px] text-slate-400 font-bold uppercase leading-none">
+              <span>100m Ring:</span>
+              <span className="text-cyan-300 font-mono font-black">{wind100m.toFixed(0)} km/h • {windDir100m}°</span>
             </div>
-          )}
-        </div>
-
-        {/* Column 2 (Col-span-4): Current Compass */}
-        <div className="col-span-4 flex flex-col items-center justify-center border-r border-slate-800/60 pr-1">
-          <span className="text-[8px] font-black text-slate-400 uppercase mb-1 leading-none">CURRENT</span>
-          <div className="relative w-[76px] h-[76px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/30 shadow-inner">
-            {/* Compass Card Marks */}
-            <span className="absolute top-1 text-[8px] font-black text-slate-500">N</span>
-            <span className="absolute right-1.5 text-[8px] font-black text-slate-500">E</span>
-            <span className="absolute bottom-1 text-[8px] font-black text-slate-500">S</span>
-            <span className="absolute left-1.5 text-[8px] font-black text-slate-500">W</span>
-            
-            {/* Dynamic Arrow */}
-            <div 
-              style={{ transform: `rotate(${(directionDegrees + 180) % 360}deg)` }}
-              className="transition-transform duration-500 ease-out flex items-center justify-center w-full h-full"
-            >
-              <svg viewBox="0 0 24 24" className="w-7 h-7 text-edgeOrange fill-none stroke-current animate-pulse-slow" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="20" x2="12" y2="4" />
-                <polyline points="7,9 12,4 17,9" />
-              </svg>
+            <div className="flex items-center justify-between text-[7.5px] text-slate-400 font-bold uppercase leading-none">
+              <span>{activeRwyLabel} XW:</span>
+              <span
+                className={`font-mono font-black ${
+                  rwyCrosswindKmh >= 35 ? 'text-stopRed' : rwyCrosswindKmh >= 22 ? 'text-amberAlert' : 'text-safetyGreen'
+                }`}
+              >
+                {rwyCrosswindKmh.toFixed(0)} km/h
+              </span>
             </div>
           </div>
-          <span className="text-[9px] font-mono font-black text-slate-200 mt-1 uppercase leading-none truncate w-full text-center">
-            {cardinal} • {directionDegrees}°
+        </div>
+
+        {/* Column 2 (Col-span-4): Dual-Ring 10m/100m HSI Compass with Embedded RWY 31/13 Strip */}
+        <div className="col-span-4 flex flex-col items-center justify-center border-r border-slate-800/60 pr-1">
+          <span className="text-[7.5px] font-black text-slate-400 uppercase mb-0.5 leading-none tracking-wider">
+            10M / 100M HSI • RWY 31
           </span>
-          <span className={`text-[8px] font-black px-1.5 py-0.5 mt-1 rounded uppercase tracking-wider ${
+          <div className="relative w-[78px] h-[78px] flex items-center justify-center">
+            <svg viewBox="0 0 80 80" className="w-full h-full overflow-visible">
+              {/* Outer 100m Cyan Ring */}
+              <circle
+                cx="40"
+                cy="40"
+                r="37"
+                fill="rgba(2, 6, 23, 0.55)"
+                stroke="#06B6D4"
+                strokeWidth="0.9"
+                strokeDasharray="2.5,2"
+                strokeOpacity="0.65"
+              />
+              {/* Inner 10m Surface Ring */}
+              <circle
+                cx="40"
+                cy="40"
+                r="28.5"
+                fill="rgba(15, 23, 42, 0.45)"
+                stroke="#334155"
+                strokeWidth="1"
+              />
+
+              {/* Cardinal Labels */}
+              <text x="40" y="9" textAnchor="middle" fill="#94A3B8" fontSize="6.5" fontWeight="900">N</text>
+              <text x="72" y="42" textAnchor="middle" fill="#64748B" fontSize="6" fontWeight="900">E</text>
+              <text x="40" y="75.5" textAnchor="middle" fill="#64748B" fontSize="6" fontWeight="900">S</text>
+              <text x="8" y="42" textAnchor="middle" fill="#64748B" fontSize="6" fontWeight="900">W</text>
+
+              {/* Embedded Abu Al Abyad RWY 31 / 13 Centerline Strip (310° NW - 130° SE) */}
+              <g transform="rotate(-50, 40, 40)">
+                <rect
+                  x="36.2"
+                  y="16"
+                  width="7.6"
+                  height="48"
+                  rx="1.5"
+                  fill="#090D16"
+                  stroke={rwyXwStroke}
+                  strokeWidth="0.9"
+                  strokeOpacity="0.85"
+                />
+                {/* Runway Centerline Dashes */}
+                <line x1="40" y1="21" x2="40" y2="59" stroke="#E2E8F0" strokeWidth="0.7" strokeDasharray="2.5,2.5" opacity="0.75" />
+                {/* RWY 31 / 13 Labels */}
+                <text x="40" y="20" textAnchor="middle" fill="#CBD5E1" fontSize="3.8" fontWeight="900" fontFamily="monospace">13</text>
+                <text x="40" y="62.5" textAnchor="middle" fill="#F8FAFC" fontSize="3.8" fontWeight="900" fontFamily="monospace">31</text>
+              </g>
+
+              {/* Outer 100m Upper-Air Wind Vector Bug (Cyan) */}
+              <g
+                transform={`rotate(${(windDir100m + 180) % 360}, 40, 40)`}
+                style={{ transition: 'transform 500ms ease-out' }}
+              >
+                <line x1="40" y1="40" x2="40" y2="5" stroke="#22D3EE" strokeWidth="1.2" strokeDasharray="2,1.5" opacity="0.85" />
+                <polygon points="40,2.5 36.8,8.5 43.2,8.5" fill="#22D3EE" />
+              </g>
+
+              {/* Primary 10m Surface Wind Vector Arrow (Aviation Amber) */}
+              <g
+                transform={`rotate(${(directionDegrees + 180) % 360}, 40, 40)`}
+                style={{ transition: 'transform 500ms ease-out' }}
+              >
+                <line x1="40" y1="54" x2="40" y2="15" stroke="#F59E0B" strokeWidth="2.4" strokeLinecap="round" />
+                <polyline points="34.5,21.5 40,14.5 45.5,21.5" fill="none" stroke="#F59E0B" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+                <circle cx="40" cy="40" r="2.2" fill="#F59E0B" stroke="#020617" strokeWidth="0.8" />
+              </g>
+            </svg>
+          </div>
+          <span className="text-[8.5px] font-mono font-black text-slate-200 mt-0.5 uppercase leading-none truncate w-full text-center">
+            {cardinal} {directionDegrees}° <span className="text-cyan-400">• 100m {windDir100m}°</span>
+          </span>
+          <span className={`text-[7.5px] font-black px-1.5 py-0.5 mt-0.5 rounded uppercase tracking-wider ${
             isCurrentlyShifting 
               ? 'bg-stopRed/20 text-stopRed border border-stopRed/40 animate-pulse' 
               : 'bg-safetyGreen/10 text-safetyGreen border border-safetyGreen/30'
@@ -248,8 +328,8 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
 
         {/* Column 3 (Col-span-4): Forecast Compass */}
         <div className="col-span-4 flex flex-col items-center justify-center pl-1">
-          <span className="text-[8px] font-black text-slate-400 uppercase mb-1 leading-none">24H ZONE</span>
-          <div className="relative w-[76px] h-[76px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/30 shadow-inner">
+          <span className="text-[7.5px] font-black text-slate-400 uppercase mb-0.5 leading-none tracking-wider">24H ZONE</span>
+          <div className="relative w-[78px] h-[78px] border border-slate-700/80 rounded-full flex items-center justify-center bg-bgDeepSpace/30 shadow-inner">
             <span className="absolute top-1 text-[8px] font-black text-slate-500">N</span>
             <span className="absolute right-1.5 text-[8px] font-black text-slate-500">E</span>
             <span className="absolute bottom-1 text-[8px] font-black text-slate-500">S</span>
@@ -258,7 +338,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
             {/* SVG Forecast Wedge and Arrows */}
             <svg viewBox="0 0 50 50" className="w-full h-full absolute inset-0">
               {wedgePath && (
-                <path d={wedgePath} fill="#E87722" fillOpacity="0.18" stroke="#E87722" strokeWidth="0.75" strokeDasharray="1,1" />
+                <path d={wedgePath} fill="#F59E0B" fillOpacity="0.18" stroke="#F59E0B" strokeWidth="0.75" strokeDasharray="1,1" />
               )}
               {forecast && (
                 <>
@@ -269,26 +349,33 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
                   </g>
                   {/* End Arrow (Solid) */}
                   <g transform={`rotate(${forecast.endDir + 180}, 25, 25)`}>
-                    <line x1="25" y1="25" x2="25" y2="8" stroke="#E87722" strokeWidth="1.2" />
-                    <polygon points="25,6 22,10 28,10" fill="#E87722" />
+                    <line x1="25" y1="25" x2="25" y2="8" stroke="#F59E0B" strokeWidth="1.2" />
+                    <polygon points="25,6 22,10 28,10" fill="#F59E0B" />
                   </g>
                 </>
               )}
-              <circle cx="25" cy="25" r="1.5" fill="#E87722" />
+              <circle cx="25" cy="25" r="1.5" fill="#F59E0B" />
             </svg>
           </div>
-          <span className="text-[9px] font-mono font-black text-slate-200 mt-1 uppercase leading-none truncate w-full text-center">
+          <span className="text-[8.5px] font-mono font-black text-slate-200 mt-0.5 uppercase leading-none truncate w-full text-center">
             {forecast ? `${forecast.minSpeed.toFixed(0)}-${forecast.maxSpeed.toFixed(0)} k/h` : '--'}
           </span>
-          <span className="text-[8px] font-black text-slate-400 mt-1 uppercase leading-none">Forecast</span>
+          <span className="text-[7.5px] font-black text-slate-400 mt-0.5 uppercase leading-none">24H Envelope</span>
         </div>
 
       </div>
 
-      {/* 12-Hour Wind & Gust Forecast Sparkline */}
-      <div className="w-full flex-1 min-h-[96px] mt-1.5 relative z-10 border-t border-slate-800/40 pt-2 flex flex-col justify-between">
-        <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider mb-1 leading-none">12-Hour Wind Speed & Gusts Forecast</p>
-        <div className="w-full flex-1 relative overflow-visible min-h-[64px] my-1">
+      {/* 12-Hour Wind, 100m Shear & Gust Forecast Sparkline */}
+      <div className="w-full flex-1 min-h-[92px] mt-1 relative z-10 border-t border-slate-800/40 pt-1.5 flex flex-col justify-between">
+        <div className="flex items-center justify-between mb-0.5 leading-none">
+          <p className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider">12H Wind (10m • 100m • Gusts)</p>
+          <div className="flex items-center space-x-2 text-[7px] font-mono font-black uppercase">
+            <span className="text-sky-400">― 10M</span>
+            <span className="text-cyan-300">- - 100M</span>
+            <span className="text-orange-500">― GUST</span>
+          </div>
+        </div>
+        <div className="w-full flex-1 relative overflow-visible min-h-[60px] my-0.5">
           <svg className="w-full h-full overflow-visible" viewBox="0 0 120 60" preserveAspectRatio="none">
             <defs>
               <linearGradient id="speedChartFill" x1="0" y1="0" x2="0" y2="1">
@@ -332,6 +419,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
 
             {/* Paths */}
             <path d={gustPathD} fill="none" stroke="#FF4E02" strokeWidth="1.2" strokeLinecap="round" />
+            <path d={speed100mPathD} fill="none" stroke="#22D3EE" strokeWidth="0.95" strokeDasharray="1.8,1.4" strokeLinecap="round" opacity="0.9" />
             <path d={speedPathD} fill="none" stroke="#38BDF8" strokeWidth="1.2" strokeLinecap="round" />
 
             {/* Axis Lines */}
@@ -341,7 +429,7 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
         </div>
         
         {/* X-Axis labels */}
-        <div className="flex justify-between text-[9.5px] font-black text-slate-400 font-mono mt-1 leading-none pl-[12.5%] pr-[1%]">
+        <div className="flex justify-between text-[9.5px] font-black text-slate-400 font-mono mt-0.5 leading-none pl-[12.5%] pr-[1%]">
           <span>{windForecast12h[0]?.hour || 'NOW'}</span>
           <span>{windForecast12h[6]?.hour || '+6H'}</span>
           <span>{windForecast12h[11]?.hour || '+12H'}</span>

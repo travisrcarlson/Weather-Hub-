@@ -1,7 +1,8 @@
 import React from 'react';
 import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
-import { Cloud, Droplets } from 'lucide-react';
+import { Cloud, Droplets, Gauge } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';
+import { calculateAtmosphericDensity } from '../utils/tacticalBallisticsEngine';
 
 export default function CurrentConditions({ data, dailyData, hourlyData, currentTime, onOpenMunitionsThermal, isSimulated = false }) {
   if (!data) return null;
@@ -83,14 +84,14 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
   const condition = getWeatherCondition(weathercode, isNight);
 
   // Calculate indices for previous hour trend evaluations
-  const getPrevHourIdx = () => {
+  const getCurHourIdx = () => {
     if (!hourlyData || !hourlyData.time || !data.time) return -1;
     const curHourStr = data.time.slice(0, 13) + ':00';
-    const curIdx = hourlyData.time.findIndex(t => t.startsWith(curHourStr));
-    return curIdx > 0 ? curIdx - 1 : -1;
+    return hourlyData.time.findIndex(t => t.startsWith(curHourStr));
   };
 
-  const prevIdx = getPrevHourIdx();
+  const curIdx = getCurHourIdx();
+  const prevIdx = curIdx > 0 ? curIdx - 1 : -1;
   const prevTemp = prevIdx >= 0 ? hourlyData.temperature_2m[prevIdx] : null;
   const tempTrend = getTrendIndicator(temp, prevTemp, 0.1);
 
@@ -100,15 +101,44 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
   const prevCloudCover = (prevIdx >= 0 && hourlyData.cloud_cover) ? hourlyData.cloud_cover[prevIdx] : null;
   const cloudTrend = getTrendIndicator(cloudCover, prevCloudCover, 5.0); // 5% threshold
 
+  // Barometric QNH & 3-Hour Pressure Trend + Density Altitude (DA)
+  const qnh = Number(data.pressure_msl ?? 1012.4);
+  const prev3hIdx = curIdx >= 3 ? curIdx - 3 : (prevIdx >= 0 ? prevIdx : -1);
+  const prev3hQnh = (prev3hIdx >= 0 && hourlyData?.pressure_msl?.[prev3hIdx] !== undefined)
+    ? Number(hourlyData.pressure_msl[prev3hIdx])
+    : null;
+  const qnhDelta = prev3hQnh !== null ? Number((qnh - prev3hQnh).toFixed(1)) : 0.0;
+  const qnhTrendArrow = qnhDelta >= 0.5 ? '↑' : qnhDelta <= -0.5 ? '↓' : '→';
+  const qnhTrendColor = qnhDelta <= -1.2 ? 'text-stopRed' : qnhDelta <= -0.5 ? 'text-amberAlert' : qnhDelta >= 0.5 ? 'text-safetyGreen' : 'text-slate-400';
+
+  const atm = calculateAtmosphericDensity({
+    temperatureC: temp ?? 30,
+    relativeHumidity: data.relative_humidity_2m ?? 45,
+    stationPressureHpa: qnh,
+    altitudeM: 5
+  });
+  const daFt = atm.densityAltitudeFt;
+  const daColor = daFt >= 2500 ? 'text-stopRed' : daFt >= 1500 ? 'text-amberAlert' : 'text-cyan-300';
+
+  // 3-Point Thermal Load Bar positions (mapped across 15°C to 62°C range)
+  const toThermalPct = (val) => {
+    if (val === undefined || val === null || Number.isNaN(val)) return 0;
+    return Math.max(3, Math.min(97, ((val - 15) / (62 - 15)) * 100));
+  };
+  const shadePct = toThermalPct(temp);
+  const feelsPct = toThermalPct(feelsLike ?? temp);
+  const sunPct = toThermalPct(sunTemp);
+  const solarDelta = (sunTemp !== undefined && temp !== undefined) ? Math.max(0, sunTemp - temp) : 0;
+
   return (
-    <div className={`w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none backdrop-blur-md shadow-lg`}>
+    <div className={`w-full h-full bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between bg-gradient-to-br ${condition.bgClass} relative overflow-hidden select-none backdrop-blur-md shadow-lg`}>
       {/* Decorative Grid Line for Tech Vibe */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none animate-grid-glow" />
 
       {/* Top Section: Title & Badge */}
       <div className="flex justify-between items-start relative z-10">
         <div>
-          <div className="flex items-center space-x-2 mb-1">
+          <div className="flex items-center space-x-2 mb-0.5">
             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-none">
               Z2 • CURRENT CONDITIONS
             </p>
@@ -120,7 +150,7 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
             </span>
           </div>
           <div className="flex items-center space-x-2">
-            <h2 className="text-sm font-bold text-slate-200 leading-none">
+            <h2 className="text-xs xl:text-sm font-bold text-slate-200 leading-none truncate">
               {data.sectorTitle || data.name || 'HQ Observation Sector'}
             </h2>
             <span
@@ -139,7 +169,7 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
           {onOpenMunitionsThermal && (
             <button
               onClick={onOpenMunitionsThermal}
-              className="flex items-center space-x-1 px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[9px] font-mono font-black tracking-tight transition-colors cursor-pointer shadow-sm"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[8.5px] font-mono font-black tracking-tight transition-colors cursor-pointer shadow-sm"
               title="Open WeatherNext 3 Munitions & Equipment Thermal Cook-off Monitor"
             >
               <span>🔥 {solarRad ? `${solarRad} W/m²` : 'THERMAL SOAK'}</span>
@@ -154,48 +184,111 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
         </div>
       </div>
 
-      {/* Middle Section: Temp & Emoji */}
-      <div className="flex items-center justify-between my-1 relative z-10">
-        {/* Temp Display */}
+      {/* Middle Section: Temp + Right-side Density Altitude & QNH Barometric Badge */}
+      <div className="flex items-center justify-between my-0.5 relative z-10">
+        {/* Left: Shade Temp Display */}
         <div className="flex flex-col">
-          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-1 select-none">
-            Temp in Shade
+          <span className="text-[8.5px] font-bold text-slate-400 uppercase tracking-wider leading-none mb-0.5 select-none">
+            Temp in Shade (2m)
           </span>
           <div className="flex items-center">
-            <span className="text-[46px] font-black text-textIceWhite tracking-tighter leading-none">
+            <span className="text-[40px] xl:text-[44px] font-black text-textIceWhite tracking-tighter leading-none">
               {temp !== undefined ? temp.toFixed(1) : '--.-'}
             </span>
-            <span className="text-2xl font-bold text-edgeOrange ml-0.5 leading-none">°C</span>
+            <span className="text-xl font-bold text-edgeOrange ml-0.5 leading-none">°C</span>
             {tempTrend.arrow && (
-              <span className={`text-[10px] ml-3 flex items-center space-x-0.5 ${tempTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1.5 py-0.5 rounded`}>
+              <span className={`text-[9px] ml-2 flex items-center space-x-0.5 ${tempTrend.class} bg-bgDeepSpace/60 border border-slate-800/40 px-1.5 py-0.5 rounded`}>
                 <span>{tempTrend.arrow}</span>
-                <span className="text-[8px] font-black uppercase tracking-wider">{tempTrend.text}</span>
+                <span className="text-[7.5px] font-black uppercase tracking-wider">{tempTrend.text}</span>
               </span>
             )}
           </div>
           {tempMax !== null && tempMin !== null && (
-            <div className="flex items-center space-x-2 mt-2 bg-bgDeepSpace/50 border border-slate-800/70 rounded-lg px-2.5 py-1.5 w-fit select-none">
-              <span className="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">Today's Forecast:</span>
-              <span className="text-[15px] font-black text-blue-400 font-mono leading-none">{tempMin.toFixed(1)}°</span>
-              <span className="text-xs font-bold text-slate-600">/</span>
-              <span className="text-[15px] font-black text-stopRed font-mono leading-none">{tempMax.toFixed(1)}°</span>
+            <div className="flex items-center space-x-1.5 mt-1 bg-bgDeepSpace/50 border border-slate-800/70 rounded-md px-2 py-0.5 w-fit select-none">
+              <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-wider">Min/Max:</span>
+              <span className="text-xs font-black text-blue-400 font-mono leading-none">{tempMin.toFixed(1)}°</span>
+              <span className="text-[10px] font-bold text-slate-600">/</span>
+              <span className="text-xs font-black text-stopRed font-mono leading-none">{tempMax.toFixed(1)}°</span>
             </div>
           )}
         </div>
 
-        {/* Condition Emoji */}
-        <div className="text-4xl select-none filter drop-shadow-md leading-none animate-bounce-slow mr-1 flex-shrink-0">
-          {condition.emoji}
+        {/* Right: Condition Emoji + Avionics Density Altitude (DA) & QNH Barometer Pill */}
+        <div className="flex flex-col items-end space-y-1 flex-shrink-0">
+          <div className="flex items-center space-x-2">
+            <div className="bg-slate-950/85 border border-slate-800/90 rounded-lg px-2 py-1 text-right shadow-inner">
+              <div className="flex items-center justify-end space-x-1 text-[8px] font-mono font-black uppercase tracking-wider text-slate-400 leading-none">
+                <Gauge className="w-2.5 h-2.5 text-edgeOrange" />
+                <span>DA</span>
+                <span className={daColor}>{daFt >= 0 ? `+${daFt.toLocaleString()}` : daFt} FT</span>
+              </div>
+              <div className="flex items-center justify-end space-x-1 text-[8px] font-mono font-bold text-slate-300 mt-0.5 leading-none">
+                <span>QNH {qnh.toFixed(1)}</span>
+                <span className={`font-black ${qnhTrendColor}`} title="3-Hour Barometric Pressure Change">
+                  {qnhTrendArrow}{qnhDelta >= 0 ? `+${qnhDelta}` : qnhDelta}
+                </span>
+              </div>
+            </div>
+            <div className="text-3xl xl:text-4xl select-none filter drop-shadow-md leading-none animate-bounce-slow">
+              {condition.emoji}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3-Point Thermal Load Bar: Shade (2m) -> Feels Like -> Direct Sun (Black Globe) */}
+      <div className="relative z-10 bg-slate-950/65 border border-slate-800/75 rounded-lg px-2.5 py-1.5 my-0.5">
+        <div className="flex items-center justify-between text-[7.5px] font-mono font-black uppercase tracking-wider mb-1 leading-none">
+          <span className="text-slate-300 flex items-center space-x-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 inline-block" />
+            <span>SHADE {temp !== undefined ? `${temp.toFixed(1)}°` : '--'}</span>
+          </span>
+          <span className="text-amber-300 flex items-center space-x-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+            <span>FEELS {feelsLike !== undefined ? `${feelsLike.toFixed(1)}°` : '--'}</span>
+          </span>
+          <span className="text-orange-400 flex items-center space-x-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse inline-block" />
+            <span>SUN GLOBE {sunTemp !== undefined ? `${sunTemp.toFixed(1)}°` : '--'} (+{solarDelta.toFixed(1)}°)</span>
+          </span>
+        </div>
+        <div className="relative w-full h-1.5 rounded-full bg-gradient-to-r from-sky-500 via-amber-400 to-red-600 shadow-inner">
+          {/* Active Span Highlight between Shade and Sun Globe */}
+          <div
+            className="absolute top-0 bottom-0 bg-white/25 rounded-full"
+            style={{
+              left: `${Math.min(shadePct, sunPct)}%`,
+              width: `${Math.max(2, Math.abs(sunPct - shadePct))}%`
+            }}
+          />
+          {/* Shade Marker */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-sky-300 border border-slate-950 shadow"
+            style={{ left: `${shadePct}%` }}
+            title={`Shade Temp (2m): ${temp?.toFixed(1)}°C`}
+          />
+          {/* Feels Like Marker */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-amber-300 border border-slate-950 shadow"
+            style={{ left: `${feelsPct}%` }}
+            title={`Apparent / Feels Like: ${feelsLike?.toFixed(1)}°C`}
+          />
+          {/* Direct Sun Black-Globe Marker */}
+          <div
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-red-500 border border-white shadow-md shadow-red-500/50"
+            style={{ left: `${sunPct}%` }}
+            title={`Direct Sun Black-Globe Temp: ${sunTemp?.toFixed(1)}°C`}
+          />
         </div>
       </div>
 
       {/* Bottom Section: Sub-metrics & Feels Like */}
-      <div className="grid grid-cols-3 gap-2 border-t border-slate-700/30 pt-2.5 relative z-10">
+      <div className="grid grid-cols-3 gap-2 border-t border-slate-700/30 pt-1.5 relative z-10">
         <div>
-          <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-1 select-none">
+          <p className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider leading-none mb-0.5 select-none">
             FEELS LIKE
           </p>
-          <p className="text-base font-black text-textIceWhite flex items-center leading-none">
+          <p className="text-sm xl:text-base font-black text-textIceWhite flex items-center leading-none telemetry-value-shimmer">
             {feelsLike !== undefined ? feelsLike.toFixed(1) : '--.-'}
             <span className="text-[9px] text-slate-400 ml-0.5">°C</span>
             {feelsLikeTrend.arrow && feelsLikeTrend.arrow !== '→' && (
@@ -205,21 +298,21 @@ export default function CurrentConditions({ data, dailyData, hourlyData, current
         </div>
 
         <div>
-          <p className="text-[8px] text-amberAlert font-bold uppercase tracking-wider leading-none mb-1 select-none">
+          <p className="text-[7.5px] text-amberAlert font-bold uppercase tracking-wider leading-none mb-0.5 select-none">
             DIRECT SUN
           </p>
-          <p className="text-base font-black text-amberAlert flex items-center leading-none">
+          <p className="text-sm xl:text-base font-black text-amberAlert flex items-center leading-none">
             {sunTemp !== undefined ? sunTemp.toFixed(1) : '--.-'}
             <span className="text-[9px] text-amberAlert/70 ml-0.5">°C</span>
           </p>
         </div>
 
         <div>
-          <p className="text-[8px] text-slate-400 font-bold uppercase tracking-wider flex items-center space-x-0.5 leading-none mb-1 select-none">
+          <p className="text-[7.5px] text-slate-400 font-bold uppercase tracking-wider flex items-center space-x-0.5 leading-none mb-0.5 select-none">
             <Cloud className="w-2.5 h-2.5 text-slate-400" />
             <span>CLOUD</span>
           </p>
-          <p className="text-base font-black text-textIceWhite flex items-center leading-none">
+          <p className="text-sm xl:text-base font-black text-textIceWhite flex items-center leading-none">
             {cloudCover !== undefined ? cloudCover : '--'}
             <span className="text-[9px] text-slate-400 ml-0.5">%</span>
             {cloudTrend.arrow && cloudTrend.arrow !== '→' && (
