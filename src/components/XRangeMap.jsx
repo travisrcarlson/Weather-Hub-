@@ -651,9 +651,10 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               const flStr = `FL${String(Math.max(1, Math.round((ac.altitudeFt || 1000) / 100))).padStart(3, '0')}`;
 
               // Offset label left if near right edge of map
-              const labelOnLeft = ax > 365;
-              const boxX = labelOnLeft ? -57.5 : 5.5;
-              const textX = labelOnLeft ? -55.5 : 7.2;
+              const labelOnLeft = ax > 358;
+              const boxX = labelOnLeft ? -62.5 : 5.5;
+              const textX = labelOnLeft ? -60.5 : 7.2;
+              const altFormatted = `${(ac.altitudeFt || 0).toLocaleString()}FT (${flStr})`;
 
               return (
                 <g
@@ -716,23 +717,26 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
                     transform={`rotate(${ac.headingDeg || 0})`}
                   />
 
-                  {/* ADS-B Telemetry Data Block */}
+                  {/* ADS-B Telemetry Data Block (3-Line Card with Explicit Altitude) */}
                   <rect
                     x={boxX}
-                    y="-5.8"
-                    width="52"
-                    height="11.2"
-                    rx="1"
+                    y="-7.2"
+                    width="57"
+                    height="14.6"
+                    rx="1.2"
                     fill="#020617"
-                    fillOpacity="0.92"
+                    fillOpacity="0.93"
                     stroke={badgeColor}
                     strokeWidth="0.45"
                   />
-                  <text x={textX} y="-1.1" fill={textColor} fontSize="3.0" fontWeight="bold" fontFamily="monospace">
-                    {ac.callsign} {ac.isOverIsland ? '• OVER ISL' : ac.isInboundToIsland ? `• ETA ${ac.etaToIslandMin}m` : `• ${flStr}`}
+                  <text x={textX} y="-2.9" fill={textColor} fontSize="2.9" fontWeight="bold" fontFamily="monospace">
+                    {ac.callsign} • {ac.aircraftType || 'ACFT'}{ac.isOverIsland ? ' • OVER ISL' : ac.isInboundToIsland ? ` • ETA ${ac.etaToIslandMin}m` : ''}
                   </text>
-                  <text x={textX} y="3.1" fill="#e2e8f0" fontSize="2.45" fontFamily="monospace">
-                    {ac.speedKt}kt • {ac.distanceNm}NM@{String(ac.bearingDeg || 0).padStart(3, '0')}°
+                  <text x={textX} y="0.9" fill="#fcd34d" fontSize="2.55" fontWeight="bold" fontFamily="monospace">
+                    ALT: {altFormatted}
+                  </text>
+                  <text x={textX} y="4.7" fill="#e2e8f0" fontSize="2.35" fontFamily="monospace">
+                    {ac.speedKt}KT • {ac.distanceNm}NM@{String(ac.bearingDeg || 0).padStart(3, '0')}°
                   </text>
                 </g>
               );

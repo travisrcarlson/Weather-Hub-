@@ -2346,25 +2346,39 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                 {airspaceTraffic.statusHeadline || `NO LIVE FLIGHTS OVER ISLAND (${airspaceTraffic.totalTracked50nm || 0} in 50 NM Sector)`}
               </div>
 
-              <div className="grid grid-cols-3 gap-1 text-[7.5px] font-mono">
-                {(airspaceTraffic.contacts || []).slice(0, 3).map((ac, idx) => (
-                  <div
-                    key={`${ac.callsign}-${idx}`}
-                    className={`px-1.5 py-0.5 flex items-center justify-between border ${
-                      ac.isOverIsland
-                        ? 'bg-red-950/70 border-red-500 text-white'
-                        : ac.isInboundToIsland
-                        ? 'bg-amber-950/50 border-amber-500/50 text-white'
-                        : 'bg-slate-950/80 border-slate-800/80'
-                    }`}
-                  >
-                    <span className="font-black text-white truncate">{ac.callsign}</span>
-                    <span className={ac.isOverIsland ? 'text-red-300 font-black' : ac.isInboundToIsland ? 'text-amber-300 font-black' : 'text-cyan-300'}>
-                      {ac.isOverIsland ? 'OVER ISL' : ac.isInboundToIsland ? `ETA ${ac.etaToIslandMin}m` : `${ac.distanceNm}NM`}
-                    </span>
-                    <span className="text-slate-300">{Math.round((ac.altitudeFt || 0) / 1000)}k ft</span>
-                  </div>
-                ))}
+              <div className="grid grid-cols-3 gap-1.5 text-[7.5px] font-mono">
+                {(airspaceTraffic.contacts || []).slice(0, 3).map((ac, idx) => {
+                  const flStr = `FL${String(Math.max(1, Math.round((ac.altitudeFt || 1000) / 100))).padStart(3, '0')}`;
+                  return (
+                    <div
+                      key={`${ac.callsign}-${idx}`}
+                      className={`px-2 py-1 flex flex-col space-y-0.5 border rounded ${
+                        ac.isOverIsland
+                          ? 'bg-red-950/70 border-red-500 text-white'
+                          : ac.isInboundToIsland
+                          ? 'bg-amber-950/50 border-amber-500/50 text-white'
+                          : 'bg-slate-950/85 border-slate-800/90'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-white truncate">
+                          {ac.callsign} <span className="text-slate-400 font-normal">({ac.aircraftType || 'ACFT'})</span>
+                        </span>
+                        <span className={ac.isOverIsland ? 'text-red-300 font-black' : ac.isInboundToIsland ? 'text-amber-300 font-black' : 'text-cyan-300 font-bold'}>
+                          {ac.isOverIsland ? '🚨 OVER ISL' : ac.isInboundToIsland ? `⚠️ ETA ${ac.etaToIslandMin}m` : `${ac.distanceNm}NM @ ${String(ac.bearingDeg || 0).padStart(3, '0')}°`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[7px] border-t border-slate-800/70 pt-0.5">
+                        <span className="text-amber-300 font-black">
+                          ALT {(ac.altitudeFt || 0).toLocaleString()} FT ({flStr})
+                        </span>
+                        <span className="text-slate-300">
+                          {ac.speedKt}KT • HDG {String(ac.headingDeg || 0).padStart(3, '0')}°
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Live Regional ICAO METAR / TAF & QNH Altimeter Decoder (OMAA • OMAD • OMAM • XRNG) */}
