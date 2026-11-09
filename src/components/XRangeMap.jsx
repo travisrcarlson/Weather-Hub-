@@ -625,38 +625,26 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               </g>
             )}
 
-            {/* Plot Each Aircraft Contact with Rotated Airframe Icon, Speed-Scaled Velocity Vector & Data Block */}
+            {/* Plot Each Aircraft Contact with Rotated Airframe Icon, Radar Wake Trail, Velocity Vector & Data Block */}
             {visibleContacts.map((ac, idx) => {
-              const inGeodeticIslandBox =
-                typeof ac.lat === 'number' &&
-                typeof ac.lon === 'number' &&
-                ac.lat >= 24.11 &&
-                ac.lat <= 24.29 &&
-                ac.lon >= 53.68 &&
-                ac.lon <= 54.00;
+              const dLon = (typeof ac.lon === 'number' ? ac.lon : 53.860) - 53.860;
+              const dLat = (typeof ac.lat === 'number' ? ac.lat : 24.195) - 24.195;
+              const exactDist = ac.distanceExactNm ?? ac.distanceNm ?? 15;
+              // Smooth radial compression so near-island overflights use 1:1 MGRS scale and 10-45 NM traffic stays inside radar rings
+              const radialScale = 1 / (1 + Math.max(0, exactDist - 7) * 0.082);
+              let ax = 265 + dLon * 1060 * radialScale;
+              let ay = 155 - dLat * 880 * radialScale;
 
-              let ax;
-              let ay;
-              if (inGeodeticIslandBox) {
-                // Direct WGS-84 to MGRS 39R YG Island SVG Coordinate Mapping
-                ax = 65 + ((ac.lon - 53.68) / (54.00 - 53.68)) * (425 - 65);
-                ay = 230 - ((ac.lat - 24.12) / (24.29 - 24.12)) * (230 - 75);
-              } else {
-                // True Azimuth Projection onto Sector Radar Ring around Island Center (265, 155)
-                const rad = ((ac.bearingDeg - 90) * Math.PI) / 180;
-                const normDist = Math.min(1, Math.max(0.32, (ac.distanceNm || 20) / 50));
-                ax = 265 + Math.cos(rad) * (175 * normDist);
-                ay = 155 + Math.sin(rad) * (74 * normDist);
-              }
-
-              ax = Math.max(46, Math.min(410, ax));
-              ay = Math.max(69, Math.min(228, ay));
+              ax = Math.max(44, Math.min(412, ax));
+              ay = Math.max(68, Math.min(228, ay));
 
               const trackRad = (((ac.headingDeg || 0) - 90) * Math.PI) / 180;
               // Velocity vector leader length scaled by groundspeed (18px to 34px)
               const vecLen = Math.min(34, Math.max(16, Math.round((ac.speedKt || 250) / 16)));
               const vx = Math.cos(trackRad) * vecLen;
               const vy = Math.sin(trackRad) * vecLen;
+              const unitX = Math.cos(trackRad);
+              const unitY = Math.sin(trackRad);
 
               const badgeColor = ac.isOverIsland ? '#ef4444' : ac.isInboundToIsland ? '#f59e0b' : '#06b6d4';
               const textColor = ac.isOverIsland ? '#fca5a5' : ac.isInboundToIsland ? '#fcd34d' : '#67e8f9';
@@ -668,7 +656,23 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
               const textX = labelOnLeft ? -55.5 : 7.2;
 
               return (
-                <g key={`adsb-${ac.callsign}-${idx}`} transform={`translate(${ax}, ${ay})`}>
+                <g
+                  key={`adsb-${ac.callsign || ac.hex || idx}`}
+                  transform={`translate(${ax.toFixed(2)}, ${ay.toFixed(2)})`}
+                  style={{ transition: 'transform 1.9s linear' }}
+                >
+                  {/* 4-Dot Radar Wake Trail (History Dots Behind Airframe) */}
+                  {[1, 2, 3, 4].map((step) => (
+                    <circle
+                      key={step}
+                      cx={(-unitX * step * 4.2).toFixed(2)}
+                      cy={(-unitY * step * 4.2).toFixed(2)}
+                      r={Math.max(0.45, 1.25 - step * 0.2)}
+                      fill={badgeColor}
+                      opacity={Math.max(0.18, 0.72 - step * 0.14)}
+                    />
+                  ))}
+
                   {/* CPA Intercept Line to HQ if Inbound */}
                   {ac.isInboundToIsland && (
                     <line

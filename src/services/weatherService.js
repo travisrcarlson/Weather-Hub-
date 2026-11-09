@@ -1732,14 +1732,18 @@ function computeHaversineNmAndBearing(lat1, lon1, lat2, lon2) {
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  const distanceNm = Number((R_NM * c).toFixed(1));
+  const rawDistNm = R_NM * c;
+  const distanceNm = Number(rawDistNm.toFixed(1));
+  const distanceExactNm = Number(rawDistNm.toFixed(3));
 
   const y = Math.sin(dLon) * Math.cos(toRad(lat2));
   const x =
     Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
     Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(dLon);
-  const brng = (Math.round(toDeg(Math.atan2(y, x))) + 360) % 360;
-  return { distanceNm, bearingDeg: brng };
+  const rawBrng = (toDeg(Math.atan2(y, x)) + 360) % 360;
+  const brng = Math.round(rawBrng) % 360;
+  const bearingExactDeg = Number(rawBrng.toFixed(2));
+  return { distanceNm, bearingDeg: brng, distanceExactNm, bearingExactDeg };
 }
 
 function angularDiffDeg(a, b) {
@@ -1859,13 +1863,99 @@ function summarizeIslandOverflights(contacts, totalTracked50nm) {
   };
 }
 
-export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraffic = null, nowIso = new Date().toISOString()) {
+// UAE Gulf & Abu Al Abyad Airway Corridors (Continuous Kinematic Trajectories)
+const SIM_AIRWAY_TRACKS = [
+  { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 138, headingDeg: 266, baseLat: 24.202, baseLon: 53.855, corridorSpanNm: 18, phaseSec: 120, category: 'Offshore Rotorcraft' },
+  { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 11800, speedKt: 325, headingDeg: 254, baseLat: 24.228, baseLon: 53.910, corridorSpanNm: 34, phaseSec: 480, category: 'Commercial' },
+  { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 292, baseLat: 24.085, baseLon: 53.890, corridorSpanNm: 46, phaseSec: 940, category: 'Heavy Transit' }
+];
+
+const DEFAULT_AIRWAY_TRACKS = [
+  { callsign: 'ABY145', hex: '8965F6', aircraftType: 'A321', altitudeFt: 32000, speedKt: 417, headingDeg: 245, baseLat: 24.095, baseLon: 53.875, corridorSpanNm: 38, phaseSec: 160, category: 'High-Altitude Airway' },
+  { callsign: 'QTR8952', hex: '06A3B6', aircraftType: 'B77L', altitudeFt: 38975, speedKt: 512, headingDeg: 112, baseLat: 24.295, baseLon: 53.845, corridorSpanNm: 44, phaseSec: 610, category: 'High-Altitude Airway' },
+  { callsign: 'ETD591', hex: '503E9C', aircraftType: 'A320', altitudeFt: 16250, speedKt: 368, headingDeg: 288, baseLat: 24.242, baseLon: 53.915, corridorSpanNm: 40, phaseSec: 1020, category: 'Commercial' },
+  { callsign: 'ETD2AP', hex: '896489', aircraftType: 'B789', altitudeFt: 14550, speedKt: 342, headingDeg: 126, baseLat: 24.165, baseLon: 53.825, corridorSpanNm: 42, phaseSec: 1490, category: 'Commercial' }
+];
+
+function propagateContactAtTime(ac, nowMs = Date.now()) {
+  const speedKt = Math.max(70, Number(ac.speedKt || 260));
+  const headingDeg = Number(ac.headingDeg || 0);
+  const headRad = (headingDeg * Math.PI) / 180;
+
+  let lat;
+  let lon;
+
+  if (ac.isLiveTransponder && typeof ac.anchorLat === 'number' && typeof ac.anchorLon === 'number') {
+    const anchorMs = ac.anchorMs || nowMs;
+    const elapsedHr = Math.max(0, Math.min(0.25, (nowMs - anchorMs) / 3600000));
+    const distNm = speedKt * elapsedHr;
+    const dLat = (distNm * Math.cos(headRad)) / 60;
+    const dLon = (distNm * Math.sin(headRad)) / (60 * Math.cos((ac.anchorLat * Math.PI) / 180));
+    lat = Number((ac.anchorLat + dLat).toFixed(5));
+    lon = Number((ac.anchorLon + dLon).toFixed(5));
+  } else {
+    const baseLat = typeof ac.baseLat === 'number' ? ac.baseLat : (typeof ac.lat === 'number' ? ac.lat : 24.20);
+    const baseLon = typeof ac.baseLon === 'number' ? ac.baseLon : (typeof ac.lon === 'number' ? ac.lon : 53.86);
+    const spanNm = ac.corridorSpanNm || 40;
+    const phaseSec = ac.phaseSec ?? ((ac.callsign || 'A').charCodeAt(0) * 17);
+    const totalNm = (((nowMs / 1000) + phaseSec) / 3600) * speedKt;
+    const offsetNm = (totalNm % spanNm) - (spanNm / 2);
+    const dLat = (offsetNm * Math.cos(headRad)) / 60;
+    const dLon = (offsetNm * Math.sin(headRad)) / (60 * Math.cos((baseLat * Math.PI) / 180));
+    lat = Number((baseLat + dLat).toFixed(5));
+    lon = Number((baseLon + dLon).toFixed(5));
+  }
+
+  const { distanceNm, bearingDeg, distanceExactNm, bearingExactDeg } = computeHaversineNmAndBearing(LAT, LON, lat, lon);
+
+  return {
+    ...ac,
+    lat,
+    lon,
+    distanceNm,
+    bearingDeg,
+    distanceExactNm,
+    bearingExactDeg
+  };
+}
+
+export function advanceAirspaceTrafficKinematics(currentTraffic = null, isSimulated = false, nowMs = Date.now()) {
   if (isSimulated) {
-    const simData = summarizeIslandOverflights([
-      { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 128, headingDeg: 265, distanceNm: 3.2, bearingDeg: 85, lat: 24.201, lon: 53.91, category: 'Offshore Rotorcraft' },
-      { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 11800, speedKt: 320, headingDeg: 254, distanceNm: 16.4, bearingDeg: 74, lat: 24.27, lon: 54.14, category: 'Commercial' },
-      { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 290, distanceNm: 34.2, bearingDeg: 145, lat: 23.72, lon: 54.21, category: 'Heavy Transit' }
-    ], 3);
+    const simContacts = SIM_AIRWAY_TRACKS
+      .map(t => propagateContactAtTime(t, nowMs))
+      .sort((a, b) => (a.distanceExactNm ?? a.distanceNm) - (b.distanceExactNm ?? b.distanceNm));
+    return summarizeIslandOverflights(simContacts, simContacts.length);
+  }
+
+  const existingContacts = Array.isArray(currentTraffic?.contacts) && currentTraffic.contacts.length > 0
+    ? currentTraffic.contacts
+    : DEFAULT_AIRWAY_TRACKS;
+
+  const hasLiveContacts = existingContacts.some(c => c.isLiveTransponder);
+  const sourceTracks = hasLiveContacts ? existingContacts : DEFAULT_AIRWAY_TRACKS;
+
+  const propagated = sourceTracks
+    .map(c => propagateContactAtTime(c, nowMs))
+    .filter(c => c.distanceNm <= 52)
+    .sort((a, b) => (a.distanceExactNm ?? a.distanceNm) - (b.distanceExactNm ?? b.distanceNm));
+
+  const finalContacts = propagated.length > 0
+    ? propagated
+    : DEFAULT_AIRWAY_TRACKS
+        .map(t => propagateContactAtTime(t, nowMs))
+        .sort((a, b) => (a.distanceExactNm ?? a.distanceNm) - (b.distanceExactNm ?? b.distanceNm));
+
+  const totalCount = hasLiveContacts
+    ? Math.max(finalContacts.length, currentTraffic?.totalTracked50nm || finalContacts.length)
+    : finalContacts.length;
+
+  return summarizeIslandOverflights(finalContacts, totalCount);
+}
+
+export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraffic = null, nowIso = new Date().toISOString()) {
+  const nowMs = Date.now();
+  if (isSimulated) {
+    const simData = advanceAirspaceTrafficKinematics(null, true, nowMs);
     return {
       data: simData,
       meta: {
@@ -1881,31 +1971,29 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
 
   const t0 = performance.now();
   let rawAircraft = [];
-  let endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
+  let endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
   try {
-    // Primary browser-CORS-enabled relay wrapping live adsb.lol 50 NM Abu Al Abyad feed
-    const corsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(endpointUsed)}&_t=${Math.floor(Date.now() / 20000)}`;
-    const corsRes = await axios.get(corsUrl, { timeout: 5500 });
-    const parsedBody = typeof corsRes.data?.contents === 'string' ? JSON.parse(corsRes.data.contents) : corsRes.data;
-    rawAircraft = Array.isArray(parsedBody?.ac) ? parsedBody.ac : [];
-    if (rawAircraft.length === 0) throw new Error('Empty relay response');
+    const osRes = await axios.get(endpointUsed, { timeout: 4500 });
+    const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
+    rawAircraft = states.map(s => ({
+      hex: s[0],
+      flight: (s[1] || '').trim() || 'UNKN',
+      lon: s[5],
+      lat: s[6],
+      alt_baro: s[4] && s[8] === true ? 'ground' : (s[7] ? Math.round(s[7] * 3.28084) : 15000),
+      gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
+      track: s[10] ? Math.round(s[10]) : 0
+    }));
+    if (rawAircraft.length === 0) throw new Error('Empty OpenSky states');
   } catch {
     try {
-      const res = await axios.get(endpointUsed, { timeout: 4500 });
-      rawAircraft = Array.isArray(res.data?.ac) ? res.data.ac : [];
+      endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
+      const corsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(endpointUsed)}&_t=${Math.floor(nowMs / 15000)}`;
+      const corsRes = await axios.get(corsUrl, { timeout: 4500 });
+      const parsedBody = typeof corsRes.data?.contents === 'string' ? JSON.parse(corsRes.data.contents) : corsRes.data;
+      rawAircraft = Array.isArray(parsedBody?.ac) ? parsedBody.ac : [];
     } catch {
-      endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
-      const osRes = await axios.get(endpointUsed, { timeout: 4500 });
-      const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
-      rawAircraft = states.map(s => ({
-        hex: s[0],
-        flight: (s[1] || '').trim() || 'UNKN',
-        lon: s[5],
-        lat: s[6],
-        alt_baro: s[4] && s[8] === true ? 'ground' : (s[7] ? Math.round(s[7] * 3.28084) : 15000),
-        gs: s[9] ? Math.round(s[9] * 1.94384) : 250,
-        track: s[10] ? Math.round(s[10]) : 0
-      }));
+      rawAircraft = [];
     }
   }
   const latency = Math.round(performance.now() - t0);
@@ -1918,7 +2006,7 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
       return alt > 100;
     })
     .map(ac => {
-      const { distanceNm, bearingDeg } = computeHaversineNmAndBearing(LAT, LON, ac.lat, ac.lon);
+      const { distanceNm, bearingDeg, distanceExactNm, bearingExactDeg } = computeHaversineNmAndBearing(LAT, LON, ac.lat, ac.lon);
       const altFt = typeof ac.alt_baro === 'number' ? Math.max(0, Math.round(ac.alt_baro)) : 0;
       const speedKt = typeof ac.gs === 'number' ? Math.round(ac.gs) : 240;
       const callsign = String(ac.flight || ac.r || ac.hex || 'CONTACT').trim().toUpperCase();
@@ -1931,18 +2019,23 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
         headingDeg: Math.round(ac.track ?? ac.true_heading ?? ac.calc_track ?? 0),
         distanceNm,
         bearingDeg,
+        distanceExactNm,
+        bearingExactDeg,
         lat: ac.lat,
         lon: ac.lon,
+        anchorLat: ac.lat,
+        anchorLon: ac.lon,
+        anchorMs: nowMs,
+        isLiveTransponder: true,
         category: altFt < 5000 ? 'Low-Level / Rotorcraft' : altFt < 18000 ? 'Regional Approach' : 'High-Altitude Airway'
       };
     })
     .filter(c => c.distanceNm <= 50)
-    .sort((a, b) => a.distanceNm - b.distanceNm);
+    .sort((a, b) => (a.distanceExactNm ?? a.distanceNm) - (b.distanceExactNm ?? b.distanceNm));
 
-  const fallbackContacts = fallbackTraffic?.contacts || [];
-  const contactsToUse = parsedContacts.length > 0 ? parsedContacts.slice(0, 8) : fallbackContacts;
-  const totalCount = parsedContacts.length > 0 ? parsedContacts.length : (fallbackTraffic?.totalTracked50nm ?? contactsToUse.length);
-  const summaryData = summarizeIslandOverflights(contactsToUse, totalCount);
+  const summaryData = parsedContacts.length > 0
+    ? summarizeIslandOverflights(parsedContacts.slice(0, 8), parsedContacts.length)
+    : advanceAirspaceTrafficKinematics(fallbackTraffic, false, nowMs);
 
   return {
     data: summaryData,
@@ -2061,12 +2154,7 @@ export function buildDefaultAuxiliaryTacticalData(current = {}) {
       layerWeightedDriftMultiplier: 1.38,
       source: 'Open-Meteo Upper-Air Pressure Levels (975–700 hPa)'
     },
-    airspaceTraffic: summarizeIslandOverflights([
-      { callsign: 'ABY145', hex: '8965F6', aircraftType: 'A321', altitudeFt: 32000, speedKt: 417, headingDeg: 240, distanceNm: 16.5, bearingDeg: 164, lat: 23.932, lon: 53.945, category: 'High-Altitude Airway' },
-      { callsign: 'QTR8952', hex: '06A3B6', aircraftType: 'B77L', altitudeFt: 38975, speedKt: 552, headingDeg: 107, distanceNm: 37.0, bearingDeg: 353, lat: 24.806, lon: 53.780, category: 'High-Altitude Airway' },
-      { callsign: 'ETD591', hex: '503E9C', aircraftType: 'A320', altitudeFt: 22250, speedKt: 409, headingDeg: 302, distanceNm: 41.3, bearingDeg: 13, lat: 24.865, lon: 54.031, category: 'Commercial' },
-      { callsign: 'ETD2AP', hex: '896489', aircraftType: 'B789', altitudeFt: 18550, speedKt: 414, headingDeg: 312, distanceNm: 48.9, bearingDeg: 13, lat: 24.988, lon: 54.056, category: 'Commercial' }
-    ], 4),
+    airspaceTraffic: advanceAirspaceTrafficKinematics(null, false, Date.now()),
     ensembleSpread: {
       modelName: 'ICON-EPS 40-Member Ensemble',
       memberCount: 40,

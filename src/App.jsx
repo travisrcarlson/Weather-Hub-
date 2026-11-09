@@ -7,7 +7,7 @@ import HourlyForecast from './components/HourlyForecast';
 import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
-import { fetchDashboardData, fetchLiveAirspaceTraffic, getActiveProvider, getInitialGroundedData } from './services/weatherService';
+import { fetchDashboardData, fetchLiveAirspaceTraffic, advanceAirspaceTrafficKinematics, getActiveProvider, getInitialGroundedData } from './services/weatherService';
 import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
 import { getWeatherCondition } from './utils/weatherCodeMap';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
@@ -422,12 +422,12 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Poll live ADS-B Abu Al Abyad Island overflights every 25 seconds
+  // Poll live ADS-B Abu Al Abyad Island overflights every 20s + kinematic dead-reckoning every 2s
   useEffect(() => {
     let cancelled = false;
     const pollAirspace = async () => {
       try {
-        const res = await fetchLiveAirspaceTraffic(isSimulated, data?.airspaceTraffic);
+        const res = await fetchLiveAirspaceTraffic(isSimulated, null);
         if (!cancelled && res?.data) {
           setData(prev => (prev ? { ...prev, airspaceTraffic: res.data } : prev));
         }
@@ -436,10 +436,21 @@ export default function App() {
       }
     };
     pollAirspace();
-    const adsbTimer = setInterval(pollAirspace, 25000);
+    const adsbTimer = setInterval(pollAirspace, 20000);
+    const kinematicTimer = setInterval(() => {
+      if (cancelled) return;
+      setData(prev => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          airspaceTraffic: advanceAirspaceTrafficKinematics(prev.airspaceTraffic, isSimulated, Date.now())
+        };
+      });
+    }, 2000);
     return () => {
       cancelled = true;
       clearInterval(adsbTimer);
+      clearInterval(kinematicTimer);
     };
   }, [isSimulated]);
 
