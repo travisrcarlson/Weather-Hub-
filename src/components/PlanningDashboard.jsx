@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, Sun, Activity, Eye, FileText, Crosshair, Plane, Users, Anchor, CheckCircle2, XCircle } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
-import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort, getClimaticAnomalyForYear } from '../utils/safetyEngine';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Calendar, Clock, Download, Compass, Droplet, Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, Sun, Activity, FileText, Crosshair, Plane, Users, Anchor } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
+import { calculateDewPoint, calculateWBGT, evaluateSafety, getClimaticAnomalyForYear } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
 import { evaluateTacticalMissionMatrix } from '../utils/tacticalBallisticsEngine';
+import { computeIso42001Hash } from '../services/hseBroadcastService';
 
 // Abu Dhabi monthly climatology guidelines (min Temp, max Temp, avg Humidity, peak UV, avg Wind, gust scale)
 const climateDb = [
@@ -64,7 +65,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
   const currentMonthAvg = climateDb[selectedMonth];
 
   // High-fidelity Abu Dhabi climatological simulation fallback
-  const generateSyntheticDay = (dateStr) => {
+  const generateSyntheticDay = useCallback((dateStr) => {
     const dateObj = new Date(dateStr);
     const month = dateObj.getMonth(); // 0-11
     const c = climateDb[month];
@@ -128,7 +129,9 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         }
       }
 
+      const simTimeStr = `${dateStr}T${hr.toString().padStart(2, '0')}:00`;
       const readings = {
+        time: simTimeStr,
         temperature_2m: temp,
         relative_humidity_2m: rh,
         wind_speed_10m: wind,
@@ -138,10 +141,10 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         pm10: pm10Val
       };
 
-      const safetyEval = evaluateSafety(readings);
+      const safetyEval = evaluateSafety(readings, simTimeStr);
 
       logs.push({
-        time: `${dateStr}T${hr.toString().padStart(2, '0')}:00`,
+        time: simTimeStr,
         hourLabel: `${hr.toString().padStart(2, '0')}:00`,
         temp,
         rh,
@@ -158,7 +161,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
     }
 
     return logs;
-  };
+  }, [activeAnomaly]);
 
   useEffect(() => {
     let active = true;
@@ -212,8 +215,10 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
             const dp = calculateDewPoint(temp, rh);
             const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
             const isMiddayBanActive = isMiddayBanDate && (hr >= 12 && hr <= 14);
+            const hourTimeStr = `${selectedDate}T${hr.toString().padStart(2, '0')}:00`;
 
             const safetyEval = evaluateSafety({
+              time: hourTimeStr,
               temperature_2m: temp,
               relative_humidity_2m: rh,
               wind_speed_10m: wind,
@@ -221,10 +226,10 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
               visibility,
               uv_index: uv,
               pm10: pm10Val
-            });
+            }, hourTimeStr);
 
             return {
-              time: `${selectedDate}T${hr.toString().padStart(2, '0')}:00`,
+              time: hourTimeStr,
               hourLabel: `${hr.toString().padStart(2, '0')}:00`,
               temp,
               rh,
@@ -258,7 +263,6 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
 
       let queryDate = selectedDate;
       let isAnalog = false;
-      let analogYear = null;
 
       // Archive API has a ~2 day delay, so dates beyond the live 7-day forecast use previous year's historical analog
       const cutoffDate = new Date();
@@ -267,7 +271,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
 
       if (planDate > cutoffDate) {
         isAnalog = true;
-        analogYear = today.getFullYear() - 1;
+        const analogYear = today.getFullYear() - 1;
         const analogDateObj = new Date(planDate);
         analogDateObj.setFullYear(analogYear);
         queryDate = analogDateObj.toISOString().slice(0, 10);
@@ -327,7 +331,9 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
             else if (hr === 13 || hr === 14) isMiddayBanActive = true;
           }
 
+          const hourTimeStr = `${selectedDate}T${hr.toString().padStart(2, '0')}:00`;
           const readings = {
+            time: hourTimeStr,
             temperature_2m: temp,
             relative_humidity_2m: rh,
             wind_speed_10m: wind,
@@ -337,10 +343,10 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
             pm10: pm10Val
           };
 
-          const safetyEval = evaluateSafety(readings);
+          const safetyEval = evaluateSafety(readings, hourTimeStr);
 
           return {
-            time: `${selectedDate}T${hr.toString().padStart(2, '0')}:00`,
+            time: hourTimeStr,
             hourLabel: `${hr.toString().padStart(2, '0')}:00`,
             temp,
             rh,
@@ -376,7 +382,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
     return () => {
       active = false;
     };
-  }, [selectedDate, planningSource, hourlyData, isSimulated]);
+  }, [selectedDate, planningSource, hourlyData, isSimulated, generateSyntheticDay]);
 
   // Aggregate Key Planning Statistics
   const getPlanningStats = () => {
@@ -511,7 +517,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         brief += `CRITICAL RESTRICTION HOURS:\n`;
         noGoHours.forEach(h => {
           const reasons = Object.entries(h.ops)
-            .filter(([_, op]) => op.status === 'NO-GO')
+            .filter(([, op]) => op.status === 'NO-GO')
             .map(([k, op]) => `${k.toUpperCase()}: ${op.reason}`)
             .join(' | ');
           brief += `  - ${h.hour}:00 GST -> ${reasons}\n`;
@@ -562,17 +568,6 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
     const safeWindows = [];
     const cautionWindows = [];
     const haltWindows = [];
-    
-    const formatTimeLabel = (timeStr) => {
-      if (!timeStr) return '--:--';
-      const d = new Date(timeStr);
-      return d.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-        timeZone: 'Asia/Dubai'
-      }) + ' GST';
-    };
     
     const formatDateLabel = (timeStr) => {
       if (!timeStr) return '---';
@@ -635,7 +630,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
     const targetDay = parseInt(selectedDate.slice(8, 10), 10);
     const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
     
-    let haltWindowText = "";
+    let haltWindowText;
     if (isMiddayBanActiveForDay) {
       // Filter out the midday ban hours (13:00 and 14:00) from the normal haltWindows to prevent duplicates/overlaps in formatting
       const otherHaltWindows = haltWindows.filter(t => {
@@ -681,7 +676,7 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
       hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
       hash = hash & hash;
     }
-    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + computeIso42001Hash(hashSeed).slice(0, 5);
 
     const reportText = `======================================================================
                  X-RANGE RCO DAILY ENVIRONMENTAL WEATHER BRIEF
@@ -852,7 +847,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     const targetDay = parseInt(firstLogTime.slice(8, 10), 10);
     const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
     
-    let haltWindowText = "";
+    let haltWindowText;
     if (isMiddayBanActiveForDay) {
       const otherHaltWindows = haltWindows.filter(t => {
         const hr = new Date(t).getHours();
@@ -898,7 +893,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
       hash = hash & hash;
     }
-    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + computeIso42001Hash(hashSeed).slice(0, 5);
 
     const formattedChronoLogs = chronoLogs.map(l => ({
       ...l,

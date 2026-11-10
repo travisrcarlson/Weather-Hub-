@@ -1,15 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { 
-  Sliders, Calendar, Clock, Download, Compass, Droplet, 
-  Shield, ShieldAlert, ShieldCheck, AlertTriangle, Wind, 
-  Sun, Activity, Eye, FileText, Target, Crosshair, HelpCircle, 
-  Layers, Settings, Info, Award, Table, Copy, Check, X, Sparkles, Zap, ChevronRight, Gauge
+  Sliders, Download, AlertTriangle, FileText, Crosshair, 
+  Layers, Settings, Table, Copy, Check, X, ChevronRight, Gauge
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, 
-  Legend, ResponsiveContainer, ReferenceLine, ReferenceArea 
+  ResponsiveContainer, ReferenceLine, ReferenceArea 
 } from 'recharts';
-import { calculateDewPoint, calculateWBGT, evaluateSafety, getWBGTComfort, getClimaticAnomalyForYear } from '../utils/safetyEngine';
+import { calculateDewPoint, calculateWBGT, evaluateSafety, getClimaticAnomalyForYear } from '../utils/safetyEngine';
 import { 
   BALLISTIC_CALIBERS, 
   calculateAtmosphericDensity, 
@@ -34,13 +32,14 @@ const climateDb = [
 
 export default function CustomerPortal() {
   const [selectedYear, setSelectedYear] = useState(2026);
-  // Simulator configuration states
-  const [scenarioPreset, setScenarioPreset] = useState('EL_NINO'); // 'NEUTRAL', 'EL_NINO', 'LA_NINA', 'CUSTOM'
-  const [tempOffset, setTempOffset] = useState(2.2); // °C
-  const [rhOffset, setRhOffset] = useState(-12); // %
-  const [windMultiplier, setWindMultiplier] = useState(0.85); // x
-  const [dustMultiplier, setDustMultiplier] = useState(1.6); // x
-  const [visOffset, setVisOffset] = useState(-3.0); // km
+  // Derive climate anomaly parameters directly from selectedYear (no setState-in-effect cascade)
+  const anomaly = getClimaticAnomalyForYear(selectedYear);
+  const scenarioPreset = anomaly.type;
+  const tempOffset = anomaly.tempOffset;
+  const rhOffset = anomaly.rhOffset;
+  const windMultiplier = anomaly.windMultiplier;
+  const dustMultiplier = anomaly.dustMultiplier;
+  const visOffset = anomaly.visOffset;
   
   // R&D Shift states
   const [selectedMonthIdx, setSelectedMonthIdx] = useState(5); // June
@@ -53,23 +52,12 @@ export default function CustomerPortal() {
   const [selectedCaliberId, setSelectedCaliberId] = useState('338_lapua');
   const [zeroDistance, setZeroDistance] = useState(100); // 100m, 200m, 300m
   const [dragModel, setDragModel] = useState('G7'); // 'G7' or 'G1'
-  const [crosswindAngle, setCrosswindAngle] = useState(90); // 90 deg full crosswind
+  const crosswindAngle = 90; // 90 deg full crosswind
   const [showDopeModal, setShowDopeModal] = useState(false);
   const [copiedDope, setCopiedDope] = useState(false);
   
   // Display states
   const [chartProfile, setChartProfile] = useState('THERMAL'); // 'THERMAL', 'WIND'
-  
-  // Automatically apply presets based on selected year
-  useEffect(() => {
-    const anomaly = getClimaticAnomalyForYear(selectedYear);
-    setTempOffset(anomaly.tempOffset);
-    setRhOffset(anomaly.rhOffset);
-    setWindMultiplier(anomaly.windMultiplier);
-    setDustMultiplier(anomaly.dustMultiplier);
-    setVisOffset(anomaly.visOffset);
-    setScenarioPreset(anomaly.type);
-  }, [selectedYear]);
 
   // Generate 24-hour diurnal weather timeline under projection variables
   const getSimulatedTimeline = () => {
@@ -120,7 +108,9 @@ export default function CustomerPortal() {
         isMiddayBanActive = true;
       }
       
+      const simTimeStr = `${selectedYear}-${String(selectedMonthIdx + 1).padStart(2, '0')}-20T${String(hr).padStart(2, '0')}:00`;
       const readings = {
+        time: simTimeStr,
         temperature_2m: temp,
         apparent_temperature: temp + 2, // approximation
         relative_humidity_2m: rh,
@@ -133,7 +123,7 @@ export default function CustomerPortal() {
         weathercode: 0 // clear baseline
       };
       
-      const safetyEval = evaluateSafety(readings);
+      const safetyEval = evaluateSafety(readings, simTimeStr);
       
       logs.push({
         hour: hr,
@@ -191,7 +181,6 @@ export default function CustomerPortal() {
   const targetSolution = trajectoryResult.targetSolution;
   const activeCaliber = trajectoryResult.caliber;
   const dopeTable = trajectoryResult.cardTable;
-  const bulletDrift = targetSolution.driftCm;
 
   // Compute aggregated stats during the custom shift
   const getShiftStats = () => {
@@ -392,7 +381,7 @@ export default function CustomerPortal() {
     
     const totalWaterPerPerson = hydrationPerHour * shiftLogs.length;
 
-    let targetReport = '';
+    let targetReport;
     if (targetActivity === 'BALLISTICS') {
       targetReport = `* Ballistics Caliber:          ${activeCaliber.name} (${activeCaliber.bulletWeightGrains}gr / V0: ${activeCaliber.muzzleVelocityMps}m/s)
 * Drag Function / BC:          ${dragModel} (Effective BC: ${trajectoryResult.effectiveBC})

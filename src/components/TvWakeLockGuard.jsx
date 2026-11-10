@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * TvWakeLockGuard
@@ -45,7 +45,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
       try {
         vid.currentTime = 0.15;
         if (vid.paused) vid.play().catch(() => {});
-      } catch (_err) {
+      } catch {
         // Ignore seek errors
       }
     }
@@ -69,7 +69,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
         if ('wakeLock' in navigator && document.visibilityState === 'visible') {
           navigator.wakeLock.request('screen').catch(() => {});
         }
-      } catch (_e) {
+      } catch {
         // Ignore
       }
     };
@@ -86,7 +86,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
             vid.muted = true;
             vid.play().catch(() => {});
           });
-        } catch (_err) {
+        } catch {
           // Ignore
         }
       });
@@ -105,7 +105,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
         } else if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
           audioCtxRef.current.resume().catch(() => {});
         }
-      } catch (_e) {
+      } catch {
         // Ignore
       }
     };
@@ -120,7 +120,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
       try {
         window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: Math.random() * 100, clientY: Math.random() * 100 }));
         window.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'Shift' }));
-      } catch (_e) {
+      } catch {
         // Ignore
       }
     }, 8000);
@@ -132,7 +132,7 @@ export default function TvWakeLockGuard({ enabled = true, autoReload = true }) {
         const url = new URL(window.location.href);
         url.searchParams.set('hb', String(Math.floor(Date.now() / 1000) % 1000));
         window.history.replaceState({ hb: Date.now() }, '', url.toString());
-      } catch (_e) {
+      } catch {
         // Ignore
       }
     }, 35000);

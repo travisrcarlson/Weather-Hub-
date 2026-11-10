@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { CheckCircle, AlertTriangle, AlertOctagon, Radio } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { CheckCircle, AlertTriangle, AlertOctagon } from 'lucide-react';
 import { getProjectedAdvisories } from '../utils/safetyEngine';
 import { getActiveHseDirective } from '../services/hseBroadcastService';
 

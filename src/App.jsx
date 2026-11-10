@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { useState, useEffect, useMemo, useRef, Suspense, lazy } from 'react';
 import Header from './components/Header';
 import CurrentConditions from './components/CurrentConditions';
 import WindWidget from './components/WindWidget';
@@ -8,13 +8,13 @@ import SafetyBanner from './components/SafetyBanner';
 import XRangeMap, { StationDetailsWidget } from './components/XRangeMap';
 import { DailyForecastWidget, AqiWidget, SunTransitWidget } from './components/BottomRow';
 import { fetchDashboardData, fetchLiveAirspaceTraffic, advanceAirspaceTrafficKinematics, getActiveProvider, getInitialGroundedData } from './services/weatherService';
-import { evaluateSafety, calculateDewPoint, calculateHumidex, calculateWBGT } from './utils/safetyEngine';
-import { getWeatherCondition } from './utils/weatherCodeMap';
+import { evaluateSafety, calculateWBGT } from './utils/safetyEngine';
 import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
 import TvWakeLockGuard from './components/TvWakeLockGuard';
 import { checkAndDispatchAutoAlerts, appendIso42001AuditEntry } from './services/hseBroadcastService';
 import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
+import { compileActiveStationAlerts, getStationCurrentReadings, stationsList } from './utils/rangeStations';
 
 const SafetyAdvisory = lazy(() => import('./components/SafetyAdvisory'));
 const BackendFeeds = lazy(() => import('./components/BackendFeeds'));
@@ -35,97 +35,6 @@ const ViewLoadingFallback = () => (
 
 // Removed TvWeatherSummary component (HQ station data relocated to Operations Console page)
 
-// Initial fallback data
-const fallbackData = {
-  current: {
-    time: '2026-06-15T12:30',
-    temperature_2m: 41.3,
-    apparent_temperature: 43.1,
-    relative_humidity_2m: 20,
-    wind_speed_10m: 25.0,
-    wind_direction_10m: 270,
-    wind_gusts_10m: 35.0,
-    weathercode: 3,
-    visibility: 8000,
-    precipitation: 0.0,
-    cloud_cover: 35,
-    pressure_msl: 1010.2,
-    uv_index: 9.0,
-    european_aqi: 68,
-    pm2_5: 26.6,
-    pm10: 52.2
-  },
-  hourly: (() => {
-    const time = [];
-    const temperature_2m = [];
-    const apparent_temperature = [];
-    const relative_humidity_2m = [];
-    const wind_speed_10m = [];
-    const wind_gusts_10m = [];
-    const uv_index = [];
-    const visibility = [];
-    const pm10 = [];
-    const european_aqi = [];
-    
-    // Generate 9 days of hourly data starting from 2 days ago (9 * 24 = 216 hours)
-    // Simulated base date is June 15, 2026. Let's start from June 13, 2026.
-    const baseDate = new Date('2026-06-13T00:00:00');
-    for (let i = 0; i < 216; i++) {
-      const d = new Date(baseDate.getTime() + i * 3600000);
-      const pad = (num) => String(num).padStart(2, '0');
-      const timeStr = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
-      time.push(timeStr);
-      
-      const hour = d.getHours();
-      const tempVal = 30 + 12 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 1.5 - 0.75);
-      temperature_2m.push(tempVal);
-      apparent_temperature.push(tempVal + 2 + (Math.random() * 1.0 - 0.5));
-      
-      const rhVal = 55 - 25 * Math.sin((hour - 8) * Math.PI / 12) + (Math.random() * 5 - 2.5);
-      relative_humidity_2m.push(Math.round(rhVal));
-      
-      const windVal = 12 + 10 * Math.sin((hour - 9) * Math.PI / 12) + (Math.random() * 4 - 2);
-      wind_speed_10m.push(Math.max(5, windVal));
-      wind_gusts_10m.push(Math.max(8, windVal * 1.3 + (Math.random() * 3)));
-      
-      const uvVal = (hour >= 6 && hour <= 18) ? 11 * Math.sin((hour - 6) * Math.PI / 12) : 0;
-      uv_index.push(parseFloat(uvVal.toFixed(1)));
-      
-      visibility.push(12000 + (Math.random() * 2000 - 1000));
-      pm10.push(40 + Math.random() * 20);
-      european_aqi.push(Math.round(45 + Math.random() * 25));
-    }
-    
-    return {
-      time,
-      temperature_2m,
-      apparent_temperature,
-      relative_humidity_2m,
-      weathercode: Array(216).fill(0),
-      precipitation_probability: Array(216).fill(0),
-      wind_speed_10m,
-      wind_direction_10m: Array(216).fill(260),
-      wind_gusts_10m,
-      uv_index,
-      pressure_msl: Array(216).fill(1008.5),
-      visibility,
-      cloud_cover: Array(216).fill(10),
-      european_aqi,
-      pm2_5: Array(216).fill(20.2),
-      pm10
-    };
-  })(),
-  daily: {
-    time: ['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18', '2026-06-19', '2026-06-20', '2026-06-21'],
-    weathercode: [3, 2, 1, 0, 0, 1, 3],
-    temperature_2m_max: [43, 42, 40, 39, 41, 42, 44],
-    temperature_2m_min: [28, 27, 26, 25, 27, 28, 29],
-    wind_gusts_10m_max: [50, 45, 38, 32, 35, 48, 52],
-    sunrise: ['2026-06-15T05:30', '2026-06-16T05:30', '2026-06-17T05:31', '2026-06-18T05:31', '2026-06-19T05:31', '2026-06-20T05:32', '2026-06-21T05:32'],
-    sunset: ['2026-06-15T19:05', '2026-06-16T19:05', '2026-06-17T19:06', '2026-06-18T19:06', '2026-06-19T19:06', '2026-06-20T19:07', '2026-06-21T19:07']
-  }
-};
-
 export default function App() {
   const [data, setData] = useState(() => getInitialGroundedData());
   const [apiMeta, setApiMeta] = useState(null);
@@ -145,7 +54,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState(() => {
     try {
       const saved = sessionStorage.getItem('xrange_view_mode');
-      if (!saved || saved === 'tv') return 'ops';
+      if (!saved) return 'ops';
       if (saved === 'advisory') return 'hse';
       if (saved === 'customer') return 'planning';
       return saved;
@@ -169,7 +78,7 @@ export default function App() {
   });
 
   const handleViewModeChange = (nextMode) => {
-    if (!nextMode || nextMode === 'tv') {
+    if (!nextMode) {
       setViewMode('ops');
     } else if (nextMode === 'advisory') {
       setViewMode('hse');
@@ -295,51 +204,11 @@ export default function App() {
     }
   }, [broadcastHistory]);
 
-  // Calculate active alerts count for header notification badge
-  const getActiveAlertsCount = () => {
-    let count = 0;
-    if (!data) return 0;
-
-    // Check lightning
-    const hasLightning = simulatedLightning || (data.ncmWarnings && data.ncmWarnings.some(w => w.category === 'LIGHTNING'));
-    if (hasLightning) count++;
-
-    // Stations evaluation rules
-    const stations = [
-      { id: 'hq', t: 41.3, ws: 25, rh: 20, uv: 10, pm: 45, vis: 10000 },
-      { id: 'north', t: 39.5, ws: 42, rh: 25, uv: 11, pm: 50, vis: 4000 },
-      { id: 'south', t: 44.5, ws: 12, rh: 15, uv: 12, pm: 50, vis: 12000 },
-      { id: 'sea', t: 34.0, ws: 28, rh: 89, uv: 9, pm: 50, vis: 2000 }
-    ];
-
-    stations.forEach(s => {
-      const liveStation = data.stations?.[s.id]?.current || data.current;
-      const temp = isSimulated ? s.t : (liveStation?.temperature_2m || 0);
-      const wind = isSimulated ? s.ws : (liveStation?.wind_speed_10m || 0);
-      const gusts = isSimulated ? s.ws * 1.3 : (liveStation?.wind_gusts_10m || wind * 1.3);
-      const visibility = isSimulated ? s.vis : (liveStation?.visibility || 10000);
-      const pm10 = isSimulated ? s.pm : (liveStation?.pm10 || 50);
-
-      // Check temperature
-      if (temp >= 46) count++;
-      else if (temp >= 38) count++;
-
-      // Check wind / gusts
-      if (wind >= 45 || gusts >= 60) count++;
-      else if (wind >= 25 || gusts >= 35) count++;
-
-      // Check visibility
-      if (visibility < 800) count++;
-      else if (visibility < 3000) count++;
-
-      // Check PM10 AQI
-      if (pm10 >= 150) count++;
-    });
-
-    return count;
-  };
-
-  const activeAlertsCount = getActiveAlertsCount();
+  // Single-source-of-truth active alerts count for header notification badge
+  const activeAlertsCount = useMemo(
+    () => compileActiveStationAlerts({ apiData: data, isSimulated, simulatedLightning }).length,
+    [data, isSimulated, simulatedLightning]
+  );
 
   useEffect(() => {
     const handleResize = () => {
@@ -356,10 +225,11 @@ export default function App() {
     };
   }, []);
 
+  // Refresh root systemTime every 30s (Header ticks its own 1Hz GST display independently)
   useEffect(() => {
     const timer = setInterval(() => {
       setSystemTime(new Date());
-    }, 1000);
+    }, 30000);
     return () => clearInterval(timer);
   }, []);
 
@@ -376,9 +246,13 @@ export default function App() {
     return () => clearInterval(rotationTimer);
   }, [activeStation, isAutoRotateStations]);
 
-  const activeTime = isSimulated
-    ? new Date(new Date('2026-06-15T11:30:00').getTime() + (systemTime.getSeconds() * 1000))
-    : systemTime;
+  const activeTime = useMemo(
+    () =>
+      isSimulated
+        ? new Date(new Date('2026-06-15T11:30:00+04:00').getTime() + systemTime.getSeconds() * 1000)
+        : systemTime,
+    [isSimulated, systemTime]
+  );
 
   const loadData = async () => {
     try {
@@ -471,106 +345,45 @@ export default function App() {
     });
   };
 
-  const combinedNcmWarnings = [...(data?.ncmWarnings || [])];
-  if (isSimulated && simulatedLightning) {
-    if (!combinedNcmWarnings.some(w => w.id === "ncm-w-lightning-red")) {
-      combinedNcmWarnings.unshift({
-        id: "ncm-w-lightning-red",
-        type: "RED",
-        category: "LIGHTNING",
-        title: "ACTIVE LIGHTNING & THUNDERSTORM WARNING",
-        description: "Official Weather Agency Alert: Active convective thunderstorm and lightning strikes detected in the Abu Al Abyad sector. Halt all range activities and evacuate personnel immediately.",
-        issued: new Date().toISOString(),
-        expiry: new Date(Date.now() + 30 * 60 * 1000).toISOString()
+  const combinedNcmWarnings = useMemo(() => {
+    const list = [...(data?.ncmWarnings || [])];
+    if (isSimulated && simulatedLightning && !list.some((w) => w.id === 'ncm-w-lightning-red')) {
+      list.unshift({
+        id: 'ncm-w-lightning-red',
+        type: 'RED',
+        category: 'LIGHTNING',
+        title: 'ACTIVE LIGHTNING & THUNDERSTORM WARNING',
+        description:
+          'Official Weather Agency Alert: Active convective thunderstorm and lightning strikes detected in the Abu Al Abyad sector. Halt all range activities and evacuate personnel immediately.',
+        issued: systemTime.toISOString(),
+        expiry: new Date(systemTime.getTime() + 30 * 60 * 1000).toISOString()
       });
     }
-  }
-  const getActiveStationDisplayData = () => {
-    if (isSimulated) {
-      const simStationProfiles = {
-        hq: {
-          name: 'X-Range HQ',
-          temperature_2m: 41.3,
-          apparent_temperature: 43.1,
-          relative_humidity_2m: 20,
-          wind_speed_10m: 25,
-          wind_gusts_10m: 35,
-          weathercode: simulatedLightning ? 95 : 3,
-          uv_index: 9.0,
-          solar_radiation: 890
-        },
-        north: {
-          name: 'Range North',
-          temperature_2m: 39.5,
-          apparent_temperature: 42.0,
-          relative_humidity_2m: 25,
-          wind_speed_10m: 42,
-          wind_gusts_10m: 53,
-          visibility: 4000,
-          weathercode: simulatedLightning ? 95 : 45,
-          uv_index: 9.0,
-          solar_radiation: 840
-        },
-        south: {
-          name: 'Range South',
-          temperature_2m: 44.5,
-          apparent_temperature: 49.2,
-          relative_humidity_2m: 15,
-          wind_speed_10m: 12,
-          wind_gusts_10m: 18,
-          visibility: 12000,
-          weathercode: simulatedLightning ? 95 : 0,
-          uv_index: 9.8,
-          solar_radiation: 985
-        },
-        sea: {
-          name: 'Sea Boundary',
-          temperature_2m: 34.0,
-          apparent_temperature: 48.0,
-          relative_humidity_2m: 89,
-          wind_speed_10m: 28,
-          wind_gusts_10m: 42,
-          visibility: 2000,
-          weathercode: simulatedLightning ? 95 : 3,
-          uv_index: 8.6,
-          solar_radiation: 820
-        }
-      };
-      const simProfile = simStationProfiles[activeStation] || simStationProfiles.hq;
-      return {
-        ...(data?.stations?.[activeStation]?.current || data?.current),
-        ...simProfile,
-        sectorTitle: simProfile.name
-      };
-    }
+    return list;
+  }, [data, isSimulated, simulatedLightning, systemTime]);
 
-    // WeatherNext 3 5km multi-station microclimate grid resolution
-    if (data?.stations && data.stations[activeStation]?.current) {
-      return {
-        ...data.stations[activeStation].current,
-        sectorTitle: data.stations[activeStation].name,
-        name: data.stations[activeStation].name
-      };
-    }
-    return data?.current;
-  };
+  const activeDisplayData = useMemo(
+    () => getStationCurrentReadings(data, activeStation, isSimulated, simulatedLightning),
+    [data, activeStation, isSimulated, simulatedLightning]
+  );
 
-  const activeDisplayData = getActiveStationDisplayData();
-
-  const getCombinedSafety = () => {
+  const globalSafety = useMemo(() => {
     if (!data) return { status: 'GREEN', reasons: [], colors: { banner: 'bg-safetyGreen', pulse: false } };
 
     let globalStatus = 'GREEN';
     const globalReasons = [];
 
     const targetCurrent = activeDisplayData || data?.stations?.[activeStation]?.current || data.current;
-    const evalResult = evaluateSafety(targetCurrent, isSimulated ? activeTime : null);
+    const evalResult = evaluateSafety(
+      targetCurrent,
+      isSimulated ? activeTime : (targetCurrent?.time ?? activeTime)
+    );
     globalStatus = evalResult.status;
-    evalResult.reasons.forEach(r => globalReasons.push(r));
+    evalResult.reasons.forEach((r) => globalReasons.push(r));
 
     // Incorporate NCM warnings into the safety state
     let isLightningHalt = false;
-    combinedNcmWarnings.forEach(w => {
+    combinedNcmWarnings.forEach((w) => {
       if (w.type === 'RED') {
         globalStatus = 'RED';
       } else if (w.type === 'AMBER' && globalStatus !== 'RED') {
@@ -584,17 +397,24 @@ export default function App() {
 
     if (isLightningHalt) {
       globalStatus = 'RED';
-      if (!globalReasons.some(r => r.includes('Severe thunderstorm & lightning strikes'))) {
-        globalReasons.unshift(`⚡ EMERGENCY: Severe thunderstorm & lightning strikes detected. Evacuate all personnel to shelters.`);
+      if (!globalReasons.some((r) => r.includes('Severe thunderstorm & lightning strikes'))) {
+        globalReasons.unshift(
+          `⚡ EMERGENCY: Severe thunderstorm & lightning strikes detected. Evacuate all personnel to shelters.`
+        );
       }
     }
 
     // WeatherNext 3 Convective Squall & Haboob Rapid Early-Warning
     if (data?.current && data?.hourly) {
-      const prevHourIdx = Math.max(0, (data.hourly.time?.findIndex(t => t.startsWith(data.current?.time?.slice(0, 13))) || 1) - 1);
+      const prevHourIdx = Math.max(
+        0,
+        (data.hourly.time?.findIndex((t) => t.startsWith(data.current?.time?.slice(0, 13))) || 1) - 1
+      );
       const prevP = data.hourly.pressure_msl ? data.hourly.pressure_msl[prevHourIdx] : data.current.pressure_msl;
       const prevW = data.hourly.wind_speed_10m ? data.hourly.wind_speed_10m[prevHourIdx] : data.current.wind_speed_10m;
-      const prevDir = data.hourly.wind_direction_10m ? data.hourly.wind_direction_10m[prevHourIdx] : data.current.wind_direction_10m;
+      const prevDir = data.hourly.wind_direction_10m
+        ? data.hourly.wind_direction_10m[prevHourIdx]
+        : data.current.wind_direction_10m;
       const haboob = detectHaboobConvectiveRisk(
         data.current.pressure_msl,
         prevP,
@@ -616,12 +436,12 @@ export default function App() {
       }
     }
 
-    let bannerColor = "bg-safetyGreen border-green-500 text-white";
+    let bannerColor = 'bg-safetyGreen border-green-500 text-white';
     let pulse = false;
-    if (globalStatus === "AMBER") {
-      bannerColor = "bg-amberAlert border-amber-600 text-white animate-pulse";
-    } else if (globalStatus === "RED") {
-      bannerColor = "bg-stopRed border-red-600 text-white animate-red-flash";
+    if (globalStatus === 'AMBER') {
+      bannerColor = 'bg-amberAlert border-amber-600 text-white animate-pulse';
+    } else if (globalStatus === 'RED') {
+      bannerColor = 'bg-stopRed border-red-600 text-white animate-red-flash';
       pulse = true;
     }
 
@@ -630,12 +450,11 @@ export default function App() {
       reasons: globalReasons,
       colors: { banner: bannerColor, pulse }
     };
-  };
+  }, [data, activeDisplayData, activeStation, isSimulated, activeTime, combinedNcmWarnings]);
 
-  const globalSafety = getCombinedSafety();
   const activeHourlyData = data?.stations?.[activeStation]?.hourly || data?.hourly;
 
-  const getActiveStationDailyData = () => {
+  const activeDailyData = useMemo(() => {
     const baseDaily = data?.stations?.[activeStation]?.daily || data?.daily;
     if (!baseDaily) return null;
 
@@ -655,33 +474,31 @@ export default function App() {
         temperature_2m_min: (baseDaily.temperature_2m_min || []).map((v, i) =>
           i === 0 ? sp.min0 : Number((v + sp.deltaT * 0.65).toFixed(1))
         ),
-        wind_gusts_10m_max: (baseDaily.wind_gusts_10m_max || []).map(g =>
+        wind_gusts_10m_max: (baseDaily.wind_gusts_10m_max || []).map((g) =>
           Number(Math.max(8, g + sp.deltaG).toFixed(1))
         )
       };
     }
 
     return baseDaily;
-  };
+  }, [data, activeStation, isSimulated]);
 
-  const activeDailyData = getActiveStationDailyData();
-  const dataAgeMinutes = Math.max(0, Math.floor((Date.now() - lastUpdatedMs) / 60000));
+  const dataAgeMinutes = Math.max(0, Math.floor((systemTime.getTime() - lastUpdatedMs) / 60000));
 
   // Automated HSE WhatsApp & Directive Dispatcher + ISO/IEC 42001 Tamper-Evident Audit Logging
   useEffect(() => {
     if (globalSafety && activeDisplayData) {
       checkAndDispatchAutoAlerts(globalSafety, activeDisplayData, simulatedLightning);
     }
-  }, [
-    globalSafety?.status, 
-    globalSafety?.reasons?.length, 
-    simulatedLightning, 
-    activeDisplayData?.temperature_2m, 
-    activeDisplayData?.wind_speed_10m
-  ]);
+  }, [globalSafety, activeDisplayData, simulatedLightning]);
 
+  const lastAuditSigRef = useRef('');
   useEffect(() => {
     if (!globalSafety?.status) return;
+    const sig = `${activeStation}|${globalSafety.status}|${activeProvider || 'WEATHERNEXT_3'}|${isSimulated}`;
+    if (lastAuditSigRef.current === sig) return;
+    lastAuditSigRef.current = sig;
+
     appendIso42001AuditEntry({
       isoControl: 'A.5.2 / A.6.2.8',
       eventType: isSimulated ? 'HITL_SIMULATION_EVALUATION' : 'AI_SAFETY_EVALUATION',
@@ -696,16 +513,16 @@ export default function App() {
         gustKmh: activeDisplayData?.wind_gusts_10m
       }
     });
-  }, [globalSafety?.status, isSimulated, activeProvider]);
+  }, [activeStation, globalSafety, activeProvider, isSimulated, activeDisplayData]);
 
   // Calculate projected extremes for the next 12 hours using active station data
-  const getTvProjectedExtremes = () => {
+  const tvExtremes = useMemo(() => {
     const activeHourly = data?.stations?.[activeStation]?.hourly || data?.hourly;
     if (!activeHourly || !activeHourly.time) {
       return { maxTemp: 0, maxUv: 0, maxWbgt: 0 };
     }
-    
-    const now = isSimulated ? new Date('2026-06-15T12:30') : new Date();
+
+    const now = isSimulated ? new Date('2026-06-15T12:30+04:00') : systemTime;
     const getDubaiHourString = (date) => {
       const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: 'Asia/Dubai',
@@ -717,15 +534,15 @@ export default function App() {
         hourCycle: 'h23'
       });
       const parts = formatter.formatToParts(date);
-      const getPart = (type) => parts.find(p => p.type === type).value;
+      const getPart = (type) => parts.find((p) => p.type === type).value;
       return `${getPart('year')}-${getPart('month')}-${getPart('day')}T${getPart('hour')}:00`;
     };
     const currentHourString = getDubaiHourString(now);
-    let startIndex = activeHourly.time.findIndex(t => t.startsWith(currentHourString.slice(0, 13)));
+    let startIndex = activeHourly.time.findIndex((t) => t.startsWith(currentHourString.slice(0, 13)));
     if (startIndex === -1) startIndex = 0;
-    
+
     const next12Hours = activeHourly.time.slice(startIndex, startIndex + 12);
-    
+
     const curTempVal = activeDisplayData?.temperature_2m ?? 0;
     const curUvVal = activeDisplayData?.uv_index ?? 0;
     const curWbgtVal = activeDisplayData
@@ -741,8 +558,8 @@ export default function App() {
     let maxTemp = curTempVal;
     let maxUv = curUvVal;
     let maxWbgt = curWbgtVal;
-    
-    next12Hours.forEach((t, i) => {
+
+    next12Hours.forEach((_t, i) => {
       const idx = startIndex + i;
       const temp = activeHourly.temperature_2m[idx];
       const uv = activeHourly.uv_index ? activeHourly.uv_index[idx] : 0;
@@ -750,20 +567,18 @@ export default function App() {
       const wind = activeHourly.wind_speed_10m ? activeHourly.wind_speed_10m[idx] : 0;
       const solar = activeHourly.solar_radiation ? activeHourly.solar_radiation[idx] : null;
       const wbgt = calculateWBGT(temp, rh, wind, uv, solar);
-      
+
       if (temp > maxTemp) maxTemp = temp;
       if (uv > maxUv) maxUv = uv;
       if (wbgt > maxWbgt) maxWbgt = wbgt;
     });
-    
+
     return {
       maxTemp,
       maxUv,
       maxWbgt
     };
-  };
-
-  const tvExtremes = getTvProjectedExtremes();
+  }, [data, activeStation, isSimulated, systemTime, activeDisplayData]);
 
   const viewportAuraClass =
     globalSafety.status === 'RED' || (data?.airspaceTraffic?.activeOverIslandCount || 0) > 0
@@ -773,13 +588,6 @@ export default function App() {
       : 'viewport-aura-green';
 
   if (isMobile) {
-    const mobileSectorList = [
-      { id: 'hq', short: 'HQ', label: 'X-Range HQ' },
-      { id: 'north', short: 'NORTH', label: 'Range North' },
-      { id: 'south', short: 'SOUTH', label: 'Range South' },
-      { id: 'sea', short: 'SEA', label: 'Sea Boundary' }
-    ];
-
     const isCommandTab = ['hse', 'alerts', 'planning', 'customer', 'backend'].includes(mobileTab);
 
     return (
@@ -816,20 +624,12 @@ export default function App() {
             </span>
           </div>
           <div className="grid grid-cols-4 gap-1.5">
-            {mobileSectorList.map(sec => {
+            {stationsList.map(sec => {
               const isSelected = activeStation === sec.id;
-              const secCurrent = isSimulated
-                ? (() => {
-                    const simMap = {
-                      hq: { temperature_2m: 41.3, apparent_temperature: 43.1, wind_speed_10m: 25, wind_gusts_10m: 35, relative_humidity_2m: 20, uv_index: 9.0, weathercode: simulatedLightning ? 95 : 3 },
-                      north: { temperature_2m: 39.5, apparent_temperature: 42.0, wind_speed_10m: 42, wind_gusts_10m: 53, relative_humidity_2m: 25, visibility: 4000, uv_index: 9.0, weathercode: simulatedLightning ? 95 : 45 },
-                      south: { temperature_2m: 44.5, apparent_temperature: 49.2, wind_speed_10m: 12, wind_gusts_10m: 18, relative_humidity_2m: 15, visibility: 12000, uv_index: 9.8, weathercode: simulatedLightning ? 95 : 0 },
-                      sea: { temperature_2m: 34.0, apparent_temperature: 48.0, wind_speed_10m: 28, wind_gusts_10m: 42, relative_humidity_2m: 89, visibility: 2000, uv_index: 8.6, weathercode: simulatedLightning ? 95 : 3 }
-                    };
-                    return { ...data?.current, ...simMap[sec.id] };
-                  })()
-                : (data?.stations?.[sec.id]?.current || data?.current);
-              const secSafety = secCurrent ? evaluateSafety(secCurrent) : { status: 'GREEN' };
+              const secCurrent = getStationCurrentReadings(data, sec.id, isSimulated, simulatedLightning);
+              const secSafety = secCurrent
+                ? evaluateSafety(secCurrent, isSimulated ? activeTime : (secCurrent?.time ?? activeTime))
+                : { status: 'GREEN' };
               const dotClass = secSafety.status === 'RED'
                 ? 'bg-red-500 animate-ping'
                 : secSafety.status === 'AMBER'
@@ -1620,9 +1420,9 @@ export default function App() {
         </Suspense>
       )}
 
-      {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard (disabled on iOS/Android handhelds) */}
+      {/* LG webOS / Smart TV Anti-Screensaver & Screen Wake Lock Guard (active ONLY in Lobby TV Kiosk mode on non-handhelds) */}
       <TvWakeLockGuard
-        enabled={typeof navigator !== 'undefined' ? !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) : true}
+        enabled={viewMode === 'tv' && (typeof navigator !== 'undefined' ? !/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) : true)}
         autoReload={tvAutoReload}
       />
     </div>

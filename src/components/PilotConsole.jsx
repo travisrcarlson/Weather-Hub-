@@ -1,8 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import {
-  Plane, Wind, Compass, Gauge, BatteryCharging, Thermometer,
-  Eye, ShieldAlert, ShieldCheck, AlertTriangle, Download,
-  Copy, Check, Navigation, Layers, Zap, Sun, Activity, Sliders, Radio, FileText
+  Plane, Compass, Gauge, Eye, Download,
+  Copy, Check, Navigation, Layers, Activity, Sliders, Radio, FileText
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -13,7 +12,7 @@ import {
   calculateAtmosphericDensity
 } from '../utils/tacticalBallisticsEngine';
 import { calculateDewPoint } from '../utils/safetyEngine';
-import { stationsList } from './XRangeMap';
+import { stationsList, getStationCurrentReadings } from '../utils/rangeStations';
 
 // Standard UAV Airframe & Fixed-Wing Profiles operated at X-Range (with V_min Stall & V_max Dash Speeds)
 const UAV_AIRFRAMES = [
@@ -189,20 +188,15 @@ export default function PilotConsole({
 
   // Runway / Launch Rail heading state (3 X-Range Runways on 31/13: AF1R @ HQ, AF2R @ Sea, EM2R @ South)
   const [runwayHeading, setRunwayHeading] = useState(310);
-  const [selectedRunwayStrip, setSelectedRunwayStrip] = useState(() => {
-    const match = XRANGE_RUNWAYS.find(r => r.stationId === activeStation);
-    return match ? match.id : 'AF1R';
-  });
-  const [selectedRunwayId, setSelectedRunwayId] = useState('AF1R_31');
-
-  useEffect(() => {
-    const match = XRANGE_RUNWAYS.find(r => r.stationId === activeStation);
-    if (match && match.id !== selectedRunwayStrip) {
-      setSelectedRunwayStrip(match.id);
-      const endCode = runwayHeading === 130 ? '13' : '31';
-      setSelectedRunwayId(`${match.id}_${endCode}`);
-    }
-  }, [activeStation, runwayHeading, selectedRunwayStrip]);
+  const [manualRunwayStrip, setSelectedRunwayStrip] = useState('AF1R');
+  const collocatedRunway = XRANGE_RUNWAYS.find(r => r.stationId === activeStation);
+  const selectedRunwayStrip = collocatedRunway ? collocatedRunway.id : manualRunwayStrip;
+  const selectedRunwayId =
+    runwayHeading === 310
+      ? `${selectedRunwayStrip}_31`
+      : runwayHeading === 130
+      ? `${selectedRunwayStrip}_13`
+      : 'CUSTOM';
 
   // Goal Ground Speed Calculator, Platform V_min / V_max & Altitude Band state
   const [goalGroundSpeedKmh, setGoalGroundSpeedKmh] = useState(45);
@@ -234,29 +228,35 @@ export default function PilotConsole({
   // Resolve current station info and telemetry
   const stationObj = stationsList.find(s => s.id === activeStation) || stationsList[0];
   const stationReadings = useMemo(() => {
-    if (!data || !data.current) return activeDisplayData || {};
-    if (isSimulated && stationObj && stationObj.getReadings) {
-      return stationObj.getReadings(data.current);
-    }
-    return activeDisplayData || data.current;
-  }, [data, activeDisplayData, isSimulated, stationObj]);
+    if (!data) return activeDisplayData || {};
+    return getStationCurrentReadings(data, activeStation, isSimulated, false) || activeDisplayData || {};
+  }, [data, activeStation, isSimulated, activeDisplayData]);
 
   // Active airframe profile
-  const baseAirframe = UAV_AIRFRAMES.find(a => a.id === selectedAirframeId) || UAV_AIRFRAMES[0];
-  const airframe = selectedAirframeId === 'CUSTOM'
-    ? {
-        ...baseAirframe,
-        maxSustainedWindKmh: customMaxWind,
-        maxGustKmh: customMaxGust,
-        maxCrosswindKmh: customMaxCrosswind,
-        minAirspeedKmh: platformMinSpeedKmh,
-        maxAirspeedKmh: platformMaxSpeedKmh
-      }
-    : {
-        ...baseAirframe,
-        minAirspeedKmh: platformMinSpeedKmh,
-        maxAirspeedKmh: platformMaxSpeedKmh
-      };
+  const airframe = useMemo(() => {
+    const baseAirframe = UAV_AIRFRAMES.find(a => a.id === selectedAirframeId) || UAV_AIRFRAMES[0];
+    return selectedAirframeId === 'CUSTOM'
+      ? {
+          ...baseAirframe,
+          maxSustainedWindKmh: customMaxWind,
+          maxGustKmh: customMaxGust,
+          maxCrosswindKmh: customMaxCrosswind,
+          minAirspeedKmh: platformMinSpeedKmh,
+          maxAirspeedKmh: platformMaxSpeedKmh
+        }
+      : {
+          ...baseAirframe,
+          minAirspeedKmh: platformMinSpeedKmh,
+          maxAirspeedKmh: platformMaxSpeedKmh
+        };
+  }, [
+    selectedAirframeId,
+    customMaxWind,
+    customMaxGust,
+    customMaxCrosswind,
+    platformMinSpeedKmh,
+    platformMaxSpeedKmh
+  ]);
 
   // Extract live meteorological values with safe defaults
   const surfaceWindKmh = Number(stationReadings?.wind_speed_10m ?? 18);
@@ -1377,8 +1377,6 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                       const collocatedStrip = XRANGE_RUNWAYS.find(r => r.stationId === pad.id);
                       if (collocatedStrip) {
                         setSelectedRunwayStrip(collocatedStrip.id);
-                        const endCode = runwayHeading === 130 ? '13' : '31';
-                        setSelectedRunwayId(`${collocatedStrip.id}_${endCode}`);
                       }
                     }}
                     className={`px-2 py-1 rounded text-[8.5px] font-black uppercase transition cursor-pointer flex items-center space-x-1.5 border ${
@@ -1780,7 +1778,6 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                       onClick={() => {
                         setSelectedRunwayStrip(strip.id);
                         setRunwayHeading(strip.recHeading);
-                        setSelectedRunwayId(`${strip.id}_${strip.recEnd}`);
                         if (setActiveStation && strip.stationId) {
                           setActiveStation(strip.stationId);
                         }
@@ -1815,10 +1812,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                   <div className="grid grid-cols-2 gap-1.5">
                     <button
                       type="button"
-                      onClick={() => {
-                        setRunwayHeading(310);
-                        setSelectedRunwayId(`${selectedRunwayStrip}_31`);
-                      }}
+                      onClick={() => setRunwayHeading(310)}
                       className={`px-2 py-1 rounded text-[8px] font-black uppercase border flex items-center justify-between cursor-pointer transition ${
                         runwayHeading === 310
                           ? 'bg-cyan-500/20 border-cyan-400 text-white'
@@ -1835,10 +1829,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
 
                     <button
                       type="button"
-                      onClick={() => {
-                        setRunwayHeading(130);
-                        setSelectedRunwayId(`${selectedRunwayStrip}_13`);
-                      }}
+                      onClick={() => setRunwayHeading(130)}
                       className={`px-2 py-1 rounded text-[8px] font-black uppercase border flex items-center justify-between cursor-pointer transition ${
                         runwayHeading === 130
                           ? 'bg-cyan-500/20 border-cyan-400 text-white'
@@ -1953,10 +1944,7 @@ Range Safety Officer (RSO):     ______________________  Time: __________
                     min="0"
                     max="359"
                     value={runwayHeading}
-                    onChange={(e) => {
-                      setRunwayHeading(Number(e.target.value));
-                      setSelectedRunwayId('CUSTOM');
-                    }}
+                    onChange={(e) => setRunwayHeading(Number(e.target.value))}
                     className="w-full accent-edgeOrange h-1 cursor-pointer"
                   />
                 </div>

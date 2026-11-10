@@ -1,4 +1,3 @@
-import React from 'react';
 import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { evaluateSafety } from '../utils/safetyEngine';
 import { Compass, Droplets } from 'lucide-react';

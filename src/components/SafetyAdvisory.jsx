@@ -1,5 +1,4 @@
-import React from 'react';
-import { ShieldAlert, Droplets, Sun, Wind, CloudLightning, Activity, AlertTriangle, PhoneCall } from 'lucide-react';
+import { ShieldAlert, Droplets, Sun, Wind, CloudLightning, Activity, PhoneCall } from 'lucide-react';
 import { calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
 
 export default function SafetyAdvisory({ data, ncmWarnings }) {

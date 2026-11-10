@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ShieldAlert, 
   ShieldCheck, 
@@ -8,35 +8,29 @@ import {
   MessageSquare, 
   Key, 
   AlertTriangle, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
   Settings, 
   Phone, 
-  Globe, 
   Trash2, 
   RefreshCw,
-  Zap,
-  Info,
-  ChevronRight
+  Zap
 } from 'lucide-react';
 import { 
   verifyHseSecurityPin, 
   setHseSecurityPin, 
-  getHseSecurityPin,
+  isHseAdminUnlocked,
+  setHseAdminUnlocked,
   getActiveHseDirective, 
   getHseDirectiveHistory, 
   broadcastHseDirective, 
   clearActiveHseDirective, 
   getWhatsAppConfig, 
   saveWhatsAppConfig, 
-  sendWhatsAppMessage,
-  formatWhatsAppDirective
+  sendWhatsAppMessage
 } from '../services/hseBroadcastService';
 
 export default function HseWebhookDispatcher() {
-  // Authentication State
-  const [isUnlocked, setIsUnlocked] = useState(false);
+  // Authentication State (unified with AlertCenter via sessionStorage)
+  const [isUnlocked, setIsUnlocked] = useState(() => isHseAdminUnlocked());
   const [enteredPin, setEnteredPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [isChangingPin, setIsChangingPin] = useState(false);
@@ -73,27 +67,33 @@ export default function HseWebhookDispatcher() {
     const handleWaConfigChange = () => {
       setWaConfig(getWhatsAppConfig());
     };
+    const handleAdminAuthChange = () => {
+      setIsUnlocked(isHseAdminUnlocked());
+    };
 
     window.addEventListener('xrange-hse-directive', handleDirectiveChange);
     window.addEventListener('xrange-whatsapp-config', handleWaConfigChange);
+    window.addEventListener('xrange-admin-auth', handleAdminAuthChange);
     window.addEventListener('storage', handleDirectiveChange);
 
     return () => {
       window.removeEventListener('xrange-hse-directive', handleDirectiveChange);
       window.removeEventListener('xrange-whatsapp-config', handleWaConfigChange);
+      window.removeEventListener('xrange-admin-auth', handleAdminAuthChange);
       window.removeEventListener('storage', handleDirectiveChange);
     };
   }, []);
 
-  // PIN Verification Handler
+  // Passcode Verification Handler
   const handlePinSubmit = (e) => {
     if (e) e.preventDefault();
     if (verifyHseSecurityPin(enteredPin)) {
       setIsUnlocked(true);
+      setHseAdminUnlocked(true);
       setPinError('');
       setEnteredPin('');
     } else {
-      setPinError('Invalid Security PIN. Access Denied.');
+      setPinError('Invalid Admin Security Passcode. Access Denied.');
       setEnteredPin('');
     }
   };
@@ -196,22 +196,22 @@ export default function HseWebhookDispatcher() {
               HSE Officer Security Clearance
             </h2>
             <p className="text-xs text-slate-400 mb-6 max-w-xs leading-relaxed">
-              Enter your 4-digit Range Safety Officer PIN to unlock the live directive broadcaster and WhatsApp webhook dispatcher.
+              Enter your Range Safety Officer admin passcode to unlock the live directive broadcaster and WhatsApp webhook dispatcher.
             </p>
 
-            {/* PIN Entry Form */}
+            {/* Passcode Entry Form */}
             <form onSubmit={handlePinSubmit} className="w-full space-y-4">
               <div className="relative">
                 <input 
                   type="password"
-                  maxLength={8}
+                  maxLength={24}
                   value={enteredPin}
                   onChange={(e) => {
                     setEnteredPin(e.target.value);
                     setPinError('');
                   }}
-                  placeholder="Enter RSO PIN"
-                  className="w-full bg-bgDeepSpace/80 border border-slate-700/60 rounded-xl px-4 py-3 text-center text-xl font-mono font-black text-textIceWhite tracking-[0.4em] focus:border-edgeOrange outline-none transition-all"
+                  placeholder="Enter Admin Passcode..."
+                  className="w-full bg-bgDeepSpace/80 border border-slate-700/60 rounded-xl px-4 py-3 text-center text-base font-mono font-black text-textIceWhite tracking-[0.2em] focus:border-edgeOrange outline-none transition-all"
                   autoFocus
                 />
               </div>
@@ -233,7 +233,7 @@ export default function HseWebhookDispatcher() {
             </form>
 
             <div className="mt-6 pt-4 border-t border-slate-800/80 w-full flex justify-between items-center text-[10px] text-slate-500 font-mono">
-              <span>DEFAULT RSO PIN: <strong className="text-slate-300">9988</strong></span>
+              <span>RESTRICTED ADMIN GATEWAY</span>
               <span className="flex items-center space-x-1 text-safetyGreen">
                 <ShieldCheck className="w-3 h-3" />
                 <span>ADOSH COP 11.0</span>
@@ -284,7 +284,10 @@ export default function HseWebhookDispatcher() {
 
           {/* Lock / Logout */}
           <button
-            onClick={() => setIsUnlocked(false)}
+            onClick={() => {
+              setIsUnlocked(false);
+              setHseAdminUnlocked(false);
+            }}
             className="flex items-center space-x-1 px-3 py-1.5 rounded-lg border border-red-500/30 bg-red-950/30 hover:bg-red-900/40 text-red-300 text-[9.5px] font-black uppercase transition cursor-pointer"
           >
             <Lock className="w-3 h-3 text-red-400" />
@@ -298,16 +301,16 @@ export default function HseWebhookDispatcher() {
         <div className="bg-cardDarkSlate border border-edgeOrange/40 rounded-xl p-3 flex-none flex items-center justify-between animate-fadeIn">
           <div className="flex items-center space-x-2">
             <Key className="w-4 h-4 text-edgeOrange" />
-            <span className="text-xs font-bold text-slate-200">Update Officer Security PIN:</span>
+            <span className="text-xs font-bold text-slate-200">Update Admin Passcode:</span>
           </div>
           <div className="flex items-center space-x-2">
             <input 
               type="password"
-              maxLength={8}
+              maxLength={24}
               value={newPin}
               onChange={(e) => setNewPin(e.target.value)}
-              placeholder="New 4-digit PIN"
-              className="bg-bgDeepSpace/80 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white focus:border-edgeOrange outline-none w-32"
+              placeholder="New Passcode"
+              className="bg-bgDeepSpace/80 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white focus:border-edgeOrange outline-none w-36"
             />
             <button
               onClick={handleChangePin}

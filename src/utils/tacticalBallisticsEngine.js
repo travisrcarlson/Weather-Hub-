@@ -275,6 +275,48 @@ export function calculateComprehensiveTrajectory({
   const massKg = caliber.bulletWeightGrains * 0.00006479891;
   const v0 = caliber.muzzleVelocityMps;
 
+  // Step-integrated point-mass solver (5m spatial increments) accounting for
+  // Mach-regime wave drag (supersonic -> transonic crest -> subsonic) and exact integral TOF/drop
+  const integrateRange = (targetX) => {
+    if (targetX <= 0) {
+      return { vx: v0, tof: 0, rawDropM: 0 };
+    }
+    const stepM = 5;
+    let x = 0;
+    let v = v0;
+    let t = 0;
+    let dropM = 0;
+    let vyDrop = 0;
+
+    while (x < targetX) {
+      const dx = Math.min(stepM, targetX - x);
+      const curMach = v / atm.speedOfSoundMps;
+      // Transonic wave-drag steepening around Mach 0.95 - 1.20; reduced drag subsonic < 0.90
+      const machDragMult =
+        curMach >= 1.2
+          ? 1.0
+          : curMach >= 0.95
+          ? 1.18
+          : 0.78;
+      const localL = (kFactor * effectiveBC) / machDragMult;
+      const vNext = Math.max(50, v * Math.exp(-dx / localL));
+      // Exact analytical dt across [x, x+dx] for exponential decay: (localL / v) * (exp(dx / localL) - 1)
+      const dt = (localL / v) * (Math.exp(dx / localL) - 1);
+      dropM += vyDrop * dt + 0.5 * 9.80665 * dt * dt;
+      vyDrop += 9.80665 * dt;
+      t += dt;
+      v = vNext;
+      x += dx;
+    }
+
+    return { vx: v, tof: t, rawDropM: dropM };
+  };
+
+  // Sight line correction: zeroed at zeroDistanceM with sightHeightCm above bore
+  const zeroState = integrateRange(zeroDistanceM);
+  const sightHeightM = sightHeightCm / 100;
+  const zeroBoreAngleRad = (zeroState.rawDropM + sightHeightM) / Math.max(1, zeroDistanceM);
+
   // Sub-function to compute kinematics at any target range x
   const computePoint = (x) => {
     if (x <= 0) {
@@ -296,11 +338,7 @@ export function calculateComprehensiveTrajectory({
       };
     }
 
-    // Velocity decay: V(x) = V0 * exp(-x / (K * BC_eff))
-    const decayExp = Math.exp(-x / (kFactor * effectiveBC));
-    const vx = Math.max(50, v0 * decayExp);
-    const vAvg = (v0 + vx) / 2;
-    const tof = x / vAvg; // Time of flight in seconds
+    const { vx, tof, rawDropM } = integrateRange(x);
     const mach = Number((vx / atm.speedOfSoundMps).toFixed(2));
 
     // Flight regime: Supersonic > 1.2 Mach, Transonic 1.0 - 1.2 Mach, Subsonic < 1.0 Mach
@@ -316,15 +354,6 @@ export function calculateComprehensiveTrajectory({
 
     // Kinetic energy in Joules
     const energyJ = Math.round(0.5 * massKg * vx * vx);
-
-    // Gravity raw drop (m) from bore axis: 0.5 * g * t^2
-    const rawDropM = 0.5 * 9.80665 * (tof * tof);
-
-    // Sight line correction: zeroed at zeroDistanceM with sightHeightCm above bore
-    const zTof = zeroDistanceM / ((v0 + (v0 * Math.exp(-zeroDistanceM / (kFactor * effectiveBC)))) / 2);
-    const zRawDropM = 0.5 * 9.80665 * (zTof * zTof);
-    const sightHeightM = sightHeightCm / 100;
-    const zeroBoreAngleRad = (zRawDropM + sightHeightM) / zeroDistanceM;
 
     // Drop relative to Line of Sight (LOS) in cm
     const dropLosM = rawDropM + sightHeightM - (zeroBoreAngleRad * x);
@@ -499,7 +528,8 @@ export function detectHaboobConvectiveRisk(currentPressureHpa, prevPressureHpa, 
 
   const pressureDrop = prevPressureHpa - currentPressureHpa; // hPa drop over 1 hour
   const windSurge = windSpeedKmh - (prevWindSpeedKmh || windSpeedKmh);
-  const dirShift = Math.abs((windDirDeg - (prevWindDirDeg || windDirDeg) + 360) % 360);
+  const rawAngleDiff = Math.abs(((windDirDeg ?? 0) - (prevWindDirDeg ?? windDirDeg ?? 0)) % 360);
+  const dirShift = Math.round(rawAngleDiff > 180 ? 360 - rawAngleDiff : rawAngleDiff);
 
   // Severe haboob signature: Rapid pressure plunge (> 1.2 hPa) + Wind surge (> 15 km/h) + Direction shift (> 45°) or high CAPE + dust surge
   if ((pressureDrop >= 1.2 && windSurge >= 15 && dirShift >= 45) || (capeJkg >= 1000 && windSurge >= 12 && dustUgm3 >= 150)) {

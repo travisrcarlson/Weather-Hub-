@@ -1,21 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   ShieldCheck,
-  ShieldAlert,
   FileText,
   Download,
-  CheckCircle2,
   Lock,
-  Cpu,
-  Database,
-  Activity,
-  AlertTriangle,
   RefreshCw,
   PlusCircle,
   Hash,
-  UserCheck,
-  Scale,
-  BookOpen
+  UserCheck
 } from 'lucide-react';
 import {
   getIso42001AuditLedger,

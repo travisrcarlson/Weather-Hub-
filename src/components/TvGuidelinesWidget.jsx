@@ -1,6 +1,5 @@
-import React from 'react';
 import { GlassWater, Sun, Flame, Timer, Moon } from 'lucide-react';
-import { calculateWBGT, calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
+import { calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
 
 export default function TvGuidelinesWidget({ data, isMobile = false }) {
   if (!data) return null;

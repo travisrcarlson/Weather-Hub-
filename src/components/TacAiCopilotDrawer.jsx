@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Bot,
   X,
@@ -10,7 +10,6 @@ import {
   Sparkles,
   ShieldAlert,
   Plane,
-  Wind,
   Crosshair,
   Flame,
   Clock,
@@ -102,7 +101,7 @@ function buildTelemetrySnapshot(data, activeDisplayData, activeStation, globalSa
   ];
   const sectors = sectorMeta.map(s => {
     const stCur = data?.stations?.[s.id]?.current || cur;
-    const ev = evaluateSafety(stCur);
+    const ev = evaluateSafety(stCur, stCur.time ?? activeTime);
     return {
       ...s,
       status: ev.status,
@@ -388,22 +387,22 @@ export default function TacAiCopilotDrawer({
   const [keySavedToast, setKeySavedToast] = useState(false);
   const chatEndRef = useRef(null);
 
-  const snap = buildTelemetrySnapshot(data, activeDisplayData, activeStation, globalSafety, activeTime);
+  const snap = useMemo(
+    () => buildTelemetrySnapshot(data, activeDisplayData, activeStation, globalSafety, activeTime),
+    [data, activeDisplayData, activeStation, globalSafety, activeTime]
+  );
 
-  // Initialize with a live welcome SitRep when opened first time
-  useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      const initialBrief = generateLocalTacAiResponse('sitrep', snap);
-      setMessages([
-        {
-          role: 'assistant',
-          engine: 'X-Range Tactical AI Engine ($0.00 Local)',
-          timestamp: new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Dubai' }),
-          content: initialBrief
-        }
-      ]);
-    }
-  }, [isOpen]);
+  const initialSitRep = useMemo(
+    () => ({
+      role: 'assistant',
+      engine: 'X-Range Tactical AI Engine ($0.00 Local)',
+      timestamp: (activeTime || new Date()).toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Dubai' }),
+      content: generateLocalTacAiResponse('sitrep', snap)
+    }),
+    [snap, activeTime]
+  );
+
+  const displayedMessages = messages.length > 0 ? messages : [initialSitRep];
 
   useEffect(() => {
     if (chatEndRef.current) {
@@ -558,7 +557,7 @@ export default function TacAiCopilotDrawer({
                   X-RANGE TAC-AI CO-PILOT
                 </h2>
                 <span className="px-1.5 py-0.5 text-[7.5px] font-mono font-black uppercase bg-emerald-950/80 border border-emerald-500/40 text-emerald-300">
-                  $0.00 ZERO-COST AI
+                  {isSimulated ? 'SIM TELEMETRY' : '$0.00 ZERO-COST AI'}
                 </span>
               </div>
               <p className="text-[8.5px] font-mono text-slate-400 mt-0.5">
@@ -585,7 +584,7 @@ export default function TacAiCopilotDrawer({
             <button
               type="button"
               onClick={() => {
-                const latestAssistant = [...messages].reverse().find(m => m.role === 'assistant');
+                const latestAssistant = [...displayedMessages].reverse().find(m => m.role === 'assistant');
                 if (latestAssistant) handleSpeak(latestAssistant.content);
               }}
               className={`px-2 py-1 border text-[8px] font-mono font-black uppercase cursor-pointer flex items-center space-x-1 ${
@@ -669,17 +668,7 @@ export default function TacAiCopilotDrawer({
             </span>
             <button
               type="button"
-              onClick={() => {
-                const freshBrief = generateLocalTacAiResponse('sitrep', snap);
-                setMessages([
-                  {
-                    role: 'assistant',
-                    engine: 'X-Range Tactical AI ($0.00 Local)',
-                    timestamp: new Date().toLocaleTimeString('en-US', { hour12: false, timeZone: 'Asia/Dubai' }),
-                    content: freshBrief
-                  }
-                ]);
-              }}
+              onClick={() => setMessages([])}
               className="text-[7.5px] font-mono text-slate-400 hover:text-white flex items-center space-x-1 cursor-pointer"
             >
               <Trash2 className="w-2.5 h-2.5" />
@@ -702,7 +691,7 @@ export default function TacAiCopilotDrawer({
 
         {/* Conversation Feed */}
         <div className="flex-1 overflow-y-auto p-3.5 space-y-3 bg-bgDeepSpace/90 font-sans select-text">
-          {messages.map((msg, idx) => (
+          {displayedMessages.map((msg, idx) => (
             <div
               key={idx}
               className={`p-3 border ${

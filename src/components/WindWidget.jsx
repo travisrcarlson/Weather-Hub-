@@ -1,28 +1,12 @@
-import React from 'react';
-import { Navigation } from 'lucide-react';
 import { getTrendIndicator, getWindShiftIndicator } from '../utils/safetyEngine';
 
-export function getBeaufortScale(speedKmh) {
-  if (speedKmh < 1) return "0: Calm";
-  if (speedKmh <= 5) return "1: Light Air";
-  if (speedKmh <= 11) return "2: Light Breeze";
-  if (speedKmh <= 19) return "3: Gentle Breeze";
-  if (speedKmh <= 28) return "4: Moderate Breeze";
-  if (speedKmh <= 38) return "5: Fresh Breeze";
-  if (speedKmh <= 49) return "6: Strong Breeze";
-  if (speedKmh <= 61) return "7: Near Gale";
-  if (speedKmh <= 74) return "8: Gale";
-  if (speedKmh <= 88) return "9: Strong Gale";
-  return "10+: Storm";
-}
-
-export function getCardinalDirection(degrees) {
+function getCardinalDirection(degrees) {
   const sectors = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
   const index = Math.round(degrees / 22.5) % 16;
   return sectors[index];
 }
 
-export default function WindWidget({ data, hourlyData, currentTime, onOpenBallistics }) {
+export default function WindWidget({ data, hourlyData, onOpenBallistics }) {
   if (!data) return null;
 
   const windSpeed = data.wind_speed_10m || 0;
@@ -43,7 +27,6 @@ export default function WindWidget({ data, hourlyData, currentTime, onOpenBallis
   const rwyXwStroke = rwyCrosswindKmh >= 35 ? '#EF4444' : rwyCrosswindKmh >= 22 ? '#F59E0B' : '#10B981';
 
   const cardinal = getCardinalDirection(directionDegrees);
-  const beaufort = getBeaufortScale(windSpeed);
 
   // Calculate current hour index in hourlyData
   const getCurHourIdx = () => {

@@ -1,4 +1,3 @@
-import React from 'react';
 import { getWeatherCondition, getIsNightTime } from '../utils/weatherCodeMap';
 import { Cloud, Droplets, Gauge } from 'lucide-react';
 import { getTrendIndicator } from '../utils/safetyEngine';

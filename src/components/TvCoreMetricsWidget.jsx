@@ -1,4 +1,3 @@
-import React from 'react';
 import { Thermometer, Sun, Flame } from 'lucide-react';
 import { getTrendIndicator, calculateWBGT } from '../utils/safetyEngine';
 

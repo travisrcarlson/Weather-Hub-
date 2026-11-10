@@ -1,6 +1,5 @@
-import React from 'react';
-import { Droplets, Eye, Sun, ArrowUpRight, ArrowDownRight, Minus } from 'lucide-react';
-import { calculateDewPoint, calculateHumidex, getHumidexComfort, getTrendIndicator, calculateSunscreenIntervals, calculateWBGT, getWBGTComfort, evaluateHeatStress } from '../utils/safetyEngine';
+import { Eye } from 'lucide-react';
+import { getTrendIndicator, calculateSunscreenIntervals, calculateWBGT, getWBGTComfort, evaluateHeatStress } from '../utils/safetyEngine';
 
 // Z4: Humidity, Dew Point & Humidex
 export function HumidityWidget({ data, hourlyData }) {
@@ -438,12 +437,11 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
 
   let dotCx = 0;
   let dotCy = 67;
-  let dotVal = 0;
 
   if (duration > 0) {
     if (isDaylight) {
       dotCx = ((currentMins - sunriseTime.totalMinutes) / duration) * 100;
-      dotVal = getInterpolatedUv(currentMins, pointsList);
+      const dotVal = getInterpolatedUv(currentMins, pointsList);
       dotCy = 67 - (Math.min(12.5, dotVal) / 12.5) * 58;
     } else {
       if (currentMins < sunriseTime.totalMinutes) {
@@ -451,7 +449,6 @@ export function UvWidget({ data, hourlyData, dailyData, currentTime }) {
       } else {
         dotCx = 100;
       }
-      dotVal = 0;
       dotCy = 67;
     }
   }

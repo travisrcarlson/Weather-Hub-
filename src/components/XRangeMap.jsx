@@ -1,101 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { evaluateSafety, calculateDewPoint, calculateHumidex } from '../utils/safetyEngine';
 import { propagateContactAtTime } from '../services/weatherService';
 import { ShieldAlert, Compass, Sun, Droplets, Map, Play, Pause, RotateCcw, Clock } from 'lucide-react';
-import { getMoonDetails, getMoonTimes, checkTransitPosition, getLunarPhaseSvgPath } from './BottomRow';
+import { getMoonDetails, getMoonTimes, checkTransitPosition, getLunarPhaseSvgPath } from '../utils/lunarEngine';
+import { stationsList } from '../utils/rangeStations';
 import { getIsNightTime } from '../utils/weatherCodeMap';
-
-// Stations definition matching geographical landmarks
-export const stationsList = [
-  {
-    id: 'hq',
-    name: 'X-Range HQ',
-    mgrs: '39R YG 9058 7842',
-    x: 310,
-    y: 170,
-    description: 'Administrative & Firing HQ',
-    getReadings: (globalData) => {
-      if (!globalData) return null;
-      return {
-        ...globalData,
-        temperature_2m: 41.3,
-        apparent_temperature: 43.1,
-        wind_speed_10m: 25,
-        wind_gusts_10m: 35,
-        relative_humidity_2m: 20,
-        visibility: 10000,
-        uv_index: 10,
-        weathercode: 3
-      };
-    }
-  },
-  {
-    id: 'north',
-    name: 'Range North',
-    mgrs: '39R YG 9508 8183',
-    x: 365,
-    y: 100,
-    description: 'Heavy Ballistics & Drone Range',
-    getReadings: (globalData) => {
-      if (!globalData) return null;
-      return {
-        ...globalData,
-        temperature_2m: 39.5,
-        apparent_temperature: 42.0,
-        wind_speed_10m: 42, // Red (>=38 km/h)
-        wind_gusts_10m: 53, // Red (>=50 km/h)
-        relative_humidity_2m: 25,
-        visibility: 4000, // Amber
-        uv_index: 11,
-        weathercode: 45
-      };
-    }
-  },
-  {
-    id: 'south',
-    name: 'Range South',
-    mgrs: '39R YG 8201 7438',
-    x: 135,
-    y: 180,
-    description: 'Desert Durability Sector',
-    getReadings: (globalData) => {
-      if (!globalData) return null;
-      return {
-        ...globalData,
-        temperature_2m: 44.5, // Red (>=43°C)
-        apparent_temperature: 49.2, // Red (>=46°C apparent)
-        wind_speed_10m: 12,
-        wind_gusts_10m: 18,
-        relative_humidity_2m: 15,
-        visibility: 12000,
-        uv_index: 12,
-        weathercode: 0
-      };
-    }
-  },
-  {
-    id: 'sea',
-    name: 'Sea Boundary',
-    mgrs: '39R YG 8806 7726',
-    x: 240,
-    y: 205,
-    description: 'Marine Spit & Port Security',
-    getReadings: (globalData) => {
-      if (!globalData) return null;
-      return {
-        ...globalData,
-        temperature_2m: 34.0,
-        apparent_temperature: 48.0,
-        wind_speed_10m: 28,
-        wind_gusts_10m: 42,
-        relative_humidity_2m: 89,
-        visibility: 2000,
-        uv_index: 9,
-        weathercode: 3
-      };
-    }
-  }
-];
 
 // High-Frequency 25-FPS Linear Isotropic ADS-B Radar Layer (Zero-Jolt Continuous Kinematics)
 function AdsbTrafficLayer({ contacts }) {
@@ -452,10 +361,6 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
 
   const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
 
-  const currentStationInfo = stationsList.find(s => s.id === currentActive) || stationsList[0];
-  const stationReadings = getStationReadingsAtOffset(currentActive, forecastOffset);
-  const activeStationSafety = stationReadings ? evaluateSafety(stationReadings) : { status: 'GREEN', reasons: [] };
-
   // Compute effective time shifted by forecastOffset hours for day/night & sun/moon transit
   const getShiftedTime = () => {
     const base = currentTime || apiData?.current?.time;
@@ -464,6 +369,10 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
     return new Date(baseDate.getTime() + forecastOffset * 3600000);
   };
   const effectiveTime = getShiftedTime();
+
+  const currentStationInfo = stationsList.find(s => s.id === currentActive) || stationsList[0];
+  const stationReadings = getStationReadingsAtOffset(currentActive, forecastOffset);
+  const activeStationSafety = stationReadings ? evaluateSafety(stationReadings, stationReadings.time ?? effectiveTime) : { status: 'GREEN', reasons: [] };
   const isNight = getIsNightTime(effectiveTime, apiData?.daily);
 
   const getMoonIllumination = () => {
@@ -473,7 +382,7 @@ export default function XRangeMap({ apiData, isSimulated, activeStation, setActi
       const moon = getMoonDetails(todayStr);
       const phase = moon.phase;
       return 1 - Math.abs(0.5 - phase) / 0.5;
-    } catch (e) {
+    } catch {
       return 0.5;
     }
   };
@@ -1624,7 +1533,7 @@ export function StationDetailsWidget({ apiData, isSimulated, activeStation, setA
   const stationReadings = isSimulated && apiData?.current
     ? currentStationInfo.getReadings(apiData.current)
     : (apiData?.stations?.[currentStationInfo.id]?.current || apiData?.current || null);
-  let safety = stationReadings ? evaluateSafety(stationReadings) : null;
+  let safety = stationReadings ? evaluateSafety(stationReadings, stationReadings.time ?? apiData?.current?.time ?? null) : null;
 
   const isLightningActive = warnings.some(w => w.category === 'LIGHTNING');
 

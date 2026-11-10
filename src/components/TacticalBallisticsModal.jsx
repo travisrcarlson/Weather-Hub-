@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Target, Wind, Compass, ShieldAlert, AlertTriangle, CheckCircle, Crosshair, ChevronRight } from 'lucide-react';
+import { useState } from 'react';
+import { X, Target, Wind, Compass, Crosshair, ChevronRight } from 'lucide-react';
 import { 
   BALLISTIC_CALIBERS, 
   calculate100mWindShear, 
@@ -8,10 +8,10 @@ import {
 } from '../utils/tacticalBallisticsEngine';
 
 export default function TacticalBallisticsModal({ isOpen, onClose, currentData }) {
-  if (!isOpen) return null;
-
   const [firingAzimuth, setFiringAzimuth] = useState(300); // Default 300° NW Range Bearing
   const [selectedCaliberId, setSelectedCaliberId] = useState('338_lapua');
+
+  if (!isOpen) return null;
 
   const surfaceWind = currentData?.wind_speed_10m ?? 15;
   const boundaryWind100m = currentData?.wind_speed_100m ?? Number((surfaceWind * 1.28 + 1.2).toFixed(1));

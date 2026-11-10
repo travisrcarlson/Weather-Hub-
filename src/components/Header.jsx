@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Clock, Wifi, WifiOff, Cpu, Bell, Zap, Tv, Bot } from 'lucide-react';
 import { PROVIDERS } from '../services/weatherService';
 
@@ -16,15 +17,36 @@ export default function Header({
   onToggleTvAutoReload,
   onOpenTacAi
 }) {
-  const handleTvWakeAndFullscreen = () => {
+  const [clockNow, setClockNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setClockNow(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const displayTime = isSimulated
+    ? new Date(new Date('2026-06-15T11:30:00+04:00').getTime() + (clockNow.getSeconds() * 1000))
+    : (clockNow || time);
+
+  const handleTvLobbyToggle = () => {
     try {
-      if (onToggleTvAutoReload) {
-        onToggleTvAutoReload();
+      const enteringTv = viewMode !== 'tv';
+      if (onViewModeChange) {
+        onViewModeChange(enteringTv ? 'tv' : 'ops');
       }
-      if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
-        document.documentElement.requestFullscreen().catch(() => {});
+      if (enteringTv) {
+        if (!tvAutoReload && onToggleTvAutoReload) {
+          onToggleTvAutoReload();
+        }
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          document.documentElement.requestFullscreen().catch(() => {});
+        }
+      } else if (document.fullscreenElement && document.exitFullscreen) {
+        document.exitFullscreen().catch(() => {});
       }
-    } catch (_e) {
+    } catch {
       // Ignore fullscreen errors
     }
   };
@@ -78,14 +100,14 @@ export default function Header({
             >
               <Zap className="w-2.5 h-2.5 text-cyan-400 animate-pulse" />
               <span>WN3</span>
-              <span className="text-[7.5px] text-sky-300 border-l border-cyan-700/60 pl-1">{60 - (time ? time.getMinutes() % 60 : new Date().getMinutes() % 60)}m</span>
+              <span className="text-[7.5px] text-sky-300 border-l border-cyan-700/60 pl-1">{60 - (displayTime ? displayTime.getMinutes() % 60 : 0)}m</span>
             </div>
           )}
 
           {/* Clock */}
           <div className="flex items-center space-x-1 text-textIceWhite bg-bgDeepSpace/40 px-2 py-1 rounded border border-slate-700/35">
             <Clock className="w-3.5 h-3.5 text-edgeOrange" />
-            <span className="text-[11px] font-mono font-black tracking-wider tabular-nums leading-none">{formatTime(time)}</span>
+            <span className="text-[11px] font-mono font-black tracking-wider tabular-nums leading-none">{formatTime(displayTime)}</span>
           </div>
 
           {/* TAC-AI RSO Co-Pilot Button */}
@@ -167,12 +189,12 @@ export default function Header({
       <div className="flex items-center space-x-2 flex-shrink-0 whitespace-nowrap bg-bgDeepSpace/50 px-2.5 xl:px-3 py-1 xl:py-1.5 rounded-lg border border-slate-700/40 font-sans">
         <Clock className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-edgeOrange flex-shrink-0" />
         <span className="text-sm xl:text-base 2xl:text-lg font-mono font-black tracking-wider tabular-nums text-textIceWhite leading-none">
-          {formatTime(time)}
+          {formatTime(displayTime)}
         </span>
         <span className="text-[8.5px] xl:text-[9.5px] text-slate-400 font-bold uppercase leading-none">GST</span>
         <span className="hidden xl:inline text-slate-600">|</span>
         <span className="hidden xl:inline text-[11px] 2xl:text-xs font-black text-slate-300 uppercase leading-none">
-          {formatDate(time)}
+          {formatDate(displayTime)}
         </span>
       </div>
 
@@ -272,15 +294,19 @@ export default function Header({
             <span>SIM:{isSimulated ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* Segment 3: LG webOS / Smart TV Anti-Screensaver & Fullscreen Lock */}
+          {/* Segment 3: Lobby TV Kiosk View & LG webOS Anti-Screensaver Toggle */}
           <button
             type="button"
-            onClick={handleTvWakeAndFullscreen}
-            className="flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider text-emerald-300 hover:bg-emerald-950/50 transition-colors cursor-pointer border-none"
-            title="LG webOS Anti-Screensaver Active (Full-Screen H.264+AAC Video + 35s Subframe Nav + 110s State-Preserving Reload)"
+            onClick={handleTvLobbyToggle}
+            className={`flex items-center space-x-1 px-1.5 py-1 text-[8.5px] font-mono font-black uppercase tracking-wider transition-colors cursor-pointer border-none ${
+              viewMode === 'tv'
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : 'text-slate-400 hover:text-emerald-300 hover:bg-slate-800/50'
+            }`}
+            title="Toggle Lobby TV Display Mode (Enables Fullscreen + LG webOS Hardware Anti-Screensaver Guard)"
           >
-            <Tv className="w-3 h-3 text-safetyGreen animate-pulse" />
-            <span>{tvAutoReload ? 'WAKE:MAX' : 'WAKE:VID'}</span>
+            <Tv className={`w-3 h-3 ${viewMode === 'tv' ? 'text-safetyGreen animate-pulse' : 'text-slate-500'}`} />
+            <span>{viewMode === 'tv' ? 'TV:KIOSK' : 'TV:LOBBY'}</span>
           </button>
 
           {/* Segment 4: Connection Link Status */}

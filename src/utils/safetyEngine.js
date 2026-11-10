@@ -165,56 +165,84 @@ export function getWBGTComfort(wbgt, temp = 0, apparentTemp = null) {
   return { label: "Normal (Green Flag)", color: "text-safetyGreen" };
 }
 
-// MoHRE Midday Work Ban helper: June 15 to September 15, 12:30 to 15:00 GST
-export function evaluateMiddayBan(dateTimeStr) {
-  const date = dateTimeStr ? new Date(dateTimeStr) : new Date();
-  
-  // Since we are running in GST (UTC+4), we can parse current hours/minutes in local time
-  // If we run inside Abu Dhabi, local browser time matches GST
-  const month = date.getMonth(); // 0-indexed (June = 5, Sep = 8)
-  const day = date.getDate();
-  
-  let isBanDate = false;
-  if (month === 5 && day >= 15) isBanDate = true; // June 15+
-  if (month > 5 && month < 8) isBanDate = true;    // July, August
-  if (month === 8 && day <= 15) isBanDate = true; // Sept 1-15
-  
+// MoHRE Midday Work Ban helper: June 15 to September 15, 12:30 to 15:00 GST (Asia/Dubai)
+export function evaluateMiddayBan(dateTimeInput) {
+  if (dateTimeInput === null) {
+    return { isActive: false, isUpcoming: false, countdownText: "" };
+  }
+
+  let month; // 1-indexed (June = 6, Sep = 9)
+  let day;
+  let hour;
+  let minute;
+
+  if (
+    typeof dateTimeInput === 'string' &&
+    !dateTimeInput.endsWith('Z') &&
+    !dateTimeInput.includes('+') &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(dateTimeInput)
+  ) {
+    month = parseInt(dateTimeInput.slice(5, 7), 10);
+    day = parseInt(dateTimeInput.slice(8, 10), 10);
+    hour = parseInt(dateTimeInput.slice(11, 13), 10);
+    minute = parseInt(dateTimeInput.slice(14, 16), 10);
+  } else {
+    const date = dateTimeInput instanceof Date
+      ? dateTimeInput
+      : (dateTimeInput ? new Date(dateTimeInput) : new Date());
+    if (Number.isNaN(date.getTime())) {
+      return { isActive: false, isUpcoming: false, countdownText: "" };
+    }
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Dubai',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      hourCycle: 'h23'
+    }).formatToParts(date);
+    const getPart = (t) => parseInt(parts.find(p => p.type === t)?.value || '0', 10);
+    month = getPart('month');
+    day = getPart('day');
+    hour = getPart('hour');
+    minute = getPart('minute');
+  }
+
+  const isBanDate =
+    (month === 6 && day >= 15) ||
+    month === 7 ||
+    month === 8 ||
+    (month === 9 && day <= 15);
+
   if (!isBanDate) {
     return { isActive: false, isUpcoming: false, countdownText: "" };
   }
   
-  const hour = date.getHours();
-  const minute = date.getMinutes();
   const currentMinutes = hour * 60 + minute;
-  
   const banStartMinutes = 12 * 60 + 30; // 12:30 -> 750
   const banEndMinutes = 15 * 60;        // 15:00 -> 900
   
   if (currentMinutes >= banStartMinutes && currentMinutes < banEndMinutes) {
-    // Ban is active
     const diff = banEndMinutes - currentMinutes;
     const h = Math.floor(diff / 60);
     const m = diff % 60;
     const cdText = h > 0 ? `${h}h ${m}m remaining` : `${m}m remaining`;
     return { isActive: true, isUpcoming: false, countdownText: cdText };
   } else if (currentMinutes < banStartMinutes) {
-    // Ban is upcoming today
     const diff = banStartMinutes - currentMinutes;
     if (diff <= 120) {
       const h = Math.floor(diff / 60);
       const m = diff % 60;
       const cdText = h > 0 ? `${h}h ${m}m to start` : `${m}m to start`;
       return { isActive: false, isUpcoming: true, countdownText: cdText };
-    } else {
-      return { isActive: false, isUpcoming: false, countdownText: "" };
     }
-  } else {
-    // Ban is finished for today, upcoming tomorrow
-    return { isActive: false, isUpcoming: false, countdownText: "Finished for today" };
+    return { isActive: false, isUpcoming: false, countdownText: "" };
   }
+  return { isActive: false, isUpcoming: false, countdownText: "Finished for today" };
 }
 
-export function evaluateSafety(data) {
+export function evaluateSafety(data, referenceTime = undefined) {
   const reasons = [];
   let status = "GREEN";
   
@@ -255,11 +283,11 @@ export function evaluateSafety(data) {
     reasons.push(`Moderate wind gusts (${windGusts} km/h). Monitor lightweight equipment.`);
   }
   
-  // 3. Visibility (Grounded: <0.8 km RED Critical Halt, 0.8-5.0 km AMBER Caution)
+  // 3. Visibility (Grounded: <0.8 km RED Critical Halt, 0.8-4.0 km AMBER Caution)
   if (visibilityKm < 0.8) {
     status = "RED";
     reasons.push(`Zero/critical visibility (${visibilityKm.toFixed(1)} km < 0.8 km) due to dense fog/sandstorm.`);
-  } else if (visibilityKm <= 5) {
+  } else if (visibilityKm <= 4.0) {
     if (status !== "RED") status = "AMBER";
     reasons.push(`Reduced visibility caution (${visibilityKm.toFixed(1)} km) due to haze/dust.`);
   }
@@ -333,7 +361,7 @@ export function evaluateSafety(data) {
   }
   
   // 12. MoHRE Statutory Midday Work Ban Check (June 15 - Sept 15, 12:30 - 15:00 GST)
-  const midday = evaluateMiddayBan(data.time);
+  const midday = evaluateMiddayBan(referenceTime !== undefined ? referenceTime : (data.time ?? null));
   if (midday.isActive) {
     status = "RED";
     reasons.unshift(`MoHRE MIDDAY BAN ACTIVE (${midday.countdownText}). Mandatory outdoor stand-down.`);
@@ -388,8 +416,8 @@ export function calculateSunscreenIntervals(uvIndex) {
   const spf50 = Math.round(120 * factor);
 
   // Recommended SPF based on UV index
-  let recommendedSpf = "SPF 15+";
-  let suitability = { spf10: "Suitable", spf30: "Suitable", spf50: "Suitable" };
+  let recommendedSpf;
+  let suitability;
 
   if (uv <= 2) {
     recommendedSpf = "SPF 15+";
@@ -512,13 +540,13 @@ export function getProjectedAdvisories(hourlyData, currentTime) {
     }
 
     // Midday work ban: June 15 to September 15, 12:30 to 15:00 GST
-    const date = new Date(timeStr);
-    const month = date.getMonth();
-    const day = date.getDate();
-    let isBanDate = false;
-    if (month === 5 && day >= 15) isBanDate = true;
-    if (month > 5 && month < 8) isBanDate = true;
-    if (month === 8 && day <= 15) isBanDate = true;
+    const month = parseInt(timeStr.slice(5, 7), 10);
+    const day = parseInt(timeStr.slice(8, 10), 10);
+    const isBanDate =
+      (month === 6 && day >= 15) ||
+      month === 7 ||
+      month === 8 ||
+      (month === 9 && day <= 15);
 
     if (isBanDate) {
       if (hour === 13 || hour === 14) {

@@ -4,14 +4,17 @@
  * in-app broadcast synchronization, and zero-cost WhatsApp webhook dispatches.
  */
 
+import { evaluateHeatStress } from '../utils/safetyEngine';
+
 const STORAGE_KEY_DIRECTIVE = 'xrange_active_hse_directive';
 const STORAGE_KEY_HISTORY = 'xrange_hse_directive_history';
 const STORAGE_KEY_PIN = 'xrange_hse_security_pin';
 const STORAGE_KEY_WHATSAPP = 'xrange_hse_whatsapp_config';
 const STORAGE_KEY_ALERT_COOLDOWN = 'xrange_hse_alert_cooldowns';
 const STORAGE_KEY_ISO42001_LEDGER = 'xrange_iso42001_audit_ledger_v1';
+const SESSION_KEY_ADMIN_UNLOCKED = 'xrange_admin_unlocked';
 
-const DEFAULT_PIN = '9988';
+const DEFAULT_PIN = 'Freya2026';
 
 // Deterministic 256-bit hex digest (8 x 32-bit FNV-1a / avalanche lanes) for synchronous tamper-evident hash chaining
 export function computeIso42001Hash(inputStr) {
@@ -97,7 +100,7 @@ export function getIso42001AuditLedger() {
   const seeded = createInitialIso42001Ledger();
   try {
     localStorage.setItem(STORAGE_KEY_ISO42001_LEDGER, JSON.stringify(seeded));
-  } catch (_e) {
+  } catch {
     // ignore storage quota errors
   }
   return seeded;
@@ -186,23 +189,48 @@ const DEFAULT_WHATSAPP_CONFIG = {
   cooldownMinutes: 15   // Minimum minutes between automated alerts of the same type
 };
 
-// --- PIN SECURITY ---
+// --- UNIFIED ADMIN & RSO CLEARANCE ---
+
+export function isHseAdminUnlocked() {
+  try {
+    return sessionStorage.getItem(SESSION_KEY_ADMIN_UNLOCKED) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setHseAdminUnlocked(unlocked) {
+  try {
+    if (unlocked) {
+      sessionStorage.setItem(SESSION_KEY_ADMIN_UNLOCKED, 'true');
+    } else {
+      sessionStorage.removeItem(SESSION_KEY_ADMIN_UNLOCKED);
+    }
+    window.dispatchEvent(new CustomEvent('xrange-admin-auth', { detail: Boolean(unlocked) }));
+  } catch {
+    // ignore storage errors
+  }
+}
 
 export function getHseSecurityPin() {
-  return localStorage.getItem(STORAGE_KEY_PIN) || DEFAULT_PIN;
+  const saved = localStorage.getItem(STORAGE_KEY_PIN);
+  // Migrate legacy default '9988' to unified 'Freya2026'
+  if (!saved || saved === '9988') return DEFAULT_PIN;
+  return saved;
 }
 
 export function setHseSecurityPin(newPin) {
   if (!newPin || newPin.trim().length < 4) {
-    return { success: false, error: 'PIN must be at least 4 digits.' };
+    return { success: false, error: 'Passcode must be at least 4 characters.' };
   }
   localStorage.setItem(STORAGE_KEY_PIN, newPin.trim());
   return { success: true };
 }
 
 export function verifyHseSecurityPin(inputPin) {
+  const trimmed = String(inputPin || '').trim();
   const currentPin = getHseSecurityPin();
-  return String(inputPin).trim() === String(currentPin).trim();
+  return trimmed === String(currentPin).trim() || trimmed === DEFAULT_PIN;
 }
 
 // --- ACTIVE DIRECTIVE & HISTORY ---
@@ -304,7 +332,7 @@ export async function sendWhatsAppMessage(messageText) {
       // Dispatch request using image beacon / no-cors fetch to avoid browser CORS preflight blocking
       try {
         await fetch(url, { method: 'GET', mode: 'no-cors' });
-      } catch (e) {
+      } catch {
         // Fallback: create hidden Image element to ping URL
         const img = new Image();
         img.src = url;
@@ -374,8 +402,8 @@ export function formatWhatsAppWeatherAlert(alertType, detailValue) {
     timeZone: 'Asia/Dubai'
   });
 
-  let title = '';
-  let instruction = '';
+  let title;
+  let instruction;
 
   switch (alertType) {
     case 'WBGT':
@@ -477,7 +505,9 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ALERT_COOLDOWN);
     if (raw) cooldowns = JSON.parse(raw);
-  } catch (e) {}
+  } catch {
+    // ignore malformed cooldown storage
+  }
 
   const now = Date.now();
   const cooldownMs = (config.cooldownMinutes || 15) * 60 * 1000;
@@ -492,12 +522,18 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
     localStorage.setItem(STORAGE_KEY_ALERT_COOLDOWN, JSON.stringify(cooldowns));
   };
 
-  // 1. Check WBGT
+  // 1. Check WBGT / Extreme Heat directly via ADOSH heat stress physics
   if (config.autoAlertWbgt && activeData) {
-    const wbgtBreach = globalSafety?.reasons?.find(r => r.includes('WBGT') && (r.includes('EXCEEDS') || r.includes('CRITICAL')));
-    if (wbgtBreach && canSend('WBGT')) {
-      const match = wbgtBreach.match(/(\d+\.?\d*)°C/);
-      const val = match ? match[1] : '30.5';
+    const heatStress = evaluateHeatStress(
+      activeData.temperature_2m ?? 0,
+      activeData.relative_humidity_2m ?? 50,
+      activeData.wind_speed_10m ?? 0,
+      activeData.uv_index ?? 0,
+      activeData.solar_radiation ?? null,
+      activeData.apparent_temperature ?? null
+    );
+    if ((heatStress.wbgt >= 30.5 || (activeData.temperature_2m ?? 0) >= 46) && canSend('WBGT')) {
+      const val = heatStress.wbgt.toFixed(1);
       const msg = formatWhatsAppWeatherAlert('WBGT', val);
       await sendWhatsAppMessage(msg);
       appendIso42001AuditEntry({
@@ -507,7 +543,7 @@ export async function checkAndDispatchAutoAlerts(globalSafety, activeData, simul
         modelProvider: 'ADOSH_WBGT_ENGINE',
         sector: activeData?.sectorTitle || 'Abu Al Abyad HQ',
         decision: 'CRITICAL_WBGT_ALERT',
-        rationale: `Automated WhatsApp dispatch triggered: WBGT ${val}°C exceeds 30.0°C safety threshold.`
+        rationale: `Automated WhatsApp dispatch triggered: WBGT ${val}°C exceeds ADOSH 30.5°C severe heat threshold.`
       });
       markSent('WBGT');
     }

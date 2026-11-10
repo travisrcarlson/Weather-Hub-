@@ -18,8 +18,6 @@ export function generateRcoWordBrief({
   maxWind, maxWindTime,
   maxGust, maxGustTime,
   maxUv, maxUvTime,
-  maxAqi, maxAqiTime,
-  avgWind,
   droneRating,
   droneInstruction,
   ballisticsCrosswindDrift,

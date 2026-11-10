@@ -3,8 +3,6 @@
  * Outputs a clean, multi-page vector-rendered report with charts, tables, and directives.
  */
 
-import { calculateDewPoint, calculateWBGT } from './safetyEngine';
-
 export function generateRcoPdfBrief({
   targetDateLabel,
   activeStationName,
@@ -20,8 +18,6 @@ export function generateRcoPdfBrief({
   maxWind, maxWindTime,
   maxGust, maxGustTime,
   maxUv, maxUvTime,
-  maxAqi, maxAqiTime,
-  avgWind,
   droneRating,
   droneInstruction,
   ballisticsCrosswindDrift,

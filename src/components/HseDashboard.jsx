@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, Shield, FileText, Clock, AlertTriangle, Download, Info, Calendar, MessageSquare, Phone, Send, Radio, ExternalLink } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
-import { calculateDewPoint, calculateWBGT, evaluateSafety, calculateSunscreenIntervals, evaluateHeatStress } from '../utils/safetyEngine';
+import { useState, useEffect } from 'react';
+import { ShieldAlert, ShieldCheck, FileText, Clock, AlertTriangle, Download, Info, Calendar, MessageSquare, Radio, ExternalLink } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea } from 'recharts';
+import { calculateDewPoint, calculateWBGT, evaluateSafety } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
-import { getActiveHseDirective, getHseDirectiveHistory, getWhatsAppConfig } from '../services/hseBroadcastService';
+import { getActiveHseDirective, getHseDirectiveHistory, getWhatsAppConfig, computeIso42001Hash } from '../services/hseBroadcastService';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated, onViewModeChange }) {
   const [selectedAuditIdx, setSelectedAuditIdx] = useState(0);
@@ -114,6 +114,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
 
       // Evaluate safety for this specific hour
       const readings = {
+        time: timeStr,
         temperature_2m: temp,
         relative_humidity_2m: rh,
         wind_speed_10m: wind,
@@ -123,7 +124,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
         pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 50
       };
       
-      const safetyEval = evaluateSafety(readings);
+      const safetyEval = evaluateSafety(readings, timeStr);
 
       // Check for specific threshold breaches / cautions to flag
       const breaches = [];
@@ -251,6 +252,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
         const wbgt = calculateWBGT(temp, rh, wind, uv);
 
         const readings = {
+          time: timeStr,
           temperature_2m: temp,
           relative_humidity_2m: rh,
           wind_speed_10m: wind,
@@ -260,7 +262,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
           pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 50
         };
         
-        const safetyEval = evaluateSafety(readings);
+        const safetyEval = evaluateSafety(readings, timeStr);
 
         const breaches = [];
         if (temp >= 46) breaches.push(`CRITICAL HEAT HALT (${temp.toFixed(1)}°C)`);
@@ -378,7 +380,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
     const targetDay = parseInt(firstLogTime.slice(8, 10), 10);
     const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
     
-    let haltWindowText = "";
+    let haltWindowText;
     if (isMiddayBanActiveForDay) {
       // Filter out the midday ban hours (13:00 and 14:00) from the normal haltWindows to prevent duplicates/overlaps in formatting
       const otherHaltWindows = haltWindows.filter(t => {
@@ -425,7 +427,7 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
       hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
       hash = hash & hash;
     }
-    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + computeIso42001Hash(hashSeed).slice(0, 5);
 
     const reportText = `======================================================================
                  X-RANGE RCO DAILY ENVIRONMENTAL WEATHER BRIEF
@@ -530,6 +532,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
         const wbgt = calculateWBGT(temp, rh, wind, uv);
 
         const readings = {
+          time: timeStr,
           temperature_2m: temp,
           relative_humidity_2m: rh,
           wind_speed_10m: wind,
@@ -539,7 +542,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
           pm10: hourlyData.pm10 ? hourlyData.pm10[idx] : 50
         };
         
-        const safetyEval = evaluateSafety(readings);
+        const safetyEval = evaluateSafety(readings, timeStr);
         const breaches = [];
         if (temp >= 46) breaches.push(`CRITICAL HEAT HALT (${temp.toFixed(1)}°C)`);
         else if (temp >= 38) breaches.push(`HEAT CAUTION (${temp.toFixed(1)}°C)`);
@@ -655,7 +658,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
     const targetDay = parseInt(firstLogTime.slice(8, 10), 10);
     const isMiddayBanActiveForDay = (targetMonth === 6 && targetDay >= 15) || targetMonth === 7 || targetMonth === 8 || (targetMonth === 9 && targetDay <= 15);
     
-    let haltWindowText = "";
+    let haltWindowText;
     if (isMiddayBanActiveForDay) {
       const otherHaltWindows = haltWindows.filter(t => {
         const hr = new Date(t).getHours();
@@ -701,7 +704,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       hash = ((hash << 5) - hash) + hashSeed.charCodeAt(i);
       hash = hash & hash;
     }
-    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(10000 + Math.random() * 90000);
+    const secureHash = "XR-RCO-" + Math.abs(hash).toString(16).toUpperCase() + "-" + computeIso42001Hash(hashSeed).slice(0, 5);
 
     return {
       targetDateLabel: formatDateLabel(chronoLogs[0].time),
@@ -755,7 +758,7 @@ Range Safety Officers must enforce work rest cycles and wind halt curfews.
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash;
     }
-    const secureHash = "XR-HSE-" + Math.abs(hash).toString(16).toUpperCase() + "-" + Math.floor(1000 + Math.random() * 9000);
+    const secureHash = "XR-HSE-" + Math.abs(hash).toString(16).toUpperCase() + "-" + computeIso42001Hash(mockHashInput).slice(0, 4);
 
     const wr = getWorkRestDirective(selectedAudit.temp, selectedAudit.wbgt);
     const reportText = `======================================================================

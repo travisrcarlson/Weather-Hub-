@@ -1,4 +1,3 @@
-import React from 'react';
 import { X, Sun, Flame, ShieldAlert, ShieldCheck, AlertTriangle, Thermometer } from 'lucide-react';
 import { calculateMunitionsThermalLoad } from '../utils/tacticalBallisticsEngine';
 

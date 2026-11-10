@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  X, Bell, AlertTriangle, ShieldCheck, Mail, MessageSquare, Radio, Send, CheckCheck, 
+  X, Bell, ShieldCheck, Mail, MessageSquare, Radio, Send, CheckCheck, 
   UserCheck, AlertCircle, Clock, Volume2, ShieldAlert, Check, Lock, ChevronDown, ChevronUp 
 } from 'lucide-react';
-import { evaluateSafety, calculateWBGT, evaluateHeatStress } from '../utils/safetyEngine';
-import { stationsList } from './XRangeMap';
+import { compileActiveStationAlerts } from '../utils/rangeStations';
+import {
+  verifyHseSecurityPin,
+  isHseAdminUnlocked,
+  setHseAdminUnlocked,
+  getWhatsAppConfig,
+  sendWhatsAppMessage,
+  appendIso42001AuditEntry
+} from '../services/hseBroadcastService';
 
 export default function AlertCenter({ 
   isOpen, 
@@ -25,17 +32,21 @@ export default function AlertCenter({
   const [sentSuccess, setSentSuccess] = useState(false);
   const [activeTemplate, setActiveTemplate] = useState('none');
 
-  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => {
-    return sessionStorage.getItem('xrange_admin_unlocked') === 'true';
-  });
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => isHseAdminUnlocked());
   const [passwordInput, setPasswordInput] = useState('');
   const [passwordError, setPasswordError] = useState(false);
 
+  useEffect(() => {
+    const syncAuth = () => setIsAdminUnlocked(isHseAdminUnlocked());
+    window.addEventListener('xrange-admin-auth', syncAuth);
+    return () => window.removeEventListener('xrange-admin-auth', syncAuth);
+  }, []);
+
   const handleAuthenticate = (e) => {
     e.preventDefault();
-    if (passwordInput === 'Freya2026') {
+    if (verifyHseSecurityPin(passwordInput)) {
       setIsAdminUnlocked(true);
-      sessionStorage.setItem('xrange_admin_unlocked', 'true');
+      setHseAdminUnlocked(true);
       setPasswordError(false);
       setPasswordInput('');
     } else {
@@ -46,7 +57,7 @@ export default function AlertCenter({
 
   const handleLockConsole = () => {
     setIsAdminUnlocked(false);
-    sessionStorage.removeItem('xrange_admin_unlocked');
+    setHseAdminUnlocked(false);
   };
 
   const [dispatchSubTab, setDispatchSubTab] = useState('compose'); // 'compose' or 'directory'
@@ -140,151 +151,34 @@ export default function AlertCenter({
     }
   };
 
-  // Compile active alerts across all 4 stations
-  const getActiveStationAlerts = () => {
-    if (!apiData) return [];
-    
-    const alerts = [];
-    
-    // Evaluate simulated lightning
-    if (simulatedLightning || (apiData.ncmWarnings && apiData.ncmWarnings.some(w => w.category === 'LIGHTNING'))) {
-      alerts.push({
-        id: 'global-lightning',
-        station: 'GLOBAL SENSORS',
-        type: 'RED',
-        category: 'LIGHTNING',
-        title: '⚡ LIGHTNING STRIKE EMERGENCY',
-        message: 'Active lightning strikes detected over the island. Evacuate training ranges immediately.',
-        timestamp: new Date().toISOString()
-      });
-    }
+  // Compile active alerts across all 4 stations via unified rangeStations ruleset
+  const activeAlerts = compileActiveStationAlerts({
+    apiData,
+    isSimulated,
+    simulatedLightning
+  });
 
-    // Evaluate each station
-    stationsList.forEach(s => {
-      const readings = isSimulated ? s.getReadings(apiData.current) : (apiData.stations?.[s.id]?.current || apiData.current);
-      if (!readings) return;
-
-      // Add individual breaches to alerts
-      const temp = readings.temperature_2m || 0;
-      const rh = readings.relative_humidity_2m || 0;
-      const wind = readings.wind_speed_10m || 0;
-      const gusts = readings.wind_gusts_10m || wind * 1.3;
-      const uv = readings.uv_index || 0;
-      const pm10 = readings.pm10 || 50;
-      const visibility = readings.visibility || 10000;
-
-      // 1. Heat Stress & Hydration (WBGT + Dry-Bulb Shade Temp + Apparent Temp)
-      const heatStress = evaluateHeatStress(
-        temp,
-        rh,
-        wind,
-        uv,
-        readings.solar_radiation ?? null,
-        readings.apparent_temperature ?? null
-      );
-      if (temp >= 46 || heatStress.wbgt >= 34.5) {
-        alerts.push({
-          id: `${s.id}-temp-red`,
-          station: s.name,
-          type: 'RED',
-          category: 'HEAT',
-          title: '🔥 CRITICAL EXTREME HEAT HALT',
-          message: `Shade ${temp.toFixed(1)}°C / WBGT ${heatStress.wbgt.toFixed(1)}°C. Suspend open-range duties; mandatory ${heatStress.volumePerHour} (${heatStress.cupSchedule}).`,
-          timestamp: new Date().toISOString()
-        });
-      } else if (heatStress.tier === 'BLACK' || heatStress.tier === 'RED' || temp >= 38) {
-        alerts.push({
-          id: `${s.id}-heat-amber`,
-          station: s.name,
-          type: 'AMBER',
-          category: 'HEAT',
-          title: '☀️ HEAT STRESS & HYDRATION CAUTION',
-          message: `Shade ${temp.toFixed(1)}°C / WBGT ${heatStress.wbgt.toFixed(1)}°C. Enforce ${heatStress.workRestRatio} split & ${heatStress.volumePerHour} (${heatStress.cupSchedule}).`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 2. Wind speed & Gust limits (Grounded: Red >= 45 km/h or Gusts >= 60 km/h, Amber 25-44 km/h or Gusts 35-59 km/h)
-      if (gusts >= 60 || wind >= 45) {
-        alerts.push({
-          id: `${s.id}-wind-red`,
-          station: s.name,
-          type: 'RED',
-          category: 'WIND',
-          title: '💨 CRITICAL GALE WIND HALT',
-          message: `Wind speed is ${wind.toFixed(0)} km/h with gusts to ${gusts.toFixed(0)} km/h. Live fire & UAV flights suspended.`,
-          timestamp: new Date().toISOString()
-        });
-      } else if (wind >= 25 || gusts >= 35) {
-        alerts.push({
-          id: `${s.id}-wind-amber`,
-          station: s.name,
-          type: 'AMBER',
-          category: 'WIND',
-          title: '💨 HIGH WIND DRIFT CAUTION',
-          message: `Wind ${wind.toFixed(0)} km/h (gusts ${gusts.toFixed(0)} km/h). Apply ballistic crosswind compensation & monitor UAV drift.`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 3. Visibility limits (Grounded: Red < 800m, Amber < 3000m)
-      if (visibility < 800) {
-        alerts.push({
-          id: `${s.id}-vis-red`,
-          station: s.name,
-          type: 'RED',
-          category: 'VISIBILITY',
-          title: '🌫️ CRITICAL VISIBILITY HALT',
-          message: `Range visibility drops below 0.8 km (${(visibility/1000).toFixed(1)} km). Cease all live fire training.`,
-          timestamp: new Date().toISOString()
-        });
-      } else if (visibility < 3000) {
-        alerts.push({
-          id: `${s.id}-vis-amber`,
-          station: s.name,
-          type: 'AMBER',
-          category: 'VISIBILITY',
-          title: '🌫️ HAZE / DUST CAUTION',
-          message: `Range visibility drops to ${(visibility/1000).toFixed(1)} km. Monitor long-range targets.`,
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // 4. PM10 Air Quality limits (Grounded: Red >= 250, Amber >= 120)
-      if (pm10 >= 250) {
-        alerts.push({
-          id: `${s.id}-pm10-red`,
-          station: s.name,
-          type: 'RED',
-          category: 'AQI',
-          title: '😷 CRITICAL DUST STORM HALT',
-          message: `PM10 particulates are ${pm10} ug/m3. Suspend outdoor range duties, use respiratory protection.`,
-          timestamp: new Date().toISOString()
-        });
-      } else if (pm10 >= 120) {
-        alerts.push({
-          id: `${s.id}-pm10-amber`,
-          station: s.name,
-          type: 'AMBER',
-          category: 'AQI',
-          title: '😷 ELEVATED DUST CAUTION',
-          message: `PM10 particulates are ${pm10} ug/m3. Limit prolonged dust exposure; N95 masks advised.`,
-          timestamp: new Date().toISOString()
-        });
-      }
-    });
-
-    return alerts;
-  };
-
-  const activeAlerts = getActiveStationAlerts();
-
-  // Send Simulated Broadcast
+  // Send Broadcast (invokes live WhatsApp webhook when enabled + logs to ISO 42001 ledger)
   const handleDispatch = (e) => {
     e.preventDefault();
     if (!customMessage.trim()) return;
 
     setIsSending(true);
+    const messagePayload = customMessage.trim();
+
+    if (dispatchChannel === 'whatsapp' && getWhatsAppConfig().enabled) {
+      sendWhatsAppMessage(messagePayload).catch(() => {});
+    }
+
+    appendIso42001AuditEntry({
+      isoControl: 'A.8.4 / A.9.3',
+      eventType: 'ALERT_CENTER_BROADCAST',
+      actor: 'Admin Dispatch Officer',
+      modelProvider: 'HUMAN_COMMAND_OVERRIDE',
+      sector: groups[dispatchGroup]?.name || dispatchGroup.toUpperCase(),
+      decision: dispatchChannel.toUpperCase(),
+      rationale: messagePayload
+    });
 
     // Simulate sending time over API gateway
     setTimeout(() => {

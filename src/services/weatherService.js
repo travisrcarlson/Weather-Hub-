@@ -1979,7 +1979,7 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
   }
 
   const t0 = performance.now();
-  let rawAircraft = [];
+  let rawAircraft;
   let endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
   try {
     const osRes = await axios.get(endpointUsed, { timeout: 4500 });
