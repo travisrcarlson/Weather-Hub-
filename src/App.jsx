@@ -446,7 +446,7 @@ export default function App() {
           airspaceTraffic: advanceAirspaceTrafficKinematics(prev.airspaceTraffic, isSimulated, Date.now())
         };
       });
-    }, 2000);
+    }, 5000);
     return () => {
       cancelled = true;
       clearInterval(adsbTimer);

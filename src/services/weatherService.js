@@ -1863,27 +1863,28 @@ function summarizeIslandOverflights(contacts, totalTracked50nm) {
   };
 }
 
-// UAE Gulf & Abu Al Abyad Airway Corridors (Continuous Kinematic Trajectories)
+// UAE Gulf & Abu Al Abyad Airway Corridors (Continuous Linear Kinematic Trajectories)
 const SIM_AIRWAY_TRACKS = [
-  { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 138, headingDeg: 266, baseLat: 24.202, baseLon: 53.855, corridorSpanNm: 18, phaseSec: 120, category: 'Offshore Rotorcraft' },
-  { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 11800, speedKt: 325, headingDeg: 254, baseLat: 24.228, baseLon: 53.910, corridorSpanNm: 34, phaseSec: 480, category: 'Commercial' },
-  { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 292, baseLat: 24.085, baseLon: 53.890, corridorSpanNm: 46, phaseSec: 940, category: 'Heavy Transit' }
+  { callsign: 'ADA71', hex: '8961C2', aircraftType: 'AW139', altitudeFt: 2400, speedKt: 138, headingDeg: 266, baseLat: 24.202, baseLon: 53.855, corridorSpanNm: 36, phaseSec: 120, category: 'Offshore Rotorcraft' },
+  { callsign: 'ETD402', hex: '8964A1', aircraftType: 'B78X', altitudeFt: 11800, speedKt: 325, headingDeg: 258, baseLat: 24.245, baseLon: 53.860, corridorSpanNm: 54, phaseSec: 480, category: 'Commercial' },
+  { callsign: 'UAE815', hex: '896319', aircraftType: 'B77W', altitudeFt: 32000, speedKt: 455, headingDeg: 104, baseLat: 24.132, baseLon: 53.855, corridorSpanNm: 58, phaseSec: 940, category: 'Heavy Transit' }
 ];
 
 const DEFAULT_AIRWAY_TRACKS = [
-  { callsign: 'ABY145', hex: '8965F6', aircraftType: 'A321', altitudeFt: 32000, speedKt: 417, headingDeg: 245, baseLat: 24.095, baseLon: 53.875, corridorSpanNm: 38, phaseSec: 160, category: 'High-Altitude Airway' },
-  { callsign: 'QTR8952', hex: '06A3B6', aircraftType: 'B77L', altitudeFt: 38975, speedKt: 512, headingDeg: 112, baseLat: 24.295, baseLon: 53.845, corridorSpanNm: 44, phaseSec: 610, category: 'High-Altitude Airway' },
-  { callsign: 'ETD591', hex: '503E9C', aircraftType: 'A320', altitudeFt: 16250, speedKt: 368, headingDeg: 288, baseLat: 24.242, baseLon: 53.915, corridorSpanNm: 40, phaseSec: 1020, category: 'Commercial' },
-  { callsign: 'ETD2AP', hex: '896489', aircraftType: 'B789', altitudeFt: 14550, speedKt: 342, headingDeg: 126, baseLat: 24.165, baseLon: 53.825, corridorSpanNm: 42, phaseSec: 1490, category: 'Commercial' }
+  { callsign: 'ABY145', hex: '8965F6', aircraftType: 'A321', altitudeFt: 32000, speedKt: 417, headingDeg: 256, baseLat: 24.135, baseLon: 53.855, corridorSpanNm: 56, phaseSec: 160, category: 'High-Altitude Airway' },
+  { callsign: 'QTR8952', hex: '06A3B6', aircraftType: 'B77L', altitudeFt: 38975, speedKt: 495, headingDeg: 102, baseLat: 24.268, baseLon: 53.855, corridorSpanNm: 60, phaseSec: 610, category: 'High-Altitude Airway' },
+  { callsign: 'ETD591', hex: '503E9C', aircraftType: 'A320', altitudeFt: 16250, speedKt: 368, headingDeg: 280, baseLat: 24.222, baseLon: 53.870, corridorSpanNm: 56, phaseSec: 1020, category: 'Commercial' },
+  { callsign: 'ETD2AP', hex: '896489', aircraftType: 'B789', altitudeFt: 14550, speedKt: 342, headingDeg: 112, baseLat: 24.172, baseLon: 53.845, corridorSpanNm: 58, phaseSec: 1490, category: 'Commercial' }
 ];
 
-function propagateContactAtTime(ac, nowMs = Date.now()) {
+export function propagateContactAtTime(ac, nowMs = Date.now()) {
   const speedKt = Math.max(70, Number(ac.speedKt || 260));
   const headingDeg = Number(ac.headingDeg || 0);
   const headRad = (headingDeg * Math.PI) / 180;
 
   let lat;
   let lon;
+  let corridorFade = 1.0;
 
   if (ac.isLiveTransponder && typeof ac.anchorLat === 'number' && typeof ac.anchorLon === 'number') {
     const anchorMs = ac.anchorMs || nowMs;
@@ -1891,32 +1892,40 @@ function propagateContactAtTime(ac, nowMs = Date.now()) {
     const distNm = speedKt * elapsedHr;
     const dLat = (distNm * Math.cos(headRad)) / 60;
     const dLon = (distNm * Math.sin(headRad)) / (60 * Math.cos((ac.anchorLat * Math.PI) / 180));
-    lat = Number((ac.anchorLat + dLat).toFixed(5));
-    lon = Number((ac.anchorLon + dLon).toFixed(5));
+    lat = ac.anchorLat + dLat;
+    lon = ac.anchorLon + dLon;
   } else {
     const baseLat = typeof ac.baseLat === 'number' ? ac.baseLat : (typeof ac.lat === 'number' ? ac.lat : 24.20);
     const baseLon = typeof ac.baseLon === 'number' ? ac.baseLon : (typeof ac.lon === 'number' ? ac.lon : 53.86);
-    const spanNm = ac.corridorSpanNm || 40;
+    const spanNm = ac.corridorSpanNm || 56;
     const phaseSec = ac.phaseSec ?? ((ac.callsign || 'A').charCodeAt(0) * 17);
     const totalNm = (((nowMs / 1000) + phaseSec) / 3600) * speedKt;
-    const offsetNm = (totalNm % spanNm) - (spanNm / 2);
+    const cyclePosNm = totalNm % spanNm;
+    const offsetNm = cyclePosNm - (spanNm / 2);
+    const edgeMarginNm = 3.0;
+    if (cyclePosNm < edgeMarginNm) {
+      corridorFade = Math.max(0, cyclePosNm / edgeMarginNm);
+    } else if (cyclePosNm > spanNm - edgeMarginNm) {
+      corridorFade = Math.max(0, (spanNm - cyclePosNm) / edgeMarginNm);
+    }
     const dLat = (offsetNm * Math.cos(headRad)) / 60;
     const dLon = (offsetNm * Math.sin(headRad)) / (60 * Math.cos((baseLat * Math.PI) / 180));
-    lat = Number((baseLat + dLat).toFixed(5));
-    lon = Number((baseLon + dLon).toFixed(5));
+    lat = baseLat + dLat;
+    lon = baseLon + dLon;
   }
 
   const { distanceNm, bearingDeg, distanceExactNm, bearingExactDeg } = computeHaversineNmAndBearing(LAT, LON, lat, lon);
 
-  return {
+  return evaluateIslandOverflightForContact({
     ...ac,
-    lat,
-    lon,
+    lat: Number(lat.toFixed(6)),
+    lon: Number(lon.toFixed(6)),
+    corridorFade: Number(corridorFade.toFixed(2)),
     distanceNm,
     bearingDeg,
     distanceExactNm,
     bearingExactDeg
-  };
+  });
 }
 
 export function advanceAirspaceTrafficKinematics(currentTraffic = null, isSimulated = false, nowMs = Date.now()) {
