@@ -534,3 +534,54 @@ export const SOC2_RETENTION_POLICY = {
   maxAuditWindowEntries: 100,
   piiMaskingDefault: 'Locked-by-default (+971 •• ••• XXXX); full numbers visible only during active RSO session'
 };
+
+export const SOC2_POLICY_PACK = [
+  {
+    docId: 'DOC-SYS-00',
+    path: 'docs/compliance/README.md',
+    title: 'AICPA DC200 System Description, CUECs & Master Traceability Index',
+    criteria: 'DC200, CC1.1 – CC2.3',
+    owner: 'Platform Lead / RSO-1',
+    cadence: 'Semi-Annual'
+  },
+  {
+    docId: 'POL-SEC-01',
+    path: 'docs/compliance/01-information-security-policy.md',
+    title: 'Information Security, Data Classification & Access Control Policy',
+    criteria: 'CC1 – CC6, C1.1 – C1.2',
+    owner: 'Information Security Lead',
+    cadence: 'Annual'
+  },
+  {
+    docId: 'POL-OPS-02',
+    path: 'docs/compliance/02-incident-response-and-bcp-runbook.md',
+    title: 'Security Incident Response, Ledger Tamper Triage & BCP/DR Runbook',
+    criteria: 'CC7.2 – CC7.5, A1.1 – A1.3',
+    owner: 'Chief Range Safety Officer (RSO-1)',
+    cadence: 'Semi-Annual + Annual Drill'
+  },
+  {
+    docId: 'POL-CHG-03',
+    path: 'docs/compliance/03-change-management-and-sdlc-policy.md',
+    title: 'Secure SDLC, Change Management & Deterministic AI Bounding Policy',
+    criteria: 'CC7.1, CC8.1, PI1.1 – PI1.5, ISO 42001',
+    owner: 'Lead Platform Maintainer',
+    cadence: 'Annual'
+  },
+  {
+    docId: 'POL-VND-04',
+    path: 'docs/compliance/04-subprocessor-and-privacy-register.md',
+    title: 'Third-Party Subprocessor Register, Vendor Risk & Privacy Schedule',
+    criteria: 'CC9.1 – CC9.2, P1.1 – P8.1, UAE PDPL',
+    owner: 'Privacy & Vendor Risk Lead',
+    cadence: 'Quarterly'
+  },
+  {
+    docId: 'POL-AUD-05',
+    path: 'docs/compliance/05-auditor-evidence-checklist.md',
+    title: 'SOC 2 Type I/II Auditor IRL (EV-01..16), Sign-Off Logs & Phase 2 Checklist',
+    criteria: 'CC1 – CC9, Type I & Type II Walkthroughs',
+    owner: 'Internal Audit & Compliance Lead',
+    cadence: 'Quarterly'
+  }
+];

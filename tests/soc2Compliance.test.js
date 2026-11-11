@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   sha256Hex,
@@ -14,7 +17,9 @@ import {
   maskSecretKey,
   pruneExpiredBroadcasts,
   sanitizeCurrentTelemetry,
-  ADMIN_IDLE_TIMEOUT_MS
+  ADMIN_IDLE_TIMEOUT_MS,
+  SOC2_POLICY_PACK,
+  SOC2_SUBPROCESSORS
 } from '../src/utils/securityControls.js';
 import {
   computeIso42001Hash,
@@ -263,6 +268,47 @@ describe('SOC 2 Trust Services Compliance Suite', () => {
       globalThis.localStorage.setItem('xrange_iso42001_audit_ledger_v2', JSON.stringify(ledger));
 
       expect(verifyIso42001LedgerIntegrity().valid).toBe(false);
+    });
+  });
+
+  describe('CC1–CC5 — Governance Policy & Auditor Evidence Pack Integrity (docs/compliance/)', () => {
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+    it('maintains all 6 controlled compliance pack documents on disk with valid metadata headers', () => {
+      expect(SOC2_POLICY_PACK).toHaveLength(6);
+      for (const item of SOC2_POLICY_PACK) {
+        const absPath = path.join(repoRoot, item.path);
+        expect(fs.existsSync(absPath)).toBe(true);
+        const content = fs.readFileSync(absPath, 'utf8');
+        expect(content.length).toBeGreaterThan(500);
+        expect(content).toContain(item.docId);
+        expect(content).toContain('OFFICIAL — RANGE OPERATIONS USE ONLY');
+        expect(content).toContain('v2.4.0');
+      }
+    });
+
+    it('covers all 16 Auditor Information Request List (EV-01..EV-16) items and all 5 TSC domains', () => {
+      const irlPath = path.join(repoRoot, 'docs/compliance/05-auditor-evidence-checklist.md');
+      const irlContent = fs.readFileSync(irlPath, 'utf8');
+      for (let i = 1; i <= 16; i++) {
+        const code = `EV-${String(i).padStart(2, '0')}`;
+        expect(irlContent).toContain(code);
+      }
+      for (const domain of ['CC1', 'CC6', 'CC7', 'CC8', 'CC9', 'A1', 'PI1', 'C1', 'P1']) {
+        expect(irlContent).toContain(domain);
+      }
+    });
+
+    it('keeps the Subprocessor Register synchronized with live SOC2_SUBPROCESSORS entries', () => {
+      const regPath = path.join(repoRoot, 'docs/compliance/04-subprocessor-and-privacy-register.md');
+      const regContent = fs.readFileSync(regPath, 'utf8');
+      expect(SOC2_SUBPROCESSORS.length).toBeGreaterThanOrEqual(6);
+      expect(regContent).toContain('Open-Meteo');
+      expect(regContent).toContain('Google Maps Platform Weather API');
+      expect(regContent).toContain('OpenSky Network & ADSB.lol');
+      expect(regContent).toContain('NOAA SWPC & AviationWeather.gov');
+      expect(regContent).toContain('RainViewer');
+      expect(regContent).toContain('CallMeBot');
     });
   });
 });

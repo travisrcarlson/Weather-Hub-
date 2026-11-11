@@ -20,7 +20,8 @@ import {
   escapeHtml,
   SOC2_TRUST_MATRIX,
   SOC2_SUBPROCESSORS,
-  SOC2_RETENTION_POLICY
+  SOC2_RETENTION_POLICY,
+  SOC2_POLICY_PACK
 } from '../utils/securityControls';
 
 const MODEL_CARDS = [
@@ -217,6 +218,7 @@ export default function Iso42001GovernancePanel({
       exportedAtGst: new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }),
       chainIntegrity: integrity,
       soc2TrustMatrix: SOC2_TRUST_MATRIX,
+      policyAndEvidencePack: SOC2_POLICY_PACK,
       subprocessorSchedule: SOC2_SUBPROCESSORS,
       retentionPolicy: SOC2_RETENTION_POLICY,
       modelInventory: MODEL_CARDS,
@@ -261,7 +263,12 @@ export default function Iso42001GovernancePanel({
         <tr style="background:#1e293b; color:#fff;"><th>Subprocessor</th><th>Operational Purpose</th><th>Data Shared</th><th>Transport</th></tr>
         ${SOC2_SUBPROCESSORS.map(sp => `<tr><td><strong>${escapeHtml(sp.name)}</strong></td><td>${escapeHtml(sp.purpose)}</td><td>${escapeHtml(sp.dataShared)}</td><td>${escapeHtml(sp.transport)}</td></tr>`).join('')}
       </table>
-      <h3>5. Tamper-Evident FIPS 180-4 SHA-256 Audit Ledger (Annex A.6.2.8 / CC7.2)</h3>
+      <h3>5. Governance Policy &amp; Auditor Evidence Pack (docs/compliance/ — SOC 2 CC1–CC5)</h3>
+      <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:9pt;">
+        <tr style="background:#1e293b; color:#fff;"><th>Doc ID</th><th>Title</th><th>Repository Path</th><th>TSC / ISO Scope</th><th>Owner &amp; Cadence</th></tr>
+        ${SOC2_POLICY_PACK.map(p => `<tr><td><strong>${escapeHtml(p.docId)}</strong></td><td>${escapeHtml(p.title)}</td><td style="font-family:Consolas,monospace;">${escapeHtml(p.path)}</td><td>${escapeHtml(p.criteria)}</td><td>${escapeHtml(p.owner)} (${escapeHtml(p.cadence)})</td></tr>`).join('')}
+      </table>
+      <h3>6. Tamper-Evident FIPS 180-4 SHA-256 Audit Ledger (Annex A.6.2.8 / CC7.2)</h3>
       <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:8.5pt;">
         <tr style="background:#1e293b; color:#fff;"><th>Record ID</th><th>Timestamp (UTC)</th><th>Event Type</th><th>Actor / Engine</th><th>Decision</th><th>Rationale</th><th>SHA-256 Digest</th></tr>
         ${ledger.slice(0, 25).map(e => `<tr><td>${escapeHtml(e.id)}</td><td>${escapeHtml(e.timestamp)}</td><td>${escapeHtml(e.eventType)}</td><td>${escapeHtml(e.actor)}</td><td><strong>${escapeHtml(e.decision)}</strong></td><td>${escapeHtml(e.rationale)}</td><td style="font-family:Consolas,monospace;">${escapeHtml((e.hash || '').slice(0, 16))}...</td></tr>`).join('')}
@@ -601,6 +608,43 @@ export default function Iso42001GovernancePanel({
                   </div>
                   <p className="text-slate-300 mb-0.5"><strong className="text-slate-400">Purpose:</strong> {sp.purpose}</p>
                   <p className="text-slate-400"><strong className="text-slate-500">Data Shared:</strong> {sp.dataShared}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-cardDarkSlate border border-slate-800 p-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5 flex-wrap gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-white">
+                AUDITOR WALKTHROUGH POLICY & EVIDENCE PACK (docs/compliance/ — SOC 2 CC1–CC5)
+              </span>
+              <span className="text-[9px] font-mono text-safetyGreen">
+                6 CONTROLLED ARTIFACTS • IRL EV-01..EV-16 READY
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+              {SOC2_POLICY_PACK.map((doc) => (
+                <div key={doc.docId} className="bg-bgDeepSpace/75 border border-slate-800 p-2.5 text-[9px] flex flex-col justify-between space-y-1">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="px-1.5 py-0.5 font-mono font-black text-[8px] bg-slate-900 border border-slate-700 text-edgeOrange">
+                        {doc.docId}
+                      </span>
+                      <span className="font-mono text-[8px] text-cyan-300">
+                        {doc.cadence}
+                      </span>
+                    </div>
+                    <h4 className="text-[9.5px] font-black text-white uppercase leading-snug mb-1">
+                      {doc.title}
+                    </h4>
+                    <p className="text-slate-400 font-mono text-[8px] break-all mb-1">
+                      {doc.path}
+                    </p>
+                  </div>
+                  <div className="pt-1 border-t border-slate-800/80 flex items-center justify-between gap-2 text-[8px] text-slate-300">
+                    <span><strong className="text-slate-500">Scope:</strong> {doc.criteria}</span>
+                    <span className="text-slate-400 truncate">{doc.owner}</span>
+                  </div>
                 </div>
               ))}
             </div>
