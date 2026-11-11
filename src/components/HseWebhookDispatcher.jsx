@@ -15,10 +15,11 @@ import {
   Zap
 } from 'lucide-react';
 import { 
-  verifyHseSecurityPin, 
+  authenticateHseAdmin, 
   setHseSecurityPin, 
   isHseAdminUnlocked,
   setHseAdminUnlocked,
+  purgeLocalSensitiveData,
   getActiveHseDirective, 
   getHseDirectiveHistory, 
   broadcastHseDirective, 
@@ -57,6 +58,9 @@ export default function HseWebhookDispatcher() {
   const [isTestingWa, setIsTestingWa] = useState(false);
   const [waTestResult, setWaTestResult] = useState(null);
   const [waConfigSaved, setWaConfigSaved] = useState(false);
+  const [waConfigError, setWaConfigError] = useState('');
+  const [pinUpdateError, setPinUpdateError] = useState('');
+  const [purgeBanner, setPurgeBanner] = useState('');
 
   // Synchronize on external updates
   useEffect(() => {
@@ -84,16 +88,16 @@ export default function HseWebhookDispatcher() {
     };
   }, []);
 
-  // Passcode Verification Handler
+  // Passcode Verification Handler (SOC 2 Salted SHA-256 + 5-Attempt Lockout)
   const handlePinSubmit = (e) => {
     if (e) e.preventDefault();
-    if (verifyHseSecurityPin(enteredPin)) {
+    const res = authenticateHseAdmin(enteredPin, 'HseWebhookDispatcher');
+    if (res.success) {
       setIsUnlocked(true);
-      setHseAdminUnlocked(true);
       setPinError('');
       setEnteredPin('');
     } else {
-      setPinError('Invalid Admin Security Passcode. Access Denied.');
+      setPinError(res.error || 'Invalid Admin Security Passcode. Access Denied.');
       setEnteredPin('');
     }
   };
@@ -102,6 +106,7 @@ export default function HseWebhookDispatcher() {
   const handleChangePin = () => {
     const res = setHseSecurityPin(newPin);
     if (res.success) {
+      setPinUpdateError('');
       setPinChangeSuccess(true);
       setNewPin('');
       setTimeout(() => {
@@ -109,7 +114,19 @@ export default function HseWebhookDispatcher() {
         setIsChangingPin(false);
       }, 2000);
     } else {
-      setPinError(res.error);
+      setPinUpdateError(res.error || 'Passcode update failed.');
+    }
+  };
+
+  // Local PII & Credential Purge Handler
+  const handlePurgeSensitiveData = () => {
+    const res = purgeLocalSensitiveData('Range Safety Officer');
+    if (res.success) {
+      setWaConfig(getWhatsAppConfig());
+      setActiveDirective(null);
+      setHistory([]);
+      setPurgeBanner('Purged locally stored PII, webhook credentials, API keys & broadcast logs.');
+      setTimeout(() => setPurgeBanner(''), 4000);
     }
   };
 
@@ -153,11 +170,17 @@ export default function HseWebhookDispatcher() {
     setActiveDirective(null);
   };
 
-  // Save WhatsApp Config Handler
+  // Save WhatsApp Config Handler (Enforces HTTPS + SSRF Guard)
   const handleSaveWaConfig = () => {
-    saveWhatsAppConfig(waConfig);
-    setWaConfigSaved(true);
-    setTimeout(() => setWaConfigSaved(false), 2500);
+    const res = saveWhatsAppConfig(waConfig);
+    if (res.success) {
+      setWaConfigError('');
+      setWaConfigSaved(true);
+      setTimeout(() => setWaConfigSaved(false), 2500);
+    } else {
+      setWaConfigSaved(false);
+      setWaConfigError(res.error || 'Invalid webhook configuration.');
+    }
   };
 
   // Send Test Ping Handler
@@ -273,9 +296,23 @@ export default function HseWebhookDispatcher() {
         </div>
 
         <div className="flex items-center space-x-2.5">
+          {/* SOC 2 Privacy P4.2 Purge Button */}
+          <button
+            type="button"
+            onClick={handlePurgeSensitiveData}
+            className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-amber-500/30 bg-amber-950/20 hover:bg-amber-900/30 text-amber-300 text-[9.5px] font-bold uppercase transition cursor-pointer"
+            title="Purge locally cached phone PII, webhook keys, and broadcast history"
+          >
+            <Trash2 className="w-3 h-3 text-amber-400" />
+            <span>Purge PII & Keys</span>
+          </button>
+
           {/* Security Change PIN Toggle */}
           <button
-            onClick={() => setIsChangingPin(!isChangingPin)}
+            onClick={() => {
+              setIsChangingPin(!isChangingPin);
+              setPinUpdateError('');
+            }}
             className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-slate-700 bg-bgDeepSpace/60 hover:border-slate-500 text-slate-300 text-[9.5px] font-bold uppercase transition cursor-pointer"
           >
             <Key className="w-3 h-3 text-edgeOrange" />
@@ -296,21 +333,30 @@ export default function HseWebhookDispatcher() {
         </div>
       </div>
 
+      {purgeBanner && (
+        <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl px-4 py-2 text-xs font-mono font-bold text-emerald-300 flex-none">
+          ✓ {purgeBanner}
+        </div>
+      )}
+
       {/* Change PIN Dropdown Panel */}
       {isChangingPin && (
         <div className="bg-cardDarkSlate border border-edgeOrange/40 rounded-xl p-3 flex-none flex items-center justify-between animate-fadeIn">
           <div className="flex items-center space-x-2">
             <Key className="w-4 h-4 text-edgeOrange" />
-            <span className="text-xs font-bold text-slate-200">Update Admin Passcode:</span>
+            <span className="text-xs font-bold text-slate-200">Update Admin Passcode (Min 6 Chars, Salted SHA-256):</span>
           </div>
           <div className="flex items-center space-x-2">
             <input 
               type="password"
-              maxLength={24}
+              maxLength={32}
               value={newPin}
-              onChange={(e) => setNewPin(e.target.value)}
-              placeholder="New Passcode"
-              className="bg-bgDeepSpace/80 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white focus:border-edgeOrange outline-none w-36"
+              onChange={(e) => {
+                setNewPin(e.target.value);
+                setPinUpdateError('');
+              }}
+              placeholder="New Passcode (6+)"
+              className="bg-bgDeepSpace/80 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-white focus:border-edgeOrange outline-none w-40"
             />
             <button
               onClick={handleChangePin}
@@ -319,7 +365,10 @@ export default function HseWebhookDispatcher() {
               Update
             </button>
             {pinChangeSuccess && (
-              <span className="text-safetyGreen text-xs font-bold">✓ PIN Updated!</span>
+              <span className="text-safetyGreen text-xs font-bold">✓ Salted Digest Saved!</span>
+            )}
+            {pinUpdateError && (
+              <span className="text-stopRed text-[10px] font-bold">{pinUpdateError}</span>
             )}
           </div>
         </div>
@@ -802,6 +851,12 @@ export default function HseWebhookDispatcher() {
                 <span>Test Ping</span>
               </button>
             </div>
+
+            {waConfigError && (
+              <div className="p-2 rounded text-[9px] font-bold text-center bg-red-950/60 border border-red-500/40 text-red-300">
+                ⚠️ {waConfigError}
+              </div>
+            )}
 
             {waTestResult && (
               <div className={`p-2 rounded text-[9px] font-bold text-center animate-fadeIn ${

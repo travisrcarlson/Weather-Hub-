@@ -3,6 +3,8 @@
  * Outputs a clean, multi-page vector-rendered report with charts, tables, and directives.
  */
 
+import { escapeHtml, safeJsonForScript } from './securityControls';
+
 export function generateRcoPdfBrief({
   targetDateLabel,
   activeStationName,
@@ -28,16 +30,35 @@ export function generateRcoPdfBrief({
     alert("Popup blocker active. Please allow popups to view the PDF draft.");
     return;
   }
+  printWindow.opener = null;
 
-  // Serialize log data for the script in the child window
-  const serializedLogs = JSON.stringify(chronoLogs);
+  // Escape all interpolated fields & safely serialize script JSON [SOC2-CC6.6 / PI1.3]
+  const serializedLogs = safeJsonForScript(chronoLogs);
+  const safeTitleDate = escapeHtml(String(targetDateLabel || '').replace(/\s+/g, '_'));
+  const safeDateLabel = escapeHtml(targetDateLabel);
+  const safeStationName = escapeHtml(activeStationName);
+  const safeHash = escapeHtml(secureHash);
+  const safeMode = escapeHtml(systemMode);
+  const safeOverallStatus = escapeHtml(overallStatus);
+  const safeOverallInstruction = escapeHtml(overallInstruction);
+  const safeGreenWin = escapeHtml(safeWindowText);
+  const safeAmberWin = escapeHtml(cautionWindowText);
+  const safeRedWin = escapeHtml(haltWindowText);
+  const safeMaxTempTime = escapeHtml(maxTempTime);
+  const safeMaxWbgtTime = escapeHtml(maxWbgtTime);
+  const safeMaxWindTime = escapeHtml(maxWindTime);
+  const safeMaxGustTime = escapeHtml(maxGustTime);
+  const safeMaxUvTime = escapeHtml(maxUvTime);
+  const safeDroneRating = escapeHtml(droneRating);
+  const safeDroneInstruction = escapeHtml(droneInstruction);
+  const safeBallisticsDrift = escapeHtml(ballisticsCrosswindDrift);
 
   const htmlContent = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>RCO_Daily_Brief_${targetDateLabel.replace(/\s+/g, '_')}</title>
+  <title>RCO_Daily_Brief_${safeTitleDate}</title>
   <style>
     /* CSS reset and fonts */
     * {
@@ -496,21 +517,21 @@ export function generateRcoPdfBrief({
         </div>
         <div class="header-right">
           <p>REPORT TYPE: Daily RCO Brief</p>
-          <p>SECURITY: Open Source Release</p>
+          <p>CLASSIFICATION: OFFICIAL — RANGE OPERATIONS</p>
         </div>
       </div>
 
       <div class="meta-bar">
         <div class="meta-item">
-          <span class="meta-label">Target Date:</span> <span class="meta-value">${targetDateLabel}</span><br/>
-          <span class="meta-label">Station:</span> <span class="meta-value">${activeStationName} (Abu Al Abyad Island, UAE)</span><br/>
-          <span class="meta-label">Data Mode:</span> <span class="meta-value">${systemMode}</span>
+          <span class="meta-label">Target Date:</span> <span class="meta-value">${safeDateLabel}</span><br/>
+          <span class="meta-label">Station:</span> <span class="meta-value">${safeStationName} (Abu Al Abyad Island, UAE)</span><br/>
+          <span class="meta-label">Data Mode:</span> <span class="meta-value">${safeMode}</span>
         </div>
         <div class="meta-right">
           <p><strong>TIMESTAMP:</strong></p>
-          <p>${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST</p>
+          <p>${escapeHtml(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))} GST</p>
           <p><strong>VERIFICATION HASH:</strong></p>
-          <p>${secureHash}</p>
+          <p>${safeHash}</p>
         </div>
       </div>
 
@@ -522,11 +543,11 @@ export function generateRcoPdfBrief({
           <div class="status-title">
             Rating: &nbsp;
             <span class="status-${overallStatus.includes('RED') ? 'RED' : overallStatus.includes('AMBER') ? 'AMBER' : 'GREEN'}">
-              ${overallStatus}
+              ${safeOverallStatus}
             </span>
           </div>
           <div class="status-desc">
-            Directive: ${overallInstruction}
+            Directive: ${safeOverallInstruction}
           </div>
         </div>
 
@@ -547,18 +568,18 @@ export function generateRcoPdfBrief({
         <div class="grid-2">
           <div class="grid-card" style="border-left: 3px solid #16a34a;">
             <div class="grid-card-title">Safe Operating Windows</div>
-            <p>${safeWindowText}</p>
+            <p>${safeGreenWin}</p>
             <p>• Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
           </div>
           <div class="grid-card" style="border-left: 3px solid #d97706;">
             <div class="grid-card-title">Caution Operating Windows</div>
-            <p>${cautionWindowText}</p>
+            <p>${safeAmberWin}</p>
             <p>• Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
           </div>
         </div>
         <div class="grid-card" style="border-left: 3px solid #dc2626; margin-bottom: 5px;">
           <div class="grid-card-title">Suspension / Halt Windows (RED)</div>
-          <p>${haltWindowText}</p>
+          <p>${safeRedWin}</p>
           <p>• Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
         </div>
       </div>
@@ -569,14 +590,14 @@ export function generateRcoPdfBrief({
         <div class="grid-2" style="margin-bottom: 5px;">
           <div class="grid-card">
             <div class="grid-card-title">Thermal Extremes</div>
-            <p style="margin-bottom: 3px;">Peak Temperature: ${maxTemp.toFixed(1)}°C at ${maxTempTime}</p>
-            <p>Peak Heat Stress (WBGT): <span class="status-RED">${maxWbgt.toFixed(1)}°C</span> at ${maxWbgtTime}</p>
+            <p style="margin-bottom: 3px;">Peak Temperature: ${maxTemp.toFixed(1)}°C at ${safeMaxTempTime}</p>
+            <p>Peak Heat Stress (WBGT): <span class="status-RED">${maxWbgt.toFixed(1)}°C</span> at ${safeMaxWbgtTime}</p>
           </div>
           <div class="grid-card">
             <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
-            <p style="margin-bottom: 3px;">Peak Wind Gusts: ${maxGust.toFixed(0)} km/h at ${maxGustTime}</p>
-            <p style="margin-bottom: 3px;">Max Sustained Wind: ${maxWind.toFixed(0)} km/h at ${maxWindTime}</p>
-            <p>Peak UV Radiation: <span class="status-AMBER">${maxUv.toFixed(1)} UV</span> at ${maxUvTime}</p>
+            <p style="margin-bottom: 3px;">Peak Wind Gusts: ${maxGust.toFixed(0)} km/h at ${safeMaxGustTime}</p>
+            <p style="margin-bottom: 3px;">Max Sustained Wind: ${maxWind.toFixed(0)} km/h at ${safeMaxWindTime}</p>
+            <p>Peak UV Radiation: <span class="status-AMBER">${maxUv.toFixed(1)} UV</span> at ${safeMaxUvTime}</p>
           </div>
         </div>
       </div>
@@ -587,20 +608,20 @@ export function generateRcoPdfBrief({
         <div class="grid-2" style="margin-bottom: 0;">
           <div class="grid-card">
             <div class="grid-card-title">Drone Flight Readiness</div>
-            <p style="margin-bottom: 3px;">Rating: <span class="status-${droneRating.includes('HALT') ? 'RED' : droneRating.includes('CAUTION') ? 'AMBER' : 'GREEN'}">${droneRating}</span></p>
-            <p>${droneInstruction}</p>
+            <p style="margin-bottom: 3px;">Rating: <span class="status-${droneRating.includes('HALT') ? 'RED' : droneRating.includes('CAUTION') ? 'AMBER' : 'GREEN'}">${safeDroneRating}</span></p>
+            <p>${safeDroneInstruction}</p>
           </div>
           <div class="grid-card">
             <div class="grid-card-title">Ballistics Wind Drift Warning</div>
             <p style="margin-bottom: 3px;">Crosswind Drift: <span class="status-${maxGust >= 30 ? 'AMBER' : 'GREEN'}">${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}</span></p>
-            <p>${ballisticsCrosswindDrift}</p>
+            <p>${safeBallisticsDrift}</p>
           </div>
         </div>
       </div>
 
       <!-- Footer for Page 1 -->
       <div class="page-footer">
-        PUBLIC<br/>Page 1 of 2
+        OFFICIAL — RANGE OPERATIONS USE ONLY<br/>Page 1 of 2
       </div>
     </div>
     
@@ -613,8 +634,8 @@ export function generateRcoPdfBrief({
           <h1>Environmental Charts & Data Logs</h1>
         </div>
         <div class="header-right">
-          <p>Target Date: ${targetDateLabel}</p>
-          <p>Verification Hash: ${secureHash}</p>
+          <p>Target Date: ${safeDateLabel}</p>
+          <p>Verification Hash: ${safeHash}</p>
         </div>
       </div>
 
@@ -660,7 +681,7 @@ export function generateRcoPdfBrief({
 
       <!-- Footer for Page 2 -->
       <div class="page-footer">
-        PUBLIC<br/>Page 2 of 2
+        OFFICIAL — RANGE OPERATIONS USE ONLY<br/>Page 2 of 2
       </div>
     </div>
 
@@ -670,12 +691,18 @@ export function generateRcoPdfBrief({
     // Embedded logs data
     const logs = ${serializedLogs};
 
+    function escText(v) {
+      return String(v ?? '').replace(/[&<>"']/g, function(c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+
     // Helper to format hour labels
     function formatTimeLabel(isoString) {
       if (!isoString) return '';
-      const hourPart = isoString.split('T')[1];
+      const hourPart = String(isoString).split('T')[1];
       if (!hourPart) return '';
-      return hourPart.slice(0, 5);
+      return escText(hourPart.slice(0, 5));
     }
 
     // Populate the data table
@@ -689,16 +716,16 @@ export function generateRcoPdfBrief({
 
       row.innerHTML = \`
         <td>\${timeStr}</td>
-        <td>\${log.temp.toFixed(1)}</td>
-        <td>\${log.rh}%</td>
-        <td>\${log.dewPoint.toFixed(1)}</td>
-        <td>\${log.wbgt.toFixed(1)}</td>
-        <td>\${log.wind.toFixed(0)}</td>
-        <td>\${log.gusts.toFixed(0)}</td>
-        <td>\${(log.visibility / 1000).toFixed(1)}</td>
-        <td>\${log.uv.toFixed(1)}</td>
-        <td>\${log.aqi.toFixed(0)}</td>
-        <td class="\${statusClass}">\${log.safety.status}</td>
+        <td>\${Number(log.temp).toFixed(1)}</td>
+        <td>\${Number(log.rh)}%</td>
+        <td>\${Number(log.dewPoint).toFixed(1)}</td>
+        <td>\${Number(log.wbgt).toFixed(1)}</td>
+        <td>\${Number(log.wind).toFixed(0)}</td>
+        <td>\${Number(log.gusts).toFixed(0)}</td>
+        <td>\${(Number(log.visibility) / 1000).toFixed(1)}</td>
+        <td>\${Number(log.uv).toFixed(1)}</td>
+        <td>\${Number(log.aqi).toFixed(0)}</td>
+        <td class="\${statusClass}">\${escText(log.safety.status)}</td>
       \`;
       tableBody.appendChild(row);
     });

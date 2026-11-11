@@ -8,6 +8,7 @@ import {
   ResponsiveContainer, ReferenceLine, ReferenceArea 
 } from 'recharts';
 import { calculateDewPoint, calculateWBGT, evaluateSafety, getClimaticAnomalyForYear } from '../utils/safetyEngine';
+import { sanitizeCsvCell } from '../utils/securityControls';
 import { 
   BALLISTIC_CALIBERS, 
   calculateAtmosphericDensity, 
@@ -479,22 +480,23 @@ verify local telemetry feeds before final range officer approval.
     document.body.removeChild(link);
   };
 
-  // Export CSV Log of custom timeline
+  // Export CSV Log of custom timeline (SOC 2 PI1.4 CSV formula-injection sanitized)
   const handleExportCSV = () => {
-    let csvContent = 'data:text/csv;charset=utf-8,';
-    csvContent += 'Hour,Temperature (C),Humidity (%),Dew Point (C),WBGT (C),Wind Speed (kmh),Wind Gusts (kmh),Visibility (km),PM10 (ug/m3),AQI,Safety Status,Midday Ban,Within Shift\r\n';
+    let csvBody = 'Hour,Temperature (C),Humidity (%),Dew Point (C),WBGT (C),Wind Speed (kmh),Wind Gusts (kmh),Visibility (km),PM10 (ug/m3),AQI,Safety Status,Midday Ban,Within Shift\r\n';
 
     simTimeline.forEach((log) => {
-      csvContent += `${log.hourLabel},${log.temp.toFixed(1)},${log.rh},${log.dewPoint.toFixed(1)},${log.wbgt.toFixed(1)},${log.wind.toFixed(1)},${log.gusts.toFixed(1)},${log.visibility.toFixed(1)},${log.pm10},${log.aqi},${log.safetyStatus},${log.isMiddayBanActive ? 'YES' : 'NO'},${log.isWithinShift ? 'YES' : 'NO'}\r\n`;
+      csvBody += `${sanitizeCsvCell(log.hourLabel)},${log.temp.toFixed(1)},${log.rh},${log.dewPoint.toFixed(1)},${log.wbgt.toFixed(1)},${log.wind.toFixed(1)},${log.gusts.toFixed(1)},${log.visibility.toFixed(1)},${log.pm10},${log.aqi},${sanitizeCsvCell(log.safetyStatus)},${log.isMiddayBanActive ? 'YES' : 'NO'},${log.isWithinShift ? 'YES' : 'NO'}\r\n`;
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvBody], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `XRANGE_Custom_Projection_${climateDb[selectedMonthIdx].name}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (

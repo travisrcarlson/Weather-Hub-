@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { calculateDewPoint, calculateWBGT, evaluateSafety } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
+import { sanitizeCsvCell } from '../utils/securityControls';
 import { getActiveHseDirective, getHseDirectiveHistory, getWhatsAppConfig, computeIso42001Hash } from '../services/hseBroadcastService';
 
 export default function HseDashboard({ data, hourlyData, currentTime, activeStation, isSimulated, onViewModeChange }) {
@@ -206,26 +207,27 @@ export default function HseDashboard({ data, hourlyData, currentTime, activeStat
     return ppe.join(", ");
   };
 
-  // Export report download simulation helper
+  // Export report download helper (SOC 2 PI1.4 CSV formula-injection sanitized)
   const handleExportCSV = () => {
     try {
-      let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Timestamp,Dry Bulb Temp(C),WBGT(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
+      let csvBody = "Timestamp,Dry Bulb Temp(C),WBGT(C),Humidity(%),Wind Speed(km/h),Wind Gust(km/h),Visibility(m),UV Index,Safety Status,Breaches/Directives\r\n";
       
       logs24h.forEach(log => {
-        const timeLabel = log.time.replace('T', ' ');
-        const safetyStatus = log.safety.status;
-        const breachesText = log.breaches.join(" | ") || "COMPLIANT";
-        csvContent += `${timeLabel},${log.temp.toFixed(1)},${log.wbgt.toFixed(1)},${log.rh},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.visibility},${log.uv.toFixed(1)},${safetyStatus},${breachesText}\r\n`;
+        const timeLabel = sanitizeCsvCell(log.time.replace('T', ' '));
+        const safetyStatus = sanitizeCsvCell(log.safety.status);
+        const breachesText = sanitizeCsvCell(log.breaches.join(" | ") || "COMPLIANT");
+        csvBody += `${timeLabel},${log.temp.toFixed(1)},${log.wbgt.toFixed(1)},${log.rh},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.visibility},${log.uv.toFixed(1)},${safetyStatus},${breachesText}\r\n`;
       });
 
-      const encodedUri = encodeURI(csvContent);
+      const blob = new Blob([csvBody], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
+      link.setAttribute("href", url);
       link.setAttribute("download", `HSE_Weather_Audit_Log_${new Date().toISOString().slice(0, 10)}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
     }

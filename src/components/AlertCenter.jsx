@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
 import { 
   X, Bell, ShieldCheck, Mail, MessageSquare, Radio, Send, CheckCheck, 
-  UserCheck, AlertCircle, Clock, Volume2, ShieldAlert, Check, Lock, ChevronDown, ChevronUp 
+  UserCheck, AlertCircle, Clock, Volume2, ShieldAlert, Check, Lock, ChevronDown, ChevronUp, Trash2 
 } from 'lucide-react';
 import { compileActiveStationAlerts } from '../utils/rangeStations';
+import { maskPhonePii } from '../utils/securityControls';
 import {
-  verifyHseSecurityPin,
+  authenticateHseAdmin,
   isHseAdminUnlocked,
   setHseAdminUnlocked,
+  purgeLocalSensitiveData,
   getWhatsAppConfig,
   sendWhatsAppMessage,
   appendIso42001AuditEntry
@@ -34,7 +36,8 @@ export default function AlertCenter({
 
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => isHseAdminUnlocked());
   const [passwordInput, setPasswordInput] = useState('');
-  const [passwordError, setPasswordError] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [purgeStatus, setPurgeStatus] = useState('');
 
   useEffect(() => {
     const syncAuth = () => setIsAdminUnlocked(isHseAdminUnlocked());
@@ -44,14 +47,22 @@ export default function AlertCenter({
 
   const handleAuthenticate = (e) => {
     e.preventDefault();
-    if (verifyHseSecurityPin(passwordInput)) {
+    const res = authenticateHseAdmin(passwordInput, 'AlertCenter');
+    if (res.success) {
       setIsAdminUnlocked(true);
-      setHseAdminUnlocked(true);
-      setPasswordError(false);
+      setPasswordError('');
       setPasswordInput('');
     } else {
-      setPasswordError(true);
+      setPasswordError(res.error || 'INVALID BYPASS CODE • ACCESS DENIED');
       setPasswordInput('');
+    }
+  };
+
+  const handlePurgeLocalPii = () => {
+    const res = purgeLocalSensitiveData('Admin Dispatch Officer');
+    if (res.success) {
+      setPurgeStatus('Local PII, credentials & broadcast history purged.');
+      setTimeout(() => setPurgeStatus(''), 3500);
     }
   };
 
@@ -397,7 +408,7 @@ export default function AlertCenter({
                     />
                     {passwordError && (
                       <span className="text-[8px] text-stopRed font-extrabold uppercase tracking-wide text-center block mt-1">
-                        ❌ INVALID BYPASS CODE • ACCESS DENIED
+                        ❌ {passwordError}
                       </span>
                     )}
                   </div>
@@ -691,6 +702,23 @@ export default function AlertCenter({
                         Add to Registry
                       </button>
                     </form>
+
+                    {/* SOC 2 Privacy P4.2 Local PII Purge Control */}
+                    <div className="border-t border-slate-900 pt-3 flex flex-col space-y-2">
+                      <button
+                        type="button"
+                        onClick={handlePurgeLocalPii}
+                        className="w-full bg-red-950/30 hover:bg-red-900/40 border border-red-500/30 text-red-300 font-black py-2 text-[9.5px] uppercase tracking-wider rounded-lg cursor-pointer transition-colors flex items-center justify-center space-x-1.5"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                        <span>Purge Local PII, Keys & Broadcast Logs</span>
+                      </button>
+                      {purgeStatus && (
+                        <span className="text-[8.5px] font-mono font-bold text-safetyGreen text-center">
+                          ✓ {purgeStatus}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -702,7 +730,9 @@ export default function AlertCenter({
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1 text-slate-350">
                 <span className="text-[10px] font-black uppercase tracking-wider">Dispatched Broadcast Log</span>
-                <span className="text-[9px] text-slate-500 font-bold font-mono">COUNT: {broadcastHistory.length}</span>
+                <span className="text-[8.5px] text-slate-500 font-bold font-mono">
+                  {isAdminUnlocked ? 'PII UNLOCKED' : 'PII MASKED'} • 30D TTL ({broadcastHistory.length})
+                </span>
               </div>
 
               {broadcastHistory.length === 0 ? (
@@ -783,7 +813,9 @@ export default function AlertCenter({
                                     <div key={rIdx} className="flex justify-between items-center bg-bgDeepSpace/40 border border-slate-900/60 p-2 rounded-lg">
                                       <div className="flex flex-col text-left">
                                         <span className="text-slate-200 font-extrabold">{rec.name}</span>
-                                        <span className="text-slate-500 font-mono text-[8px] font-bold mt-0.5">{rec.phone}</span>
+                                        <span className="text-slate-500 font-mono text-[8px] font-bold mt-0.5">
+                                          {isAdminUnlocked ? rec.phone : maskPhonePii(rec.phone)}
+                                        </span>
                                       </div>
                                       <div className="flex items-center space-x-2">
                                         <span className="text-[7.5px] font-mono text-slate-500 font-bold">{rec.time}</span>
@@ -851,7 +883,9 @@ export default function AlertCenter({
                                 <div key={rIdx} className="flex justify-between items-center bg-bgDeepSpace/40 border border-slate-900/60 p-2 rounded-lg">
                                   <div className="flex flex-col text-left">
                                     <span className="text-slate-200 font-extrabold">{rec.name}</span>
-                                    <span className="text-slate-500 font-mono text-[8px] font-bold mt-0.5">{rec.phone}</span>
+                                    <span className="text-slate-500 font-mono text-[8px] font-bold mt-0.5">
+                                      {isAdminUnlocked ? rec.phone : maskPhonePii(rec.phone)}
+                                    </span>
                                   </div>
                                   <div className="flex items-center space-x-2">
                                     <span className="text-[7.5px] font-mono text-slate-500 font-bold">{rec.time}</span>

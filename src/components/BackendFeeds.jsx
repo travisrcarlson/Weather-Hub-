@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Database, Network, Activity, Cpu, Code, Copy, Check, ShieldAlert, ShieldCheck, Wifi, Globe, MapPin, ExternalLink, Sliders, Key, Zap, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Database, Network, Activity, Cpu, Code, Copy, Check, ShieldAlert, ShieldCheck, Wifi, Globe, MapPin, ExternalLink, Sliders, Key, Zap, CheckCircle2, RefreshCw, Lock } from 'lucide-react';
 import XRangeMap from './XRangeMap';
 import HseWebhookDispatcher from './HseWebhookDispatcher';
 import Iso42001GovernancePanel from './Iso42001GovernancePanel';
+import { isHseAdminUnlocked } from '../services/hseBroadcastService';
+import { maskSecretKey } from '../utils/securityControls';
 import { 
   PROVIDERS, 
   getActiveProvider, 
@@ -23,14 +25,24 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
   const [governorStats, setGovernorStats] = useState(getWeatherNextGovernorStats());
   const [apiKeyInput, setApiKeyInput] = useState(getGoogleWeatherApiKey());
   const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [apiKeyError, setApiKeyError] = useState('');
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => isHseAdminUnlocked());
 
   useEffect(() => {
     const handleProviderChange = (e) => {
       setCurrentProvider(e.detail);
       setGovernorStats(getWeatherNextGovernorStats());
     };
+    const handleAuthChange = () => setIsAdminUnlocked(isHseAdminUnlocked());
+    const handlePiiPurged = () => setApiKeyInput(getGoogleWeatherApiKey());
     window.addEventListener('xrange-provider-changed', handleProviderChange);
-    return () => window.removeEventListener('xrange-provider-changed', handleProviderChange);
+    window.addEventListener('xrange-admin-auth', handleAuthChange);
+    window.addEventListener('xrange-pii-purged', handlePiiPurged);
+    return () => {
+      window.removeEventListener('xrange-provider-changed', handleProviderChange);
+      window.removeEventListener('xrange-admin-auth', handleAuthChange);
+      window.removeEventListener('xrange-pii-purged', handlePiiPurged);
+    };
   }, []);
 
   const handleProviderSelect = (prov) => {
@@ -43,7 +55,12 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
   };
 
   const handleSaveApiKey = () => {
-    setGoogleWeatherApiKey(apiKeyInput);
+    const res = setGoogleWeatherApiKey(apiKeyInput);
+    if (res && res.success === false) {
+      setApiKeyError(res.error || 'Admin clearance required.');
+      return;
+    }
+    setApiKeyError('');
     setApiKeySaved(true);
     setGovernorStats(getWeatherNextGovernorStats());
     setTimeout(() => setApiKeySaved(false), 2500);
@@ -597,13 +614,13 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
                   </button>
                 </div>
 
-                {/* Optional Google API Key Config when Live Mode selected */}
+                {/* Optional Google API Key Config when Live Mode selected (SOC 2 CC6.1 Admin-Gated) */}
                 {currentProvider === PROVIDERS.WEATHERNEXT_LIVE && (
                   <div className="mt-3 pt-3 border-t border-slate-800/60 bg-bgDeepSpace/30 p-2.5 rounded-lg border">
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-[8.5px] font-bold text-slate-400 uppercase flex items-center space-x-1">
                         <Key className="w-3 h-3 text-cyan-400" />
-                        <span>Google Maps Weather API Key (Optional)</span>
+                        <span>Google Maps Weather API Key (Admin-Gated)</span>
                       </span>
                       {apiKeySaved && (
                         <span className="text-[8px] font-bold text-safetyGreen flex items-center space-x-1">
@@ -612,23 +629,47 @@ export default function BackendFeeds({ isSimulated, apiMeta, isOffline, apiData,
                         </span>
                       )}
                     </div>
-                    <div className="flex space-x-2">
-                      <input
-                        type="password"
-                        value={apiKeyInput}
-                        onChange={(e) => setApiKeyInput(e.target.value)}
-                        placeholder="AIzaSy... (Leave blank for simulation fallback)"
-                        className="flex-1 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-[10px] font-mono text-textIceWhite focus:outline-none focus:border-cyan-400"
-                      />
-                      <button
-                        onClick={handleSaveApiKey}
-                        className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded text-[9px] font-black uppercase tracking-wider cursor-pointer"
-                      >
-                        Save
-                      </button>
-                    </div>
+                    {isAdminUnlocked ? (
+                      <>
+                        <div className="flex space-x-2">
+                          <input
+                            type="password"
+                            value={apiKeyInput}
+                            onChange={(e) => {
+                              setApiKeyInput(e.target.value);
+                              setApiKeyError('');
+                            }}
+                            placeholder="AIzaSy... (Leave blank for simulation fallback)"
+                            className="flex-1 bg-slate-900 border border-slate-700/60 rounded px-2 py-1 text-[10px] font-mono text-textIceWhite focus:outline-none focus:border-cyan-400"
+                          />
+                          <button
+                            onClick={handleSaveApiKey}
+                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-1 rounded text-[9px] font-black uppercase tracking-wider cursor-pointer"
+                          >
+                            Save
+                          </button>
+                        </div>
+                        {apiKeyError && (
+                          <p className="text-[8px] text-stopRed font-bold mt-1">{apiKeyError}</p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded px-2.5 py-1.5">
+                        <span className="text-[9px] font-mono text-slate-400">
+                          {apiKeyInput ? `Stored: ${maskSecretKey(apiKeyInput)}` : 'No key stored (Simulation $0 active)'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSubTab('hse-dispatch')}
+                          className="flex items-center space-x-1 text-[8.5px] font-black uppercase text-edgeOrange hover:text-orange-300 cursor-pointer"
+                        >
+                          <Lock className="w-2.5 h-2.5" />
+                          <span>Unlock RSO to Edit</span>
+                        </button>
+                      </div>
+                    )}
                     <p className="text-[8px] text-slate-500 mt-1">
-                      Stored client-side in browser. Protected by 15-min cache & 250 requests/day hard cap ($0.00).
+                      SOC 2 CC6.1 / C1.1: Masked at rest in UI; protected by 15-min cache & 250 calls/day cap ($0.00).
                     </p>
                   </div>
                 )}

@@ -1,0 +1,39 @@
+name: SOC 2 Continuous Compliance Gate (CC8.1 / PI1.1)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify-soc2-controls:
+    name: Lint, Compliance Tests, Supply-Chain Audit & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Clean install dependencies (deterministic lockfile)
+        run: npm ci
+
+      - name: Static analysis & React Hooks purity gate (ESLint)
+        run: npm run lint
+
+      - name: SOC 2 cryptography, SSRF, XSS/CSV & ADOSH physics suite (Vitest)
+        run: npm test
+
+      - name: Supply-chain vulnerability gate (0 High / 0 Critical)
+        run: npm audit --audit-level=high
+
+      - name: Production bundle verification (Vite)
+        run: npm run build

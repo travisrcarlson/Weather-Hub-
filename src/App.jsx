@@ -13,6 +13,7 @@ import TvGuidelinesWidget from './components/TvGuidelinesWidget';
 import TvCoreMetricsWidget from './components/TvCoreMetricsWidget';
 import TvWakeLockGuard from './components/TvWakeLockGuard';
 import { checkAndDispatchAutoAlerts, appendIso42001AuditEntry } from './services/hseBroadcastService';
+import { pruneExpiredBroadcasts } from './utils/securityControls';
 import { detectHaboobConvectiveRisk } from './utils/tacticalBallisticsEngine';
 import { compileActiveStationAlerts, getStationCurrentReadings, stationsList } from './utils/rangeStations';
 
@@ -144,7 +145,7 @@ export default function App() {
   const [broadcastHistory, setBroadcastHistory] = useState(() => {
     try {
       const saved = localStorage.getItem('xrange_broadcast_history_v1');
-      if (saved) return JSON.parse(saved);
+      if (saved) return pruneExpiredBroadcasts(JSON.parse(saved));
     } catch {
       // fall through
     }
@@ -198,11 +199,25 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('xrange_broadcast_history_v1', JSON.stringify(broadcastHistory));
+      localStorage.setItem('xrange_broadcast_history_v1', JSON.stringify(pruneExpiredBroadcasts(broadcastHistory)));
     } catch {
       // ignore
     }
   }, [broadcastHistory]);
+
+  useEffect(() => {
+    const handlePiiPurge = () => {
+      setBroadcastHistory([]);
+      setRecipientDirectory({
+        officers: [],
+        hands: [],
+        rd_teams: [],
+        supervisors: []
+      });
+    };
+    window.addEventListener('xrange-pii-purged', handlePiiPurge);
+    return () => window.removeEventListener('xrange-pii-purged', handlePiiPurge);
+  }, []);
 
   // Single-source-of-truth active alerts count for header notification badge
   const activeAlertsCount = useMemo(

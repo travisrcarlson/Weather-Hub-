@@ -4,6 +4,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { calculateDewPoint, calculateWBGT, evaluateSafety, getClimaticAnomalyForYear } from '../utils/safetyEngine';
 import { generateRcoPdfBrief } from '../utils/pdfGenerator';
 import { generateRcoWordBrief } from '../utils/wordGenerator';
+import { sanitizeCsvCell } from '../utils/securityControls';
 import { evaluateTacticalMissionMatrix } from '../utils/tacticalBallisticsEngine';
 import { computeIso42001Hash } from '../services/hseBroadcastService';
 
@@ -450,12 +451,11 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
 
   const stats = getPlanningStats();
 
-  // CSV Report Generator
+  // CSV Report Generator (SOC 2 PI1.4 CSV formula-injection sanitized)
   const handleExportCSV = () => {
     if (hourlyLogs.length === 0) return;
 
-    let csvContent = 'data:text/csv;charset=utf-8,';
-    csvContent += 'Hour GST,Shade Temperature (C),Humidity (%),Dew Point (C),WBGT Index (C),Wind Speed (kmh),Wind Gusts (kmh),UV Index,Visibility (m),Safety Status,Work Rest Ratio,Hydration Rate (L/hr),Midday Ban Active\r\n';
+    let csvBody = 'Hour GST,Shade Temperature (C),Humidity (%),Dew Point (C),WBGT Index (C),Wind Speed (kmh),Wind Gusts (kmh),UV Index,Visibility (m),Safety Status,Work Rest Ratio,Hydration Rate (L/hr),Midday Ban Active\r\n';
 
     hourlyLogs.forEach((log) => {
       // Work rest guidelines
@@ -472,16 +472,18 @@ export default function PlanningDashboard({ isSimulated, hourlyData, dailyData }
         hydration = '0.75';
       }
 
-      csvContent += `${log.hourLabel},${log.temp.toFixed(1)},${log.rh},${log.dewPoint.toFixed(1)},${log.wbgt.toFixed(1)},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.uv},${log.visibility},${log.safetyStatus},"${workRest}",${hydration},${log.isMiddayBanActive ? 'YES' : 'NO'}\r\n`;
+      csvBody += `${sanitizeCsvCell(log.hourLabel)},${log.temp.toFixed(1)},${log.rh},${log.dewPoint.toFixed(1)},${log.wbgt.toFixed(1)},${log.wind.toFixed(0)},${log.gusts.toFixed(0)},${log.uv},${log.visibility},${sanitizeCsvCell(log.safetyStatus)},${sanitizeCsvCell(workRest)},${hydration},${log.isMiddayBanActive ? 'YES' : 'NO'}\r\n`;
     });
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvBody], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute('download', `XRANGE_Planning_Brief_${selectedDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   // WeatherNext 3 7-Day Tactical Mission Operational Windows Briefing Generator

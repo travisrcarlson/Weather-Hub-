@@ -3,6 +3,8 @@
  * Outputs a clean, professionally formatted MS Word-compatible brief (.doc) using standard HTML/Office XML markup.
  */
 
+import { escapeHtml } from './securityControls';
+
 export function generateRcoWordBrief({
   targetDateLabel,
   activeStationName,
@@ -24,12 +26,12 @@ export function generateRcoWordBrief({
   chronoLogs
 }) {
   // Format target date for filename
-  const sanitizedDate = targetDateLabel.replace(/\s+/g, '_');
+  const sanitizedDate = String(targetDateLabel || '').replace(/[^A-Za-z0-9_-]/g, '_');
   const filename = `RCO_Daily_Weather_Brief_${sanitizedDate}.doc`;
 
-  // Build the hourly data table rows
+  // Build the hourly data table rows with HTML entity escaping [SOC2-CC6.6 / PI1.3]
   const tableRows = chronoLogs.map(log => {
-    const timeStr = log.time.split('T')[1].slice(0, 5);
+    const timeStr = escapeHtml((log.time || '').split('T')[1]?.slice(0, 5) || '');
     const status = log.safety.status;
     let statusCellClass = 'cell-green';
     if (status === 'RED') {
@@ -41,16 +43,16 @@ export function generateRcoWordBrief({
     return `
       <tr>
         <td style="text-align: center; font-weight: bold; border: 1px solid #cbd5e1; padding: 4px;">${timeStr}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.temp.toFixed(1)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.rh}%</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.dewPoint.toFixed(1)}</td>
-        <td style="text-align: center; font-weight: bold; border: 1px solid #cbd5e1; padding: 4px;">${log.wbgt.toFixed(1)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.wind.toFixed(0)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.gusts.toFixed(0)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${(log.visibility / 1000).toFixed(1)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.uv.toFixed(1)}</td>
-        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${log.aqi.toFixed(0)}</td>
-        <td class="${statusCellClass}" style="text-align: center; font-weight: bold; border: 1px solid #cbd5e1; padding: 4px;">${status}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.temp).toFixed(1)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.rh)}%</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.dewPoint).toFixed(1)}</td>
+        <td style="text-align: center; font-weight: bold; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.wbgt).toFixed(1)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.wind).toFixed(0)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.gusts).toFixed(0)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${(Number(log.visibility) / 1000).toFixed(1)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.uv).toFixed(1)}</td>
+        <td style="text-align: center; border: 1px solid #cbd5e1; padding: 4px;">${Number(log.aqi).toFixed(0)}</td>
+        <td class="${statusCellClass}" style="text-align: center; font-weight: bold; border: 1px solid #cbd5e1; padding: 4px;">${escapeHtml(status)}</td>
       </tr>
     `;
   }).join('');
@@ -191,7 +193,7 @@ export function generateRcoWordBrief({
       </td>
       <td style="text-align: right; font-size: 9pt; vertical-align: middle;">
         <div>REPORT TYPE: Daily RCO Brief</div>
-        <div>SECURITY: Open Source Release</div>
+        <div>CLASSIFICATION: OFFICIAL — RANGE OPERATIONS</div>
       </td>
     </tr>
   </table>
@@ -200,13 +202,13 @@ export function generateRcoWordBrief({
   <table class="meta-table">
     <tr>
       <td style="width: 60%;">
-        <strong>Target Date:</strong> ${targetDateLabel}<br/>
-        <strong>Station:</strong> ${activeStationName} (Abu Al Abyad Island, UAE)<br/>
-        <strong>Data Mode:</strong> ${systemMode}
+        <strong>Target Date:</strong> ${escapeHtml(targetDateLabel)}<br/>
+        <strong>Station:</strong> ${escapeHtml(activeStationName)} (Abu Al Abyad Island, UAE)<br/>
+        <strong>Data Mode:</strong> ${escapeHtml(systemMode)}
       </td>
       <td style="width: 40%; border-left: 1px solid #cbd5e1;">
-        <strong>Timestamp:</strong> ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST<br/>
-        <strong>Verification Hash:</strong> ${secureHash}
+        <strong>Timestamp:</strong> ${escapeHtml(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))} GST<br/>
+        <strong>Verification Hash:</strong> ${escapeHtml(secureHash)}
       </td>
     </tr>
   </table>
@@ -218,11 +220,11 @@ export function generateRcoWordBrief({
     <div class="status-title">
       Rating: &nbsp;
       <span class="${overallStatus.includes('RED') ? 'status-RED' : overallStatus.includes('AMBER') ? 'status-AMBER' : 'status-GREEN'}">
-        ${overallStatus}
+        ${escapeHtml(overallStatus)}
       </span>
     </div>
     <div style="font-weight: bold; color: #334155; margin-top: 4px;">
-      Directive: ${overallInstruction}
+      Directive: ${escapeHtml(overallInstruction)}
     </div>
   </div>
 
@@ -242,12 +244,12 @@ export function generateRcoWordBrief({
     <tr>
       <td style="border-left: 4px solid #16a34a; width: 50%;">
         <div class="grid-card-title" style="background-color: #16a34a;">Safe Operating Windows</div>
-        <p style="margin-top: 4px; font-weight: bold;">${safeWindowText}</p>
+        <p style="margin-top: 4px; font-weight: bold;">${escapeHtml(safeWindowText)}</p>
         <p style="font-size: 9pt; color: #475569; margin-top: 4px;">• Standard training profiles cleared for execution. Maintain ordinary safety rosters.</p>
       </td>
       <td style="border-left: 4px solid #d97706; width: 50%;">
         <div class="grid-card-title" style="background-color: #d97706;">Caution Operating Windows</div>
-        <p style="margin-top: 4px; font-weight: bold;">${cautionWindowText}</p>
+        <p style="margin-top: 4px; font-weight: bold;">${escapeHtml(cautionWindowText)}</p>
         <p style="font-size: 9pt; color: #475569; margin-top: 4px;">• Restricted operations. Rigorous supervisor control, mandatory hydration splits, and shaded rest required.</p>
       </td>
     </tr>
@@ -257,7 +259,7 @@ export function generateRcoWordBrief({
     <tr>
       <td style="border-left: 4px solid #dc2626; width: 100%;">
         <div class="grid-card-title" style="background-color: #dc2626;">Suspension / Halt Windows (RED)</div>
-        <p style="margin-top: 4px; font-weight: bold;">${haltWindowText}</p>
+        <p style="margin-top: 4px; font-weight: bold;">${escapeHtml(haltWindowText)}</p>
         <p style="font-size: 9pt; color: #475569; margin-top: 4px;">• Critical environmental limits exceeded. Suspension of all range, vehicular, and outdoor operations mandatory.</p>
       </td>
     </tr>
@@ -269,14 +271,14 @@ export function generateRcoWordBrief({
     <tr>
       <td style="width: 50%;">
         <div class="grid-card-title">Thermal Extremes</div>
-        <p style="margin-bottom: 4px;"><strong>Peak Temperature:</strong> ${maxTemp.toFixed(1)}°C at ${maxTempTime}</p>
-        <p><strong>Peak Heat Stress (WBGT):</strong> <span class="status-RED" style="font-weight: bold;">${maxWbgt.toFixed(1)}°C</span> at ${maxWbgtTime}</p>
+        <p style="margin-bottom: 4px;"><strong>Peak Temperature:</strong> ${maxTemp.toFixed(1)}°C at ${escapeHtml(maxTempTime)}</p>
+        <p><strong>Peak Heat Stress (WBGT):</strong> <span class="status-RED" style="font-weight: bold;">${maxWbgt.toFixed(1)}°C</span> at ${escapeHtml(maxWbgtTime)}</p>
       </td>
       <td style="width: 50%;">
         <div class="grid-card-title">Aerodynamic & Solar Extremes</div>
-        <p style="margin-bottom: 4px;"><strong>Peak Wind Gusts:</strong> ${maxGust.toFixed(0)} km/h at ${maxGustTime}</p>
-        <p style="margin-bottom: 4px;"><strong>Max Sustained Wind:</strong> ${maxWind.toFixed(0)} km/h at ${maxWindTime}</p>
-        <p><strong>Peak UV Radiation:</strong> <span class="status-AMBER" style="font-weight: bold;">${maxUv.toFixed(1)} UV</span> at ${maxUvTime}</p>
+        <p style="margin-bottom: 4px;"><strong>Peak Wind Gusts:</strong> ${maxGust.toFixed(0)} km/h at ${escapeHtml(maxGustTime)}</p>
+        <p style="margin-bottom: 4px;"><strong>Max Sustained Wind:</strong> ${maxWind.toFixed(0)} km/h at ${escapeHtml(maxWindTime)}</p>
+        <p><strong>Peak UV Radiation:</strong> <span class="status-AMBER" style="font-weight: bold;">${maxUv.toFixed(1)} UV</span> at ${escapeHtml(maxUvTime)}</p>
       </td>
     </tr>
   </table>
@@ -289,10 +291,10 @@ export function generateRcoWordBrief({
         <div class="grid-card-title">Drone Flight Readiness</div>
         <p style="margin-bottom: 4px;"><strong>Rating:</strong> 
           <span class="${droneRating.includes('HALT') ? 'status-RED' : droneRating.includes('CAUTION') ? 'status-AMBER' : 'status-GREEN'}" style="font-weight: bold;">
-            ${droneRating}
+            ${escapeHtml(droneRating)}
           </span>
         </p>
-        <p style="font-size: 9pt; color: #334155;">${droneInstruction}</p>
+        <p style="font-size: 9pt; color: #334155;">${escapeHtml(droneInstruction)}</p>
       </td>
       <td style="width: 50%;">
         <div class="grid-card-title">Ballistics Wind Drift Warning</div>
@@ -301,7 +303,7 @@ export function generateRcoWordBrief({
             ${maxGust >= 30 ? 'ELEVATED RISK' : 'NEGLIGIBLE'}
           </span>
         </p>
-        <p style="font-size: 9pt; color: #334155;">${ballisticsCrosswindDrift}</p>
+        <p style="font-size: 9pt; color: #334155;">${escapeHtml(ballisticsCrosswindDrift)}</p>
       </td>
     </tr>
   </table>
@@ -331,7 +333,7 @@ export function generateRcoWordBrief({
 
   <hr style="border: none; border-top: 1px solid #cbd5e1; margin-top: 25pt; margin-bottom: 5pt;" />
   <div style="text-align: center; font-size: 8.5pt; color: #64748b; font-weight: bold; text-transform: uppercase;">
-    X-Range Tactical Safety Network • RCO Daily Briefing Document • Public Release
+    X-Range Tactical Safety Network • RCO Daily Briefing Document • Official — Range Operations Use Only
   </div>
 
 </body>

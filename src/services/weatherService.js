@@ -1,4 +1,41 @@
-import axios from 'axios';
+import { sanitizeCurrentTelemetry } from '../utils/securityControls';
+import {
+  appendIso42001AuditEntry,
+  isHseAdminUnlocked,
+  touchHseAdminActivity
+} from './hseBroadcastService';
+
+/**
+ * Native zero-dependency HTTPS JSON fetcher with AbortController timeout & no-referrer policy [SOC2-CC6.7 / CC7.1].
+ */
+async function httpGetJson(url, { params, timeout = 8000 } = {}) {
+  const targetUrl = new URL(url);
+  if (params && typeof params === 'object') {
+    Object.entries(params).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) {
+        targetUrl.searchParams.set(k, String(v));
+      }
+    });
+  }
+
+  const controller = new AbortController();
+  const timerId = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(targetUrl.toString(), {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      referrerPolicy: 'no-referrer',
+      signal: controller.signal
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} from ${targetUrl.origin}${targetUrl.pathname}`);
+    }
+    const data = await response.json();
+    return { data, status: response.status };
+  } finally {
+    clearTimeout(timerId);
+  }
+}
 
 export const LAT = 24.195;
 export const LON = 53.86;
@@ -83,10 +120,30 @@ export function getGoogleWeatherApiKey() {
 }
 
 export function setGoogleWeatherApiKey(key) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_GOOGLE_API_KEY, key.trim());
-    window.dispatchEvent(new CustomEvent('xrange-key-changed', { detail: key.trim() }));
+  if (typeof window === 'undefined') return { success: false, error: 'Browser storage unavailable.' };
+  if (!isHseAdminUnlocked()) {
+    return { success: false, error: 'Administrative clearance required to modify API credentials.' };
   }
+  const trimmed = String(key ?? '').trim();
+  if (trimmed) {
+    localStorage.setItem(STORAGE_KEY_GOOGLE_API_KEY, trimmed);
+  } else {
+    localStorage.removeItem(STORAGE_KEY_GOOGLE_API_KEY);
+  }
+  touchHseAdminActivity();
+  appendIso42001AuditEntry({
+    isoControl: 'SOC2-CC6.1 / C1.1',
+    eventType: 'SECURITY_API_KEY_UPDATED',
+    actor: 'Range Safety Officer',
+    modelProvider: 'WEATHERNEXT_GOVERNOR',
+    sector: 'BACKEND_TELEMETRY_CONFIG',
+    decision: trimmed ? 'CREDENTIAL_SET' : 'CREDENTIAL_CLEARED',
+    rationale: trimmed
+      ? 'Updated Google Maps Platform Weather API credential (secret value redacted from audit log).'
+      : 'Cleared locally stored Google Maps Platform Weather API credential.'
+  });
+  window.dispatchEvent(new CustomEvent('xrange-key-changed', { detail: trimmed }));
+  return { success: true };
 }
 
 // Zero-Cost Governor tracker
@@ -914,7 +971,7 @@ export async function fetchWeatherNextLiveData() {
     };
 
     // Also fetch free Open-Meteo Air Quality to preserve PM10 / PM2.5 sandstorm warnings
-    const aqiPromise = axios.get(AQI_URL, {
+    const aqiPromise = httpGetJson(AQI_URL, {
       params: {
         latitude: LAT,
         longitude: LON,
@@ -927,8 +984,8 @@ export async function fetchWeatherNextLiveData() {
     });
 
     const [hourlyRes, dailyRes, aqiRes] = await Promise.all([
-      axios.get(hourlyUrl, requestConfig),
-      axios.get(dailyUrl, {
+      httpGetJson(hourlyUrl, requestConfig),
+      httpGetJson(dailyUrl, {
         params: {
           key: apiKey,
           'location.latitude': LAT,
@@ -1013,7 +1070,7 @@ export async function fetchWeatherNextLiveData() {
     const curWind = currentItem.wind?.speed?.value ?? 24;
     const curWind100 = Number((curWind * 1.34 + 1.2).toFixed(1));
 
-    const current = {
+    const current = sanitizeCurrentTelemetry({
       time: formatGstDateTime(now),
       temperature_2m: Number(curTemp.toFixed(1)),
       apparent_temperature: Number((currentItem.feelsLikeTemperature?.degrees ?? curTemp + 2.5).toFixed(1)),
@@ -1033,7 +1090,7 @@ export async function fetchWeatherNextLiveData() {
       european_aqi: aqiData.current?.european_aqi ?? 50,
       pm2_5: aqiData.current?.pm2_5 ?? 20.0,
       pm10: aqiData.current?.pm10 ?? 45.0
-    };
+    });
 
     const daily = {
       time: googleDaily.map((d, i) => d.displayDate ? `${d.displayDate.year}-${pad(d.displayDate.month)}-${pad(d.displayDate.day)}` : formatGstDate(new Date(now.getTime() + i * 86400000))),
@@ -1234,7 +1291,7 @@ export async function fetchOpenMeteoData() {
 
   const fetchWeather = async () => {
     const start = performance.now();
-    const res = await axios.get(WEATHER_URL, { params: weatherParams });
+    const res = await httpGetJson(WEATHER_URL, { params: weatherParams });
     const end = performance.now();
     return {
       res,
@@ -1244,7 +1301,7 @@ export async function fetchOpenMeteoData() {
 
   const fetchAqi = async () => {
     const start = performance.now();
-    const res = await axios.get(AQI_URL, { params: aqiParams });
+    const res = await httpGetJson(AQI_URL, { params: aqiParams });
     const end = performance.now();
     return {
       res,
@@ -1255,7 +1312,7 @@ export async function fetchOpenMeteoData() {
   const fetchMarine = async () => {
     try {
       const start = performance.now();
-      const res = await axios.get(MARINE_URL, { params: marineParams, timeout: 6000 });
+      const res = await httpGetJson(MARINE_URL, { params: marineParams, timeout: 6000 });
       const end = performance.now();
       return {
         res,
@@ -1340,7 +1397,7 @@ export async function fetchOpenMeteoData() {
     ?? null;
   const currentOceanCurrent = marineData?.current?.ocean_current_velocity ?? null;
 
-  const openMeteoCurrent = {
+  const openMeteoCurrent = sanitizeCurrentTelemetry({
     ...weatherData.current,
     ...aqiData.current,
     visibility: weatherData.current?.visibility ?? weatherData.hourly?.visibility?.[curHourIdx] ?? 10000,
@@ -1357,7 +1414,7 @@ export async function fetchOpenMeteoData() {
     wave_direction: currentWaveDir,
     sea_surface_temperature: currentSeaTemp,
     ocean_current_velocity: currentOceanCurrent
-  };
+  });
 
   const openMeteoHourly = {
     ...weatherData.hourly,
@@ -1982,7 +2039,7 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
   let rawAircraft;
   let endpointUsed = 'https://opensky-network.org/api/states/all?lamin=23.55&lomin=53.10&lamax=24.85&lomax=54.65';
   try {
-    const osRes = await axios.get(endpointUsed, { timeout: 4500 });
+    const osRes = await httpGetJson(endpointUsed, { timeout: 4500 });
     const states = Array.isArray(osRes.data?.states) ? osRes.data.states : [];
     rawAircraft = states.map(s => ({
       hex: s[0],
@@ -1996,11 +2053,10 @@ export async function fetchLiveAirspaceTraffic(isSimulated = false, fallbackTraf
     if (rawAircraft.length === 0) throw new Error('Empty OpenSky states');
   } catch {
     try {
+      // SOC 2 CC9.2 Vendor Governance: Query vetted HTTPS endpoint directly (no third-party CORS proxy)
       endpointUsed = 'https://api.adsb.lol/v2/point/24.195/53.860/50';
-      const corsUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(endpointUsed)}&_t=${Math.floor(nowMs / 15000)}`;
-      const corsRes = await axios.get(corsUrl, { timeout: 4500 });
-      const parsedBody = typeof corsRes.data?.contents === 'string' ? JSON.parse(corsRes.data.contents) : corsRes.data;
-      rawAircraft = Array.isArray(parsedBody?.ac) ? parsedBody.ac : [];
+      const directRes = await httpGetJson(endpointUsed, { timeout: 4500 });
+      rawAircraft = Array.isArray(directRes.data?.ac) ? directRes.data.ac : [];
     } catch {
       rawAircraft = [];
     }
@@ -2380,8 +2436,8 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
   const swpcPromise = (async () => {
     const t0 = performance.now();
     const [kpRes, scalesRes] = await Promise.all([
-      axios.get('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', { timeout: 5500 }),
-      axios.get('https://services.swpc.noaa.gov/products/noaa-scales.json', { timeout: 5500 })
+      httpGetJson('https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json', { timeout: 5500 }),
+      httpGetJson('https://services.swpc.noaa.gov/products/noaa-scales.json', { timeout: 5500 })
     ]);
     const latency = Math.round(performance.now() - t0);
     const kpRows = Array.isArray(kpRes.data) ? kpRes.data.slice(1) : [];
@@ -2428,7 +2484,7 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
   // 2. Open-Meteo Upper-Air Pressure Levels (975, 925, 850, 700 hPa)
   const upperAirPromise = (async () => {
     const t0 = performance.now();
-    const res = await axios.get('https://api.open-meteo.com/v1/forecast', {
+    const res = await httpGetJson('https://api.open-meteo.com/v1/forecast', {
       params: {
         latitude: LAT,
         longitude: LON,
@@ -2516,7 +2572,7 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
   // 4. Open-Meteo Multi-Member Ensemble Spread (ICON-EPS)
   const ensemblePromise = (async () => {
     const t0 = performance.now();
-    const res = await axios.get('https://ensemble-api.open-meteo.com/v1/ensemble', {
+    const res = await httpGetJson('https://ensemble-api.open-meteo.com/v1/ensemble', {
       params: {
         latitude: LAT,
         longitude: LON,
@@ -2596,7 +2652,7 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
   // 5. RainViewer Global Doppler Weather Radar & Storm Nowcast API
   const rainviewerPromise = (async () => {
     const t0 = performance.now();
-    const res = await axios.get('https://api.rainviewer.com/public/weather-maps.json', { timeout: 5500 });
+    const res = await httpGetJson('https://api.rainviewer.com/public/weather-maps.json', { timeout: 5500 });
     const latency = Math.round(performance.now() - t0);
     const host = res.data?.host || 'https://tilecache.rainviewer.com';
     const pastFrames = res.data?.radar?.past || [];
@@ -2643,7 +2699,7 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
     const lons = UAE_AIRFIELD_STATIONS.map(s => s.lon).join(',');
 
     const [omRes, noaaRes] = await Promise.allSettled([
-      axios.get('https://api.open-meteo.com/v1/forecast', {
+      httpGetJson('https://api.open-meteo.com/v1/forecast', {
         params: {
           latitude: lats,
           longitude: lons,
@@ -2654,7 +2710,7 @@ async function fetchAuxiliaryTacticalApis(baseMergedData) {
         },
         timeout: 5500
       }),
-      axios.get('https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true', { timeout: 3800 })
+      httpGetJson('https://aviationweather.gov/api/data/metar?ids=OMAA,OMAD,OMAM&format=json&taf=true', { timeout: 3800 })
     ]);
     const latency = Math.round(performance.now() - t0);
 

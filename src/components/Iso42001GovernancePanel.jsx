@@ -12,8 +12,16 @@ import {
 import {
   getIso42001AuditLedger,
   appendIso42001AuditEntry,
-  verifyIso42001LedgerIntegrity
+  verifyIso42001LedgerIntegrity,
+  isHseAdminUnlocked,
+  touchHseAdminActivity
 } from '../services/hseBroadcastService';
+import {
+  escapeHtml,
+  SOC2_TRUST_MATRIX,
+  SOC2_SUBPROCESSORS,
+  SOC2_RETENTION_POLICY
+} from '../utils/securityControls';
 
 const MODEL_CARDS = [
   {
@@ -133,10 +141,12 @@ export default function Iso42001GovernancePanel({
   activeStation = 'hq',
   activeDisplayData
 }) {
-  const [activeView, setActiveView] = useState('ledger'); // 'ledger' | 'models' | 'controls'
+  const [activeView, setActiveView] = useState('ledger'); // 'ledger' | 'models' | 'controls' | 'soc2'
   const [ledger, setLedger] = useState(() => getIso42001AuditLedger());
   const [integrity, setIntegrity] = useState(() => verifyIso42001LedgerIntegrity());
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState(() => isHseAdminUnlocked());
+  const [authNotice, setAuthNotice] = useState('');
 
   // Manual Audit Log Entry Form
   const [logActor, setLogActor] = useState('RSO-1 / AI Safety Auditor');
@@ -149,10 +159,16 @@ export default function Iso42001GovernancePanel({
       setLedger(getIso42001AuditLedger());
       setIntegrity(verifyIso42001LedgerIntegrity());
     };
+    const syncAuth = () => {
+      setIsAdminUnlocked(isHseAdminUnlocked());
+      setAuthNotice('');
+    };
     window.addEventListener('xrange-iso42001-ledger', refreshLedger);
+    window.addEventListener('xrange-admin-auth', syncAuth);
     window.addEventListener('storage', refreshLedger);
     return () => {
       window.removeEventListener('xrange-iso42001-ledger', refreshLedger);
+      window.removeEventListener('xrange-admin-auth', syncAuth);
       window.removeEventListener('storage', refreshLedger);
     };
   }, []);
@@ -167,9 +183,16 @@ export default function Iso42001GovernancePanel({
 
   const handleAddAuditLog = (e) => {
     e.preventDefault();
+    if (!isHseAdminUnlocked()) {
+      setIsAdminUnlocked(false);
+      setAuthNotice('SOC 2 CC6.1: Unlock RSO Admin Clearance (HSE & WhatsApp Dispatcher tab) to append manual audit entries.');
+      return;
+    }
     if (!logRationale.trim()) return;
+    touchHseAdminActivity();
+    setAuthNotice('');
     appendIso42001AuditEntry({
-      isoControl: 'A.9.3 / A.6.2.8',
+      isoControl: 'A.9.3 / A.6.2.8 / CC7.2',
       eventType: logEventType,
       actor: logActor.trim() || 'RSO-1 / AI Safety Auditor',
       modelProvider: isSimulated ? 'SIMULATION_OVERRIDE' : (activeProvider || 'WEATHERNEXT_3'),
@@ -187,11 +210,15 @@ export default function Iso42001GovernancePanel({
 
   const handleExportJsonLedger = () => {
     const exportPayload = {
-      standard: 'ISO/IEC 42001:2023 (Artificial Intelligence Management System)',
+      standard: 'ISO/IEC 42001:2023 (AIMS) & AICPA SOC 2 Trust Services Criteria (2017/2022)',
+      classification: 'OFFICIAL — RANGE OPERATIONS USE ONLY',
       systemName: 'X-Range Weather Hub — AI Powered Weather Safety Portal',
       facility: 'Abu Al Abyad Island Range (OMAB), Abu Dhabi, UAE',
       exportedAtGst: new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }),
       chainIntegrity: integrity,
+      soc2TrustMatrix: SOC2_TRUST_MATRIX,
+      subprocessorSchedule: SOC2_SUBPROCESSORS,
+      retentionPolicy: SOC2_RETENTION_POLICY,
       modelInventory: MODEL_CARDS,
       controlMatrix: ISO_CONTROL_MATRIX,
       auditLedger: ledger
@@ -199,7 +226,7 @@ export default function Iso42001GovernancePanel({
     const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `XRANGE_ISO42001_AIMS_Audit_Ledger_${new Date().toISOString().slice(0, 10)}.json`;
+    link.download = `XRANGE_ISO42001_SOC2_Audit_Ledger_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -207,33 +234,43 @@ export default function Iso42001GovernancePanel({
 
   const handleExportWordDossier = () => {
     const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-    <head><meta charset="utf-8"><title>ISO/IEC 42001:2023 AI Governance & Compliance Dossier</title></head>
+    <head><meta charset="utf-8"><title>ISO/IEC 42001:2023 &amp; SOC 2 Compliance Dossier</title></head>
     <body style="font-family: Arial, sans-serif; font-size: 10pt; color: #0f172a;">
       <div style="background:#090B0E; color:#fff; padding:14px; border-bottom:4px solid #FF4E02;">
-        <h2 style="margin:0;">XRANGE WEATHER HUB — ISO/IEC 42001:2023 AIMS COMPLIANCE DOSSIER</h2>
-        <p style="margin:4px 0 0 0; font-size:9pt; color:#38bdf8;">ABU AL ABYAD ISLAND (OMAB) • AI MANAGEMENT SYSTEM AUDIT REPORT • ${new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' })} GST</p>
+        <h2 style="margin:0;">XRANGE WEATHER HUB — ISO/IEC 42001:2023 &amp; SOC 2 COMPLIANCE DOSSIER</h2>
+        <p style="margin:4px 0 0 0; font-size:9pt; color:#38bdf8;">ABU AL ABYAD ISLAND (OMAB) • OFFICIAL — RANGE OPERATIONS USE ONLY • ${escapeHtml(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }))} GST</p>
       </div>
-      <p><strong>AIMS CONFORMANCE STATUS:</strong> 100% Technical Alignment (Clauses 4–10 & Annex A.2–A.10) | <strong>HASH CHAIN INTEGRITY:</strong> ${integrity.valid ? 'VERIFIED' : 'ALERT'} (${integrity.verifiedCount}/${integrity.totalEntries} entries, Head Digest: <code>${integrity.headHash.slice(0, 24)}...</code>)</p>
-      <h3>1. ISO/IEC 42001:2023 Annex A Control Matrix</h3>
+      <p><strong>AIMS &amp; SOC 2 STATUS:</strong> 100% In-Repo Technical Alignment | <strong>SHA-256 CHAIN INTEGRITY:</strong> ${integrity.valid ? 'VERIFIED' : 'ALERT'} (${integrity.verifiedCount}/${integrity.totalEntries} entries, Head Digest: <code>${escapeHtml(integrity.headHash.slice(0, 24))}...</code>)</p>
+      <h3>1. AICPA SOC 2 Trust Services Criteria Matrix (CC1–CC9, A1, PI1, C1, P1–P4)</h3>
+      <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:9pt;">
+        <tr style="background:#1e293b; color:#fff;"><th>TSC Criteria</th><th>Domain</th><th>Control</th><th>Status</th><th>Implementation Evidence</th></tr>
+        ${SOC2_TRUST_MATRIX.map(s => `<tr><td><strong>${escapeHtml(s.criteria)}</strong></td><td>${escapeHtml(s.category)}</td><td>${escapeHtml(s.control)}</td><td style="color:#059669;"><strong>${escapeHtml(s.status)}</strong></td><td>${escapeHtml(s.evidence)}</td></tr>`).join('')}
+      </table>
+      <h3>2. ISO/IEC 42001:2023 Annex A Control Matrix</h3>
       <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:9pt;">
         <tr style="background:#1e293b; color:#fff;"><th>Clause / Annex</th><th>Control Domain</th><th>Status</th><th>Implementation Evidence</th></tr>
-        ${ISO_CONTROL_MATRIX.map(c => `<tr><td><strong>${c.clause}</strong></td><td>${c.title}</td><td style="color:#059669;"><strong>${c.status}</strong></td><td>${c.evidence}</td></tr>`).join('')}
+        ${ISO_CONTROL_MATRIX.map(c => `<tr><td><strong>${escapeHtml(c.clause)}</strong></td><td>${escapeHtml(c.title)}</td><td style="color:#059669;"><strong>${escapeHtml(c.status)}</strong></td><td>${escapeHtml(c.evidence)}</td></tr>`).join('')}
       </table>
-      <h3>2. AI System Inventory, Uncertainty Bounds & HITL Mandates (Annex A.4 & A.8)</h3>
+      <h3>3. AI System Inventory, Uncertainty Bounds &amp; HITL Mandates (Annex A.4 &amp; A.8)</h3>
       <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:9pt;">
-        <tr style="background:#1e293b; color:#fff;"><th>Model ID</th><th>Architecture</th><th>Uncertainty Bounds</th><th>Known Limitations & HITL Mandate</th></tr>
-        ${MODEL_CARDS.map(m => `<tr><td><strong>${m.id}</strong><br/>${m.version}</td><td>${m.name}<br/><em>${m.type}</em></td><td>${m.uncertainty}</td><td><strong>Limitation:</strong> ${m.limitations}<br/><strong>HITL Mandate:</strong> ${m.hitlMandate}</td></tr>`).join('')}
+        <tr style="background:#1e293b; color:#fff;"><th>Model ID</th><th>Architecture</th><th>Uncertainty Bounds</th><th>Known Limitations &amp; HITL Mandate</th></tr>
+        ${MODEL_CARDS.map(m => `<tr><td><strong>${escapeHtml(m.id)}</strong><br/>${escapeHtml(m.version)}</td><td>${escapeHtml(m.name)}<br/><em>${escapeHtml(m.type)}</em></td><td>${escapeHtml(m.uncertainty)}</td><td><strong>Limitation:</strong> ${escapeHtml(m.limitations)}<br/><strong>HITL Mandate:</strong> ${escapeHtml(m.hitlMandate)}</td></tr>`).join('')}
       </table>
-      <h3>3. Tamper-Evident AI Decision & Human Override Ledger (Annex A.6.2.8)</h3>
+      <h3>4. Vetted Subprocessor &amp; Telemetry Data Flow Schedule (SOC 2 CC9.2 / P1.1)</h3>
+      <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:9pt;">
+        <tr style="background:#1e293b; color:#fff;"><th>Subprocessor</th><th>Operational Purpose</th><th>Data Shared</th><th>Transport</th></tr>
+        ${SOC2_SUBPROCESSORS.map(sp => `<tr><td><strong>${escapeHtml(sp.name)}</strong></td><td>${escapeHtml(sp.purpose)}</td><td>${escapeHtml(sp.dataShared)}</td><td>${escapeHtml(sp.transport)}</td></tr>`).join('')}
+      </table>
+      <h3>5. Tamper-Evident FIPS 180-4 SHA-256 Audit Ledger (Annex A.6.2.8 / CC7.2)</h3>
       <table border="1" cellspacing="0" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:8.5pt;">
-        <tr style="background:#1e293b; color:#fff;"><th>Record ID</th><th>Timestamp (UTC)</th><th>Event Type</th><th>Actor / Engine</th><th>Decision</th><th>Rationale</th><th>256-Bit Hash</th></tr>
-        ${ledger.slice(0, 25).map(e => `<tr><td>${e.id}</td><td>${e.timestamp}</td><td>${e.eventType}</td><td>${e.actor}</td><td><strong>${e.decision}</strong></td><td>${e.rationale}</td><td style="font-family:Consolas,monospace;">${e.hash.slice(0, 16)}...</td></tr>`).join('')}
+        <tr style="background:#1e293b; color:#fff;"><th>Record ID</th><th>Timestamp (UTC)</th><th>Event Type</th><th>Actor / Engine</th><th>Decision</th><th>Rationale</th><th>SHA-256 Digest</th></tr>
+        ${ledger.slice(0, 25).map(e => `<tr><td>${escapeHtml(e.id)}</td><td>${escapeHtml(e.timestamp)}</td><td>${escapeHtml(e.eventType)}</td><td>${escapeHtml(e.actor)}</td><td><strong>${escapeHtml(e.decision)}</strong></td><td>${escapeHtml(e.rationale)}</td><td style="font-family:Consolas,monospace;">${escapeHtml((e.hash || '').slice(0, 16))}...</td></tr>`).join('')}
       </table>
     </body></html>`;
     const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `XRANGE_ISO42001_Compliance_Dossier_${new Date().toISOString().slice(0, 10)}.doc`;
+    link.download = `XRANGE_ISO42001_SOC2_Compliance_Dossier_${new Date().toISOString().slice(0, 10)}.doc`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -317,11 +354,12 @@ export default function Iso42001GovernancePanel({
 
       {/* Sub-Navigation Switcher */}
       <div className="flex items-center justify-between bg-slate-900/90 border border-slate-800 px-3 py-1.5 shrink-0 flex-wrap gap-2">
-        <div className="flex items-center space-x-1.5">
+        <div className="flex items-center flex-wrap gap-1.5">
           {[
-            { id: 'ledger', label: '📜 Tamper-Evident AI & HITL Audit Ledger (A.6.2.8)' },
-            { id: 'models', label: '🧠 AI Model Cards, Uncertainty & HITL Limits (A.4 / A.8)' },
-            { id: 'controls', label: '🛡️ ISO 42001 Annex A Control Matrix (Clauses 4–10)' }
+            { id: 'ledger', label: '📜 Tamper-Evident SHA-256 Ledger (A.6.2.8 / CC7.2)' },
+            { id: 'soc2', label: '🔒 SOC 2 TSC & Subprocessor Schedule' },
+            { id: 'models', label: '🧠 AI Model Cards & HITL Limits (A.4 / A.8)' },
+            { id: 'controls', label: '🛡️ ISO 42001 Control Matrix (Clauses 4–10)' }
           ].map(tab => (
             <button
               key={tab.id}
@@ -422,18 +460,22 @@ export default function Iso42001GovernancePanel({
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white py-2 text-[10px] font-black uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer shadow-md"
+                  disabled={!isAdminUnlocked}
+                  className="w-full bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 disabled:opacity-45 disabled:cursor-not-allowed text-white py-2 text-[10px] font-black uppercase tracking-wider flex items-center justify-center space-x-1.5 cursor-pointer shadow-md"
                 >
-                  <PlusCircle className="w-3.5 h-3.5" />
-                  <span>APPEND TO HASH-CHAINED AUDIT LEDGER</span>
+                  {isAdminUnlocked ? <PlusCircle className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                  <span>{isAdminUnlocked ? 'APPEND TO SHA-256 AUDIT LEDGER' : 'LOCKED — UNLOCK RSO CLEARANCE TO APPEND'}</span>
                 </button>
+                {authNotice && (
+                  <p className="text-[8.5px] font-bold text-amber-300 mt-1 leading-snug">{authNotice}</p>
+                )}
               </form>
             </div>
 
             <div className="bg-bgDeepSpace/80 border border-slate-800 p-2.5 text-[9px] text-slate-400 space-y-1 mt-3">
               <div className="flex items-center justify-between font-mono text-cyan-300 font-bold">
                 <span>GENESIS HASH ALGORITHM:</span>
-                <span>256-BIT FNV-1A CHAIN</span>
+                <span>FIPS 180-4 SHA-256 CHAIN</span>
               </div>
               <p className="leading-snug">
                 Every automated safety transition, webhook dispatch, and RSO directive is automatically chained to the prior entry&apos;s digest to prevent retroactive tampering.
@@ -503,6 +545,64 @@ export default function Iso42001GovernancePanel({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 4: SOC 2 TRUST SERVICES CRITERIA & SUBPROCESSOR PRIVACY SCHEDULE */}
+      {activeView === 'soc2' && (
+        <div className="flex-grow min-h-0 overflow-y-auto no-scrollbar space-y-3">
+          <div className="bg-cardDarkSlate border border-slate-800 p-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5 flex-wrap gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-white">
+                AICPA SOC 2 TRUST SERVICES CRITERIA (SECURITY, AVAILABILITY, PROCESSING INTEGRITY, CONFIDENTIALITY & PRIVACY)
+              </span>
+              <span className="text-[9px] font-mono font-bold text-safetyGreen">
+                RETENTION: {SOC2_RETENTION_POLICY.broadcastHistoryDays}D BROADCAST TTL • {SOC2_RETENTION_POLICY.adminIdleTimeoutMinutes}M IDLE AUTO-LOCK
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+              {SOC2_TRUST_MATRIX.map((item) => (
+                <div key={item.criteria} className="bg-bgDeepSpace/80 border border-slate-800 p-2.5 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[8.5px] font-mono font-black text-cyan-400 uppercase">{item.criteria}</span>
+                      <span className="px-1.5 py-0.5 text-[7.5px] font-mono font-black bg-safetyGreen/20 border border-safetyGreen/40 text-safetyGreen">
+                        ✓ {item.status}
+                      </span>
+                    </div>
+                    <div className="text-[8px] font-bold text-edgeOrange uppercase mb-0.5">{item.category}</div>
+                    <h4 className="text-[10px] font-black text-white uppercase mb-1">{item.control}</h4>
+                    <p className="text-[9px] text-slate-300 leading-relaxed">{item.evidence}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-cardDarkSlate border border-slate-800 p-3.5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-2.5 flex-wrap gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-white">
+                THIRD-PARTY TELEMETRY SUBPROCESSOR & PRIVACY NOTICE (SOC 2 CC9.2 / P1.1)
+              </span>
+              <span className="text-[9px] font-mono text-cyan-300">
+                {SOC2_RETENTION_POLICY.piiMaskingDefault}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {SOC2_SUBPROCESSORS.map((sp) => (
+                <div key={sp.name} className="bg-bgDeepSpace/70 border border-slate-800 p-2.5 text-[9px] flex flex-col justify-between">
+                  <div className="flex items-center justify-between mb-1">
+                    <strong className="text-white uppercase text-[9.5px]">{sp.name}</strong>
+                    <span className="px-1.5 py-0.5 font-mono text-[8px] bg-cyan-950/60 border border-cyan-500/40 text-cyan-300">
+                      {sp.transport}
+                    </span>
+                  </div>
+                  <p className="text-slate-300 mb-0.5"><strong className="text-slate-400">Purpose:</strong> {sp.purpose}</p>
+                  <p className="text-slate-400"><strong className="text-slate-500">Data Shared:</strong> {sp.dataShared}</p>
+                </div>
+              ))}
             </div>
           </div>
         </div>
